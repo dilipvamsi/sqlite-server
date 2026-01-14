@@ -1,0 +1,10 @@
+[
+  {
+    "name": "loadtest",
+    "dbPath": "loadtest.db"
+  },
+  {
+    "name": "loadtest-mixed",
+    "dbPath": "loadtest-mixed.db"
+  }
+]

@@ -1,0 +1,592 @@
+/**
+ * @file db/v1/database.proto
+ * @description The definitive gRPC contract for the go-sqlite-proxy service.
+ *
+ * ARCHITECTURAL DESIGN:
+ *
+ * 1. DUAL TRANSACTION MODELS:
+ *    - Streaming (Bidirectional): Best for short, interactive sessions where the
+ *      connection lifespan equals the transaction lifespan. Automatic rollback on disconnect.
+ *    - Unary (ID-Based): Best for stateless HTTP clients or long-running workflows where
+ *      holding a TCP connection open is brittle. Requires manual 'Begin'/'Commit' and
+ *      relies on server-side Timeouts (TTL) to clean up "Zombie" transactions.
+ *
+ * 2. TYPE SAFETY (SPARSE HINTS):
+ *    Since JSON/Protobuf lacks native support for some SQLite types (like BLOBs or
+ *    large Integers), we use a "Hint" system. The client sends data as standard JSON
+ *    types but provides a mapping (e.g., "param 0 is a BLOB") so the server knows
+ *    to decode Base64 before hitting the DB.
+ *
+ * 3. ERROR FIDELITY:
+ *    We map native C SQLite result codes to a Proto Enum (`SqliteCode`). This allows
+ *    clients to programmatically react to specific errors (e.g., retrying on SQLITE_BUSY)
+ *    without parsing error string messages.
+ */
+
+syntax = "proto3";
+
+package db.v1;
+
+import "buf/validate/validate.proto";
+// Standard types for dynamic values (JSON-like structure).
+import "google/protobuf/struct.proto";
+
+option go_package = "sqlite-server/internal/protos/db/v1;dbv1";
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+/**
+ * SqliteCode maps standard SQLite C result codes to a Proto Enum.
+ * Use this to handle specific DB errors programmatically.
+ * Reference: https://www.sqlite.org/rescode.html
+ */
+enum SqliteCode {
+  // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+  // Successful result (0)
+  SQLITE_CODE_OK = 0;
+  // Generic error (1)
+  SQLITE_CODE_ERROR = 1;
+  // Internal logic error in SQLite (2)
+  SQLITE_CODE_INTERNAL = 2;
+  // Access permission denied (3)
+  SQLITE_CODE_PERM = 3;
+  // Callback routine requested an abort (4)
+  SQLITE_CODE_ABORT = 4;
+  // The database file is locked (5)
+  SQLITE_CODE_BUSY = 5;
+  // A table in the database is locked (6)
+  SQLITE_CODE_LOCKED = 6;
+  // A malloc() failed (7)
+  SQLITE_CODE_NOMEM = 7;
+  // Attempt to write a readonly database (8)
+  SQLITE_CODE_READONLY = 8;
+  // Operation terminated by sqlite3_interrupt() (9)
+  SQLITE_CODE_INTERRUPT = 9;
+  // Some kind of disk I/O error occurred (10)
+  SQLITE_CODE_IOERR = 10;
+  // The database disk image is malformed (11)
+  SQLITE_CODE_CORRUPT = 11;
+  // Unknown opcode in sqlite3_file_control() (12)
+  SQLITE_CODE_NOTFOUND = 12;
+  // Insertion failed because database is full (13)
+  SQLITE_CODE_FULL = 13;
+  // Unable to open the database file (14)
+  SQLITE_CODE_CANTOPEN = 14;
+  // Database lock protocol error (15)
+  SQLITE_CODE_PROTOCOL = 15;
+  // Internal use only (16)
+  SQLITE_CODE_EMPTY = 16;
+  // The database schema changed (17)
+  SQLITE_CODE_SCHEMA = 17;
+  // String or BLOB exceeds size limit (18)
+  SQLITE_CODE_TOOBIG = 18;
+  // Abort due to constraint violation (19)
+  SQLITE_CODE_CONSTRAINT = 19;
+  // Data type mismatch (20)
+  SQLITE_CODE_MISMATCH = 20;
+  // Library used incorrectly (21)
+  SQLITE_CODE_MISUSE = 21;
+  // Uses OS features not supported on host (22)
+  SQLITE_CODE_NOLFS = 22;
+  // Authorization denied (23)
+  SQLITE_CODE_AUTH = 23;
+  // Not used (24)
+  SQLITE_CODE_FORMAT = 24;
+  // 2nd parameter to sqlite3_bind out of range (25)
+  SQLITE_CODE_RANGE = 25;
+  // File opened that is not a database file (26)
+  SQLITE_CODE_NOTADB = 26;
+  // Notifications from sqlite3_log() (27)
+  SQLITE_CODE_NOTICE = 27;
+  // Warnings from sqlite3_log() (28)
+  SQLITE_CODE_WARNING = 28;
+  // sqlite3_step() has another row ready (100)
+  SQLITE_CODE_ROW = 100;
+  // sqlite3_step() has finished executing (101)
+  SQLITE_CODE_DONE = 101;
+}
+
+/**
+ * QueryType hints at the intent of the query, allowing the proxy to route
+ * requests to the appropriate connection (e.g., read-only replicas vs WAL writers).
+ */
+enum QueryType {
+  // Default behavior (typically treats as a write or checks leader).
+  QUERY_TYPE_UNSPECIFIED = 0;
+  // Routes to Read-Only connection/replica.
+  QUERY_TYPE_READ = 1;
+  // Routes to Read-Write connection/WAL.
+  QUERY_TYPE_WRITE = 2;
+}
+
+/**
+ * TransactionMode defines the locking behavior for the start of a transaction.
+ * Choosing the right mode is crucial for SQLite to prevent "Database Locked" errors.
+ */
+enum TransactionMode {
+  // Defaults to DEFERRED.
+  TRANSACTION_MODE_UNSPECIFIED = 0;
+  // Locks the DB only when the first table access occurs. Standard SQLite behavior.
+  TRANSACTION_MODE_DEFERRED = 1;
+  // Acquires a write lock immediately. Recommended for write-heavy transactions
+  // to prevent SQLITE_BUSY deadlocks.
+  TRANSACTION_MODE_IMMEDIATE = 2;
+  // Prevents other connections from reading while this transaction is open.
+  TRANSACTION_MODE_EXCLUSIVE = 3;
+}
+
+/**
+ * ColumnType defines the resolved data type of a column or parameter.
+ * These hints allow the system to restore precision lost by JSON encoding.
+ */
+enum ColumnType {
+  // Default value, indicates no specific type information is available.
+  COLUMN_TYPE_UNSPECIFIED = 0;
+  // Represents a NULL value.
+  COLUMN_TYPE_NULL = 1;
+  // Maps to INT, INTEGER, BIGINT, TINYINT. Client should parse as int64.
+  COLUMN_TYPE_INTEGER = 2;
+  // Maps to REAL, DOUBLE, FLOAT.
+  COLUMN_TYPE_FLOAT = 3;
+  // Maps to TEXT, VARCHAR, CLOB, CHAR.
+  COLUMN_TYPE_TEXT = 4;
+  // Maps to BLOB, BINARY. Sent as Base64 string in ListValue.
+  COLUMN_TYPE_BLOB = 5;
+  // Maps to BOOLEAN. Sent as 0/1 or true/false.
+  COLUMN_TYPE_BOOLEAN = 6;
+  // Maps to DATETIME/TIMESTAMP. Sent as ISO8601 String.
+  COLUMN_TYPE_DATE = 7;
+  // Maps to specific JSON columns (if the DB supports JSON types).
+  COLUMN_TYPE_JSON = 8;
+}
+
+// -----------------------------------------------------------------------------
+// Service Definition
+// -----------------------------------------------------------------------------
+
+/**
+ * DatabaseService defines the API for interacting with SQLite databases.
+ * It provides stateless, streaming, and transactional access patterns.
+ */
+// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+// buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+service DatabaseService {
+  // --- Stateless Operations ---
+
+  /**
+   * Executes a single stateless query and returns the entire result.
+   * Best for point-lookups (SELECT ... WHERE id=?).
+   *
+   * WARNING: The server enforces a hard limit on row count (e.g., 1000) for this RPC.
+   * For larger datasets, use `QueryStream`.
+   */
+  rpc Query(QueryRequest) returns (QueryResult);
+
+  /**
+   * Executes a stateless query and streams results.
+   * Safe for large exports or reporting queries.
+   * Protocol: Header -> Batch... -> Batch... -> Complete
+   */
+  rpc QueryStream(QueryRequest) returns (stream QueryResponse);
+
+  // --- Stateful Operations (Model A: Bidirectional Stream) ---
+
+  /**
+   * Opens a stateful bidirectional stream for transactions.
+   *
+   * Flow:
+   * 1. Client sends `BeginRequest`
+   * 2. Client sends multiple `TransactionalQueryRequest`
+   * 3. Client sends `Commit` or `Rollback`
+   */
+  rpc Transaction(stream TransactionRequest) returns (stream TransactionResponse);
+
+  // --- Stateful Operations (Model B: Unary ID-Based) ---
+
+  /**
+   * Starts a new transaction context on the server and returns a 'transaction_id'.
+   * The server holds the connection open in memory until Commit, Rollback, or Timeout.
+   */
+  rpc BeginTransaction(BeginTransactionRequest) returns (BeginTransactionResponse);
+
+  /**
+   * Executes a query inside the context of an existing 'transaction_id'.
+   * If the ID is invalid or timed out, returns NOT_FOUND.
+   */
+  rpc TransactionQuery(TransactionQueryRequest) returns (QueryResult);
+
+  /**
+   * Commits the transaction associated with the ID and releases server resources.
+   */
+  rpc CommitTransaction(TransactionControlRequest) returns (TransactionControlResponse);
+
+  /**
+   * Rolls back the transaction associated with the ID and releases server resources.
+   */
+  rpc RollbackTransaction(TransactionControlRequest) returns (TransactionControlResponse);
+
+  // --- Utility Operations ---
+
+  /**
+   * Executes a predefined script of commands atomically.
+   * Useful for migrations or testing where interactivity is not required.
+   */
+  rpc ExecuteTransaction(ExecuteTransactionRequest) returns (ExecuteTransactionResponse);
+}
+
+// -----------------------------------------------------------------------------
+// Core Request Messages
+// -----------------------------------------------------------------------------
+
+/**
+ * A request for the stateless `Query` and `QueryStream` RPCs.
+ */
+message QueryRequest {
+  // Database name. Must be alphanumeric (plus _-), 3-64 chars.
+  // Validated to prevent directory traversal attacks.
+  string database = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{3,64}$"}];
+
+  // SQL Statement. Max 10KB to prevent memory abuse.
+  string sql = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 10240
+  }];
+
+  // Optional hint to optimize connection routing (Read vs Write).
+  QueryType type = 3;
+
+  // Parameters definition (Positional or Named).
+  Parameters parameters = 4;
+}
+
+/**
+ * Encapsulates all parameter logic using a "Sparse Hinting" strategy.
+ * This structure avoids overhead by only requiring types for ambiguous values.
+ */
+message Parameters {
+  // The actual data values. Can be either a list (positional) or a struct (named).
+  oneof values {
+    google.protobuf.ListValue positional = 1;
+    google.protobuf.Struct named = 2;
+  }
+
+  // Sparse Type Hints.
+  // ONLY populate these for values that JSON/ListValue handles poorly.
+  // Examples:
+  // - A String "123" that must be treated as INT64 in DB -> Hint INTEGER
+  // - A String "base64..." that must be decoded to bytes -> Hint BLOB
+  //
+  // For standard strings, bools, and small ints, NO HINT IS NEEDED.
+
+  // Key: The 0-based index of the positional parameter.
+  map<int32, ColumnType> positional_hints = 3;
+
+  // Key: The parameter name (e.g., ":id", "@user").
+  map<string, ColumnType> named_hints = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Unary Transaction Messages (ID-Based)
+// -----------------------------------------------------------------------------
+
+/**
+ * Request to start a new ID-based transaction session.
+ */
+message BeginTransactionRequest {
+  // Database name to lock.
+  string database = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{3,64}$"}];
+
+  // How long the server should keep this transaction alive without activity
+  // before auto-rolling back. (e.g., "30s", "1m").
+  // If unspecified, defaults to server configuration (usually 30s).
+  string timeout = 2;
+
+  // The locking mode to use (DEFERRED, IMMEDIATE, EXCLUSIVE).
+  TransactionMode mode = 3;
+}
+
+/**
+ * Response containing the transaction session token.
+ */
+message BeginTransactionResponse {
+  // The unique session token the client MUST send in subsequent 'TransactionQuery' calls.
+  string transaction_id = 1;
+
+  // When this transaction will expire (Unix MS) if no further commands are sent.
+  // Clients can use this to anticipate timeouts.
+  int64 expires_at_unix_ms = 2;
+}
+
+/**
+ * Request to execute a query within an existing transaction session.
+ */
+message TransactionQueryRequest {
+  // The token received from BeginTransaction.
+  // Note: No database name needed; the ID implies the database context.
+  string transaction_id = 1 [(buf.validate.field).string.min_len = 1];
+
+  // The SQL statement to execute.
+  string sql = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 10240
+  }];
+
+  // Parameters for the query.
+  Parameters parameters = 3;
+}
+
+/**
+ * Request to Commit or Rollback a transaction session.
+ */
+message TransactionControlRequest {
+  // The session token to finalize.
+  string transaction_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+/**
+ * Response indicating success of the control operation.
+ */
+message TransactionControlResponse {
+  // True if the Commit/Rollback was successful.
+  // False usually indicates the transaction ID was not found (already expired/closed).
+  bool success = 1;
+}
+
+// -----------------------------------------------------------------------------
+// Streaming Transaction Messages
+// -----------------------------------------------------------------------------
+
+/**
+ * The envelope message for a single command within a bidirectional stream.
+ * It uses a `oneof` to enforce that only one action is taken per message.
+ */
+message TransactionRequest {
+  // The specific command to execute. Exactly one must be set.
+  oneof command {
+    option (buf.validate.oneof).required = true;
+    BeginRequest begin = 1;
+    TransactionalQueryRequest query = 2;
+    CommitRequest commit = 3;
+    RollbackRequest rollback = 4;
+  }
+}
+
+/**
+ * Initiates a new transaction context in the stream.
+ * This MUST be the first message sent.
+ */
+message BeginRequest {
+  // Database name. Must match the standard naming pattern.
+  // This locks the connection to this specific database for the duration of the stream.
+  string database = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{3,64}$"}];
+
+  // The locking mode. Defaults to DEFERRED if unspecified.
+  // Use IMMEDIATE or EXCLUSIVE for write-heavy transactions to avoid busy-loops.
+  TransactionMode mode = 2;
+}
+
+/**
+ * A query executed within an active transaction context.
+ * Unlike `QueryRequest`, this does not specify a database name as the context is already established.
+ */
+message TransactionalQueryRequest {
+  // SQL Statement. Max 10KB.
+  string sql = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 10240
+  }];
+
+  // Parameters definition.
+  Parameters parameters = 2;
+}
+
+/**
+ * Signals that the transaction should be committed to disk.
+ * If this fails, the server will automatically rollback.
+ * This typically marks the end of the request stream.
+ */
+message CommitRequest {}
+
+/**
+ * Signals that the transaction should be aborted and all changes discarded.
+ * This typically marks the end of the request stream.
+ */
+message RollbackRequest {}
+
+/**
+ * A container for a sequence of transaction steps to be executed atomically via Unary RPC.
+ * This is meant for simple, linear scripts (like migrations) where client-side interactivity isn't needed.
+ */
+message ExecuteTransactionRequest {
+  // Must contain at least one request (e.g., Begin).
+  // The server executes these in order. If one fails, the whole transaction rolls back.
+  repeated TransactionRequest requests = 1 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// -----------------------------------------------------------------------------
+// Response Messages
+// -----------------------------------------------------------------------------
+
+/**
+ * The response for Unary RPCs (`Query`, `TransactionQuery`).
+ * This message holds the entire result set in memory.
+ */
+message QueryResult {
+  // The result payload. Either a SELECT result or DML result.
+  oneof result {
+    SelectResult select = 1;
+    DMLResult dml = 2;
+  }
+  // Performance statistics for the execution.
+  ExecutionStats stats = 3;
+}
+
+/**
+ * The response envelope for streaming RPCs (`QueryStream` and `Transaction`).
+ * The stream will typically send: [Header] -> [Batch]* -> [Complete].
+ */
+message QueryResponse {
+  oneof response {
+    // Sent once at the start of a result set to define columns.
+    QueryResultHeader header = 1;
+    // Sent repeatedly containing chunks of rows.
+    QueryResultRowBatch batch = 2;
+    // Sent once when the query successfully finishes.
+    QueryComplete complete = 3;
+    // Sent if the query was an INSERT/UPDATE/DELETE.
+    DMLResult dml = 4;
+    // Sent if an error occurs mid-stream.
+    ErrorResponse error = 5;
+  }
+}
+
+/**
+ * The response envelope for the `Transaction` RPC.
+ * Mirrors QueryResponse but adds Transaction-specific lifecycle messages.
+ */
+message TransactionResponse {
+  oneof response {
+    // Lifecycle responses
+    BeginResponse begin = 1;
+    CommitResponse commit = 2;
+    RollbackResponse rollback = 3;
+    ErrorResponse error = 4;
+
+    // Embedded query results
+    QueryResultHeader header = 5;
+    QueryResultRowBatch batch = 6;
+    QueryComplete complete = 7;
+    DMLResult dml = 8;
+  }
+}
+
+/**
+ * The response for the unary `ExecuteTransaction` RPC.
+ */
+message ExecuteTransactionResponse {
+  // A list of responses corresponding 1-to-1 with the requests in the input script.
+  // Allows the client to verify which step succeeded or failed.
+  repeated TransactionResponse responses = 1;
+}
+
+// -----------------------------------------------------------------------------
+// Shared Data Types
+// -----------------------------------------------------------------------------
+
+/**
+ * Represents the full result set of a SELECT query (used in Unary RPC).
+ */
+message SelectResult {
+  // The names of the columns returned by the query.
+  repeated string columns = 1;
+  // The resolved column types mapped from SQLite declarations (e.g. VARCHAR -> TEXT).
+  repeated ColumnType column_types = 2;
+  // All rows buffered in memory.
+  repeated google.protobuf.ListValue rows = 3;
+}
+
+/**
+ * Represents the result of a Data Modification Language query (INSERT, UPDATE, DELETE).
+ */
+message DMLResult {
+  // The number of rows modified by the query.
+  int64 rows_affected = 1;
+  // The ROWID of the last inserted row (if applicable).
+  int64 last_insert_id = 2;
+}
+
+/**
+ * Metadata about the columns in a result set (Streaming).
+ * Sent as the first message in a read stream.
+ */
+message QueryResultHeader {
+  // The names of the columns.
+  repeated string columns = 1;
+  // The resolved column types mapped from SQLite declarations.
+  repeated ColumnType column_types = 2;
+}
+
+/**
+ * A batch of rows in a streaming response.
+ * Used to chunk large result sets to avoid memory spikes.
+ */
+message QueryResultRowBatch {
+  // A list of rows, where each row is a ListValue.
+  repeated google.protobuf.ListValue rows = 1;
+}
+
+/**
+ * Signals the successful completion of a read query stream.
+ */
+message QueryComplete {
+  // Final execution statistics.
+  ExecutionStats stats = 1;
+}
+
+/**
+ * Performance metrics for a query execution.
+ * Useful for profiling and monitoring.
+ */
+message ExecutionStats {
+  // Total execution time in milliseconds.
+  double duration_ms = 1;
+  // Number of rows read from the database.
+  int64 rows_read = 2;
+  // Number of rows written/modified.
+  int64 rows_written = 3;
+}
+
+/** Response indicating a transaction successfully started. */
+message BeginResponse {
+  bool success = 1;
+  // Optional internal transaction identifier (useful for debugging).
+  // Trace Id for the whole transaction
+  string transaction_id = 2 [(buf.validate.field).string = {uuid: true}];
+}
+
+/** Response indicating a transaction successfully committed. */
+message CommitResponse {
+  bool success = 1;
+}
+
+/** Response indicating a transaction successfully rolled back. */
+message RollbackResponse {
+  bool success = 1;
+}
+
+/**
+ * Standard error response attached to failures.
+ * This is sent as a stream message (Streaming) or Error Detail (Unary).
+ */
+message ErrorResponse {
+  // Human-readable error message.
+  string message = 1;
+  // The SQL that caused the error (if available/safe to return).
+  string failed_sql = 2;
+  // The precise SQLite error code for programmatic handling.
+  // Reference: https://www.sqlite.org/rescode.html
+  SqliteCode sqlite_error_code = 3;
+}

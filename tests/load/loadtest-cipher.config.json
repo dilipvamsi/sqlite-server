@@ -1,0 +1,12 @@
+[
+  {
+    "name": "loadtest",
+    "dbPath": "loadtest-cipher.db",
+    "isEncrypted": true
+  },
+  {
+    "name": "loadtest-mixed",
+    "dbPath": "loadtest-mixed-cipher.db",
+    "isEncrypted": true
+  }
+]

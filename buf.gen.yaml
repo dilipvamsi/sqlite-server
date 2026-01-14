@@ -1,0 +1,47 @@
+version: v2
+# Managed configuration for generating code across multiple languages.
+# This setup supports both modern ConnectRPC for Go and standard gRPC for Node.js.
+
+plugins:
+  # ==========================================
+  # GO GENERATION
+  # ==========================================
+
+  # Generates standard Go structs and serialization/deserialization logic.
+  # Output: internal/protos/**/*.pb.go
+  - remote: buf.build/protocolbuffers/go:v1.36.1
+    out: internal/protos
+    opt:
+      # Ensures the output directory structure matches the proto file structure.
+      - paths=source_relative
+
+  # Generates ConnectRPC handlers and clients.
+  # Connect is a slim, type-safe alternative to standard gRPC-Go that
+  # supports gRPC, gRPC-Web, and the Connect protocol.
+  # Output: internal/protos/**/*.connect.go
+  - remote: buf.build/connectrpc/go:v1.18.1
+    out: internal/protos
+    opt:
+      - paths=source_relative
+
+  # ==========================================
+  # JAVASCRIPT / NODE.JS GENERATION
+  # ==========================================
+
+  # Generates the base message classes for the JS environment.
+  # import_style=commonjs: Required for standard Node.js 'require()' compatibility.
+  # binary: Includes binary serialization/deserialization code.
+  # Output: clients/js/src/protos/**/*_pb.js
+  - remote: buf.build/protocolbuffers/js:v3.21.2
+    out: clients/js/src/protos
+    opt:
+      - import_style=commonjs
+      - binary
+
+  # Generates the service definitions specifically for the @grpc/grpc-js library.
+  # This provides the actual client/server stubs needed for network communication.
+  # Output: clients/js/src/protos/**/*_grpc_pb.js
+  - remote: buf.build/grpc/node:v1.13.1
+    out: clients/js/src/protos
+    opt:
+      - grpc_js
