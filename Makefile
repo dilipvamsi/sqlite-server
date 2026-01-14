@@ -1,43 +1,45 @@
 # ==============================================================================
-# OS Detection & Extension Handling
+# OS Detection & Build Configuration
 # ==============================================================================
 ifeq ($(OS),Windows_NT)
     EXT := .exe
-    STATIC_EXTLDFLAGS := -static
+    # Windows static linking usually handled via -extldflags "-static"
+    STATIC_LDFLAGS := -linkmode external -extldflags "-static"
 else
     EXT := .bin
-    # Linux/Unix: "Mostly static" - links everything statically EXCEPT the dynamic loader
-    # to allow loading external .so extensions via dlopen.
-    STATIC_EXTLDFLAGS := -static-libgcc -extldflags "-static -ldl -lpthread -Wl,-E"
+    # Linux: combine -static, -ldl (for sqlite extensions), and -lpthread
+    # -Wl,-E exports symbols for plugin/extension support
+    STATIC_LDFLAGS := -linkmode external -extldflags "-static -ldl -lpthread -Wl,-E"
 endif
 
 # ==============================================================================
 # Variables
 # ==============================================================================
-BINARY_NAME=sqlite-server
-SERVER_DIR=./cmd/sever
-BUILD_DIR=./bin
-CONFIG_FILE=config.json
+BINARY_NAME    := sqlite-server
+SERVER_DIR     := ./cmd/sever
+BUILD_DIR      := ./bin
+TEST_DATA_DIR  := ./data-test
+LOAD_TEST_DIR  := ./tests/load
 
-BINARY_OUT=$(BUILD_DIR)/$(BINARY_NAME)$(EXT)
-BINARY_STATIC_OUT=$(BUILD_DIR)/$(BINARY_NAME)-static$(EXT)
+BINARY_OUT        := $(BUILD_DIR)/$(BINARY_NAME)$(EXT)
+BINARY_STATIC_OUT := $(BUILD_DIR)/$(BINARY_NAME)-static$(EXT)
 
-LOAD_TEST_DIR=./tests/load
-LOAD_TEST_BINS=setup-read-db read-db read-stream-db setup-mixed-db read-write-db read-write-stream-db
+# Config Paths
+DEFAULT_CONFIG         := config.json
+LOADTEST_CONFIG        := ./tests/load/loadtest.config.json
+LOADTEST_CIPHER_CONFIG := ./tests/load/loadtest-cipher.config.json
 
-GO=go
-GOCMD=$(GO)
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GOCMD) test
-GOMOD=$(GOCMD) mod
+# Tooling
+GOCMD          := go
+LDFLAGS_COMMON := -s -w
+STATIC_TAGS    := osusergo,netgo
 
-# Build Flags
-LDFLAGS_COMMON=-s -w
-STATIC_TAGS=osusergo,netgo
+# Common build command for dynamic binaries
+# CGO_ENABLED=1 is strictly required for mattn/go-sqlite3
+GOBUILD_DYNAMIC := CGO_ENABLED=1 $(GOCMD) build -ldflags "$(LDFLAGS_COMMON)"
 
 # ==============================================================================
-# Build & Development
+# Main Targets
 # ==============================================================================
 
 .PHONY: all
@@ -47,33 +49,29 @@ all: proto build ## Generate Protobuf code and build the dynamic binary
 build: build-dynamic ## Default build (alias for build-dynamic)
 
 .PHONY: build-dynamic
-build-dynamic: ## Build a dynamically linked binary (.bin or .exe)
+build-dynamic: ## Build a dynamically linked binary
 	@echo "Building dynamic binary: $(BINARY_OUT)"
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=1 $(GOBUILD) -ldflags "$(LDFLAGS_COMMON)" -o $(BINARY_OUT) $(SERVER_DIR)/main.go
+	$(GOBUILD_DYNAMIC) -o $(BINARY_OUT) $(SERVER_DIR)/main.go
 
 .PHONY: build-static
-build-static: ## Build a mostly-static binary that supports external .so/.dll extensions
+build-static: ## Build a mostly-static binary (with extension support)
 	@echo "Building static-portable binary: $(BINARY_STATIC_OUT)"
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=1 $(GOBUILD) \
-		-tags $(STATIC_TAGS) \
-		-ldflags '$(LDFLAGS_COMMON) -linkmode external $(STATIC_EXTLDFLAGS)' \
+	CGO_ENABLED=1 $(GOCMD) build \
+		-tags "$(STATIC_TAGS)" \
+		-ldflags '$(LDFLAGS_COMMON) $(STATIC_LDFLAGS)' \
 		-o $(BINARY_STATIC_OUT) $(SERVER_DIR)/main.go
 
 .PHONY: run
 run: build ## Build and run the server with default config
 	@echo "Running $(BINARY_OUT)..."
-	$(BINARY_OUT) $(CONFIG_FILE)
+	$(BINARY_OUT) $(DEFAULT_CONFIG)
 
 .PHONY: run-dev
-run-dev: ## Run the server directly using 'go run' (fast development)
+run-dev: ## Run directly using 'go run' (fast development)
 	@echo "Starting server in dev mode..."
-	$(GOCMD) run $(SERVER_DIR)/main.go $(CONFIG_FILE)
-
-.PHONY: tidy
-tidy: ## Clean up and sync go.mod and go.sum
-	$(GOMOD) tidy
+	CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(DEFAULT_CONFIG)
 
 # ==============================================================================
 # Protocol Buffers
@@ -89,49 +87,81 @@ proto-lint: ## Run linting on .proto files
 	buf lint
 
 # ==============================================================================
-# Testing & Load Tests
+# Load Test: Data Initialization
 # ==============================================================================
 
-.PHONY: test
-test: ## Run standard unit tests for internal packages
-	$(GOTEST) -v ./internal/...
-
-.PHONY: build-load-tests
-build-load-tests: ## Build all load test binaries into bin/tests/
-	@echo "Building load tests..."
+# Pattern rule: Builds any tool in tests/load/[name]/main.go to bin/tests/[name].bin
+$(BUILD_DIR)/tests/%$(EXT): $(LOAD_TEST_DIR)/%/main.go
 	@mkdir -p $(BUILD_DIR)/tests
-	@$(foreach test,$(LOAD_TEST_BINS), \
-		echo "Building $(test)$(EXT)..."; \
-		$(GOBUILD) -o $(BUILD_DIR)/tests/$(test)$(EXT) $(LOAD_TEST_DIR)/$(test)/main.go; \
-	)
+	@echo "🔨 Compiling tool: $*..."
+	CGO_ENABLED=1 $(GOCMD) build -ldflags "$(LDFLAGS_COMMON)" -o $@ $<
 
-.PHONY: run-load-tests
-run-load-tests: build-load-tests ## Build and execute the full sequence of load tests
-	@echo "🚀 Starting Load Test Suite..."
-	@echo "1/3: Setting up databases..."
-	$(BUILD_DIR)/tests/setup-read-db$(EXT)
-	$(BUILD_DIR)/tests/setup-mixed-db$(EXT)
-	@echo "2/3: Running Read tests..."
-	$(BUILD_DIR)/tests/read-db$(EXT)
-	$(BUILD_DIR)/tests/read-stream-db$(EXT)
-	@echo "3/3: Running Write/Stream tests..."
-	$(BUILD_DIR)/tests/read-write-db$(EXT)
-	$(BUILD_DIR)/tests/read-write-stream-db$(EXT)
-	@echo "✅ Load tests completed."
+$(TEST_DATA_DIR):
+	@mkdir -p $(TEST_DATA_DIR)
+
+.PHONY: build-load-test-setup
+build-load-test-setup: $(TEST_DATA_DIR) $(BUILD_DIR)/tests/setup-read-db$(EXT) $(BUILD_DIR)/tests/setup-mixed-db$(EXT) ## Build and run setup tools to create test DBs
+	@echo "📦 Initializing test databases..."
+	@$(BUILD_DIR)/tests/setup-read-db$(EXT)
+	@$(BUILD_DIR)/tests/setup-mixed-db$(EXT)
+	@echo "✅ Setup complete. Local .db files created in $(TEST_DATA_DIR)"
+
+.PHONY: build-load-test-setup-cipher
+build-load-test-setup-cipher: $(TEST_DATA_DIR) $(BUILD_DIR)/tests/setup-read-db$(EXT) $(BUILD_DIR)/tests/setup-mixed-db$(EXT) ## Setup encrypted test databases
+	@echo "🔐 Initializing encrypted databases..."
+	@$(BUILD_DIR)/tests/setup-read-db$(EXT) --cipher
+	@$(BUILD_DIR)/tests/setup-mixed-db$(EXT) --cipher
+	@echo "✅ Encrypted setup complete."
 
 # ==============================================================================
-# Utilities
+# Load Test: Server & Client Execution
 # ==============================================================================
+
+.PHONY: run-load-test-setup
+run-load-test-setup: build-load-test-setup build ## Setup DBs and run server with loadtest config
+	@echo "🚀 Starting server with LOADTEST config..."
+	$(BINARY_OUT) $(LOADTEST_CONFIG)
+
+.PHONY: run-load-test-setup-cipher
+run-load-test-setup-cipher: build-load-test-setup-cipher build ## Setup encrypted DBs and run server with cipher config
+	@echo "🚀 Starting server with LOADTEST CIPHER config..."
+	$(BINARY_OUT) $(LOADTEST_CIPHER_CONFIG)
+
+BENCH_BINS := $(BUILD_DIR)/tests/read-db$(EXT) \
+              $(BUILD_DIR)/tests/read-stream-db$(EXT) \
+              $(BUILD_DIR)/tests/read-write-db$(EXT) \
+              $(BUILD_DIR)/tests/read-write-stream-db$(EXT)
+
+.PHONY: build-load-test
+build-load-test: $(BENCH_BINS) ## Build all benchmark clients
+	@echo "✅ All load test binaries are ready in $(BUILD_DIR)/tests/"
+
+.PHONY: load-test
+load-test: $(BENCH_BINS) ## Run benchmark clients (Server must be running)
+	@echo "🏃 Running benchmarks..."
+	@$(BUILD_DIR)/tests/read-db$(EXT)
+	@$(BUILD_DIR)/tests/read-stream-db$(EXT)
+	@$(BUILD_DIR)/tests/read-write-db$(EXT)
+	@$(BUILD_DIR)/tests/read-write-stream-db$(EXT)
+	@echo "🏁 Benchmarks finished."
+
+# ==============================================================================
+# Helpers
+# ==============================================================================
+
+.PHONY: tidy
+tidy: ## Clean up and sync go.mod and go.sum
+	$(GOCMD) mod tidy
 
 .PHONY: clean
-clean: ## Remove the bin directory and clean go build cache
-	@echo "Cleaning up..."
+clean: ## Remove binaries and database files
 	rm -rf $(BUILD_DIR)
-	$(GOCLEAN)
+	rm -rf $(TEST_DATA_DIR)
+	@echo "Cleanup complete."
 
 .PHONY: help
-help: ## Display this help screen containing all commands
+help: ## Show this help screen
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-32s\033[0m %s\n", $$1, $$2}'

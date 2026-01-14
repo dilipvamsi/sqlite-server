@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"sqlite-server/internal/sqldrivers"
 	"log"
 	"os"
+	"sqlite-server/internal/sqldrivers"
 )
 
 func main() {
@@ -18,13 +18,13 @@ func main() {
 	if *enableCipher {
 		config = sqldrivers.DBConfig{
 			Name:        "loadtest-cipher",
-			DBPath:      "loadtest-cipher.db",
+			DBPath:      "./data-test/loadtest-cipher.db",
 			IsEncrypted: true,
 		}
 	} else {
 		config = sqldrivers.DBConfig{
 			Name:   "loadtest",
-			DBPath: "loadtest.db",
+			DBPath: "./data-test/loadtest.db",
 		}
 	}
 

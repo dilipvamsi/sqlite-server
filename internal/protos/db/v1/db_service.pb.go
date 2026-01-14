@@ -1,6 +1,6 @@
 //*
 // @file db/v1/database.proto
-// @description The definitive gRPC contract for the go-sqlite-proxy service.
+// @description The definitive gRPC contract for the sqlite-server service.
 //
 // ARCHITECTURAL DESIGN:
 //
@@ -53,6 +53,7 @@ const (
 type SqliteCode int32
 
 const (
+	// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
 	// Successful result (0)
 	SqliteCode_SQLITE_CODE_OK SqliteCode = 0
 	// Generic error (1)

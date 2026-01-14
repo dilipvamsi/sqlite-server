@@ -1,3 +1,14 @@
+# db
+*.db
+*db-shm
+*.db-wal
+
+# bin
+bin/
+
+# test data
+data-test/
+
 # Logs
 logs
 *.log

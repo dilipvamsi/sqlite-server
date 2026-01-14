@@ -2,7 +2,7 @@
  * @file service.go
  * @package servicesv1
  * @description The definitive implementation of the `DatabaseService` gRPC contract for the
- * Go-SQLite-Proxy. This service acts as a high-performance, type-safe bridge between gRPC
+ * Sqlite-Server. This service acts as a high-performance, type-safe bridge between gRPC
  * clients and underlying SQLite database files.
  *
  * ARCHITECTURAL DESIGN PHILOSOPHY:

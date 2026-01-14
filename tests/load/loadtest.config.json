@@ -1,10 +1,10 @@
 [
   {
     "name": "loadtest",
-    "dbPath": "loadtest.db"
+    "dbPath": "./data-test/loadtest.db"
   },
   {
     "name": "loadtest-mixed",
-    "dbPath": "loadtest-mixed.db"
+    "dbPath": "./data-test/loadtest-mixed.db"
   }
 ]

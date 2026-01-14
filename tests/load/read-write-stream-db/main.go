@@ -1,5 +1,5 @@
 /**
- * @file This file contains a mixed read/write load tester for the go-sqlite-proxy.
+ * @file This file contains a mixed read/write load tester for the sqlite-server.
  * @description This definitive version tests the server's primary, production-ready
  * streaming RPCs. Read workers use `QueryStream` and write workers use the full,
  * stateful `Transaction` bidirectional stream to provide the most realistic
@@ -60,9 +60,9 @@ func main() {
 	enableCipher = flag.Bool("cipher", false, "Enable default ciphering")
 
 	if *enableCipher {
-		dbPath = "loadtest-mixed-cipher.db"
+		dbPath = "./data-test/loadtest-mixed-cipher.db"
 	} else {
-		dbPath = "loadtest-mixed.db"
+		dbPath = "./data-test/loadtest-mixed.db"
 	}
 
 	// --- Setup ---

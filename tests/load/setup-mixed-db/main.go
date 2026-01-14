@@ -22,13 +22,13 @@ func main() {
 	if *enableCipher {
 		config = sqldrivers.DBConfig{
 			Name:        "loadtest-mixed-cipher",
-			DBPath:      "loadtest-mixed-cipher.db",
+			DBPath:      "./data-test/loadtest-mixed-cipher.db",
 			IsEncrypted: true,
 		}
 	} else {
 		config = sqldrivers.DBConfig{
 			Name:   "loadtest",
-			DBPath: "loadtest-mixed.db",
+			DBPath: "./data-test/loadtest-mixed.db",
 		}
 	}
 

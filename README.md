@@ -40,25 +40,25 @@ SQLite is dynamically typed, but gRPC/Protobuf is statically typed. To bridge th
                  |
                  | (Query / Stream / Begin)
                  v
-+-------------------------------------------------------+
-|                 SQlite Server (Process)               |
-|                                                       |
-|  +-----------------+          +--------------------+  |
-|  |  gRPC Handler   | Stateful | In-Memory Transaction|  |
-|  | (Entry Point)   +--------->|      Registry      |  |
-|  +-------+---------+          +----------+---------+  |
-|          |                               |            |
-|          | Stateless                     | Hold Tx    |
-|          |                               v            |
-|          |                    +--------------------+  |
-|          |                    |   SQL Connection   |  |
-|          v                    |       Pools        |  |
-|  +-------+---------+          +----------+---------+  |
-|  |   Background    |                     |            |
-|  |     Reaper      |--- Periodically ----^            |
-|  | (Cleanup Task)  |     Scans Registry               |
-|  +-----------------+                                  |
-+-------------------------------------------------------+
++----------------------------------------------------------+
+|                 SQlite Server (Process)                  |
+|                                                          |
+|  +-----------------+          +-----------------------+  |
+|  |  gRPC Handler   | Stateful | In-Memory Transaction |  |
+|  | (Entry Point)   +--------->|        Registry       |  |
+|  +-------+---------+          +----------+------------+  |
+|          |                               |               |
+|          | Stateless                     | Hold Tx       |
+|          |                               v               |
+|          |                    +--------------------+     |
+|          |                    |   SQL Connection   |     |
+|          v                    |       Pools        |     |
+|  +-------+---------+          +----------+---------+     |
+|  |   Background    |                     |               |
+|  |     Reaper      |--- Periodically ----^               |
+|  | (Cleanup Task)  |     Scans Registry                  |
+|  +-----------------+                                     |
++----------------------------------------------------------+
                  |                     |
                  v                     v
           [(  User.db  )]       [(  Data.db  )]

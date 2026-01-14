@@ -1,5 +1,5 @@
 /**
- * @file This file contains the load testing client for the go-sqlite-proxy.
+ * @file This file contains the load testing client for the sqlite-server.
  * @description It simulates high-concurrency read operations against the `QueryStream`
  * RPC to measure its throughput (Requests Per Second) and stability under load.
  * The test is configurable and provides a clear summary of performance.
