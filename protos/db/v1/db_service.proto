@@ -219,6 +219,13 @@ service DatabaseService {
   rpc TransactionQuery(TransactionQueryRequest) returns (QueryResult);
 
   /**
+   * Executes a query inside the context of an existing 'transaction_id'.
+   * The server will stream the results back to the client.
+   * If the ID is invalid or timed out, returns NOT_FOUND.
+   */
+  rpc TransactionQueryStream(TransactionQueryRequest) returns (stream QueryResponse);
+
+  /**
    * Commits the transaction associated with the ID and releases server resources.
    */
   rpc CommitTransaction(TransactionControlRequest) returns (TransactionControlResponse);
@@ -364,11 +371,22 @@ message TransactionControlResponse {
  * It uses a `oneof` to enforce that only one action is taken per message.
  */
 message TransactionRequest {
-  // The specific command to execute. Exactly one must be set.
   oneof command {
     option (buf.validate.oneof).required = true;
+
+    // Starts the transaction
     BeginRequest begin = 1;
+
+    // Executes a query and expects the result buffered in a single response.
+    // Use this for small lookups or DML (INSERT/UPDATE).
     TransactionalQueryRequest query = 2;
+
+    // Executes a query and expects the result to be streamed back in multiple
+    // TransactionResponse messages (Header -> Batch... -> Complete).
+    // Use this for large SELECTs within a transaction.
+    TransactionalQueryRequest query_stream = 5;
+
+    // Finalizes the transaction
     CommitRequest commit = 3;
     RollbackRequest rollback = 4;
   }
@@ -473,13 +491,20 @@ message TransactionResponse {
     BeginResponse begin = 1;
     CommitResponse commit = 2;
     RollbackResponse rollback = 3;
-    ErrorResponse error = 4;
 
-    // Embedded query results
-    QueryResultHeader header = 5;
-    QueryResultRowBatch batch = 6;
-    QueryComplete complete = 7;
-    DMLResult dml = 8;
+    // --- Query Result Models ---
+
+    // Returned exactly once in response to a 'query' request.
+    // Contains the full rows and column metadata in one message.
+    QueryResult query_result = 4;
+
+    // Returned multiple times in response to a 'query_stream' request.
+    // Follows the streaming protocol (Header -> Batch... -> Complete).
+    QueryResponse stream_result = 5;
+
+    // --- System Errors ---
+    // Used for failures in Begin/Commit/Rollback or protocol violations.
+    ErrorResponse error = 6;
   }
 }
 

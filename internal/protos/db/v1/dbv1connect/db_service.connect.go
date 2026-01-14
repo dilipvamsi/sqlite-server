@@ -71,6 +71,9 @@ const (
 	// DatabaseServiceTransactionQueryProcedure is the fully-qualified name of the DatabaseService's
 	// TransactionQuery RPC.
 	DatabaseServiceTransactionQueryProcedure = "/db.v1.DatabaseService/TransactionQuery"
+	// DatabaseServiceTransactionQueryStreamProcedure is the fully-qualified name of the
+	// DatabaseService's TransactionQueryStream RPC.
+	DatabaseServiceTransactionQueryStreamProcedure = "/db.v1.DatabaseService/TransactionQueryStream"
 	// DatabaseServiceCommitTransactionProcedure is the fully-qualified name of the DatabaseService's
 	// CommitTransaction RPC.
 	DatabaseServiceCommitTransactionProcedure = "/db.v1.DatabaseService/CommitTransaction"
@@ -112,6 +115,11 @@ type DatabaseServiceClient interface {
 	// Executes a query inside the context of an existing 'transaction_id'.
 	// If the ID is invalid or timed out, returns NOT_FOUND.
 	TransactionQuery(context.Context, *connect.Request[v1.TransactionQueryRequest]) (*connect.Response[v1.QueryResult], error)
+	// *
+	// Executes a query inside the context of an existing 'transaction_id'.
+	// The server will stream the results back to the client.
+	// If the ID is invalid or timed out, returns NOT_FOUND.
+	TransactionQueryStream(context.Context, *connect.Request[v1.TransactionQueryRequest]) (*connect.ServerStreamForClient[v1.QueryResponse], error)
 	// *
 	// Commits the transaction associated with the ID and releases server resources.
 	CommitTransaction(context.Context, *connect.Request[v1.TransactionControlRequest]) (*connect.Response[v1.TransactionControlResponse], error)
@@ -165,6 +173,12 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("TransactionQuery")),
 			connect.WithClientOptions(opts...),
 		),
+		transactionQueryStream: connect.NewClient[v1.TransactionQueryRequest, v1.QueryResponse](
+			httpClient,
+			baseURL+DatabaseServiceTransactionQueryStreamProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("TransactionQueryStream")),
+			connect.WithClientOptions(opts...),
+		),
 		commitTransaction: connect.NewClient[v1.TransactionControlRequest, v1.TransactionControlResponse](
 			httpClient,
 			baseURL+DatabaseServiceCommitTransactionProcedure,
@@ -188,14 +202,15 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 
 // databaseServiceClient implements DatabaseServiceClient.
 type databaseServiceClient struct {
-	query               *connect.Client[v1.QueryRequest, v1.QueryResult]
-	queryStream         *connect.Client[v1.QueryRequest, v1.QueryResponse]
-	transaction         *connect.Client[v1.TransactionRequest, v1.TransactionResponse]
-	beginTransaction    *connect.Client[v1.BeginTransactionRequest, v1.BeginTransactionResponse]
-	transactionQuery    *connect.Client[v1.TransactionQueryRequest, v1.QueryResult]
-	commitTransaction   *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
-	rollbackTransaction *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
-	executeTransaction  *connect.Client[v1.ExecuteTransactionRequest, v1.ExecuteTransactionResponse]
+	query                  *connect.Client[v1.QueryRequest, v1.QueryResult]
+	queryStream            *connect.Client[v1.QueryRequest, v1.QueryResponse]
+	transaction            *connect.Client[v1.TransactionRequest, v1.TransactionResponse]
+	beginTransaction       *connect.Client[v1.BeginTransactionRequest, v1.BeginTransactionResponse]
+	transactionQuery       *connect.Client[v1.TransactionQueryRequest, v1.QueryResult]
+	transactionQueryStream *connect.Client[v1.TransactionQueryRequest, v1.QueryResponse]
+	commitTransaction      *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
+	rollbackTransaction    *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
+	executeTransaction     *connect.Client[v1.ExecuteTransactionRequest, v1.ExecuteTransactionResponse]
 }
 
 // Query calls db.v1.DatabaseService.Query.
@@ -221,6 +236,11 @@ func (c *databaseServiceClient) BeginTransaction(ctx context.Context, req *conne
 // TransactionQuery calls db.v1.DatabaseService.TransactionQuery.
 func (c *databaseServiceClient) TransactionQuery(ctx context.Context, req *connect.Request[v1.TransactionQueryRequest]) (*connect.Response[v1.QueryResult], error) {
 	return c.transactionQuery.CallUnary(ctx, req)
+}
+
+// TransactionQueryStream calls db.v1.DatabaseService.TransactionQueryStream.
+func (c *databaseServiceClient) TransactionQueryStream(ctx context.Context, req *connect.Request[v1.TransactionQueryRequest]) (*connect.ServerStreamForClient[v1.QueryResponse], error) {
+	return c.transactionQueryStream.CallServerStream(ctx, req)
 }
 
 // CommitTransaction calls db.v1.DatabaseService.CommitTransaction.
@@ -268,6 +288,11 @@ type DatabaseServiceHandler interface {
 	// Executes a query inside the context of an existing 'transaction_id'.
 	// If the ID is invalid or timed out, returns NOT_FOUND.
 	TransactionQuery(context.Context, *connect.Request[v1.TransactionQueryRequest]) (*connect.Response[v1.QueryResult], error)
+	// *
+	// Executes a query inside the context of an existing 'transaction_id'.
+	// The server will stream the results back to the client.
+	// If the ID is invalid or timed out, returns NOT_FOUND.
+	TransactionQueryStream(context.Context, *connect.Request[v1.TransactionQueryRequest], *connect.ServerStream[v1.QueryResponse]) error
 	// *
 	// Commits the transaction associated with the ID and releases server resources.
 	CommitTransaction(context.Context, *connect.Request[v1.TransactionControlRequest]) (*connect.Response[v1.TransactionControlResponse], error)
@@ -317,6 +342,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("TransactionQuery")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceTransactionQueryStreamHandler := connect.NewServerStreamHandler(
+		DatabaseServiceTransactionQueryStreamProcedure,
+		svc.TransactionQueryStream,
+		connect.WithSchema(databaseServiceMethods.ByName("TransactionQueryStream")),
+		connect.WithHandlerOptions(opts...),
+	)
 	databaseServiceCommitTransactionHandler := connect.NewUnaryHandler(
 		DatabaseServiceCommitTransactionProcedure,
 		svc.CommitTransaction,
@@ -347,6 +378,8 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceBeginTransactionHandler.ServeHTTP(w, r)
 		case DatabaseServiceTransactionQueryProcedure:
 			databaseServiceTransactionQueryHandler.ServeHTTP(w, r)
+		case DatabaseServiceTransactionQueryStreamProcedure:
+			databaseServiceTransactionQueryStreamHandler.ServeHTTP(w, r)
 		case DatabaseServiceCommitTransactionProcedure:
 			databaseServiceCommitTransactionHandler.ServeHTTP(w, r)
 		case DatabaseServiceRollbackTransactionProcedure:
@@ -380,6 +413,10 @@ func (UnimplementedDatabaseServiceHandler) BeginTransaction(context.Context, *co
 
 func (UnimplementedDatabaseServiceHandler) TransactionQuery(context.Context, *connect.Request[v1.TransactionQueryRequest]) (*connect.Response[v1.QueryResult], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TransactionQuery is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) TransactionQueryStream(context.Context, *connect.Request[v1.TransactionQueryRequest], *connect.ServerStream[v1.QueryResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TransactionQueryStream is not implemented"))
 }
 
 func (UnimplementedDatabaseServiceHandler) CommitTransaction(context.Context, *connect.Request[v1.TransactionControlRequest]) (*connect.Response[v1.TransactionControlResponse], error) {

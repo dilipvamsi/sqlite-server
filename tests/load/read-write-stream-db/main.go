@@ -212,7 +212,10 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 	defer stream.CloseResponse()
 
 	// --- Step 1: Send BEGIN ---
-	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: dbName}}}); err != nil {
+	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{
+		Database: dbName,
+		Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
+	}}}); err != nil {
 		return err
 	}
 	if _, err := stream.Receive(); err != nil {

@@ -58,8 +58,16 @@ func main() {
 		dbPath = "./data-test/loadtest-mixed.db"
 	}
 
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+
 	// --- Setup ---
-	client := dbv1connect.NewDatabaseServiceClient(http.DefaultClient, serverAddr)
+	client := dbv1connect.NewDatabaseServiceClient(httpClient, serverAddr)
 	var wg sync.WaitGroup
 
 	// Use a context to signal workers to stop when the test duration is over.
@@ -147,7 +155,10 @@ func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Dat
 			req := connect.NewRequest(&dbv1.ExecuteTransactionRequest{
 				Requests: []*dbv1.TransactionRequest{
 					// FIX: Add a valid, unique request_id to every command.
-					{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: dbName}}},
+					{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{
+						Database: dbName,
+						Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
+					}}},
 					{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{
 						Sql: "UPDATE accounts SET balance = balance - ? WHERE id = ?;",
 						Parameters: &dbv1.Parameters{

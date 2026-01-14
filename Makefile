@@ -77,8 +77,8 @@ run-dev: ## Run directly using 'go run' (fast development)
 # Protocol Buffers
 # ==============================================================================
 
-.PHONY: proto
-proto: ## Generate Go code from .proto files using buf
+.PHONY: gen-proto
+gen-proto: ## Generate Go code from .proto files using buf
 	@echo "Generating Protobuf code..."
 	buf generate
 
