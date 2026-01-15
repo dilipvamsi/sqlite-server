@@ -32,11 +32,12 @@ plugins:
   # import_style=commonjs: Required for standard Node.js 'require()' compatibility.
   # binary: Includes binary serialization/deserialization code.
   # Output: clients/js/src/protos/**/*_pb.js
-  - remote: buf.build/protocolbuffers/js:v3.21.2
+  - remote: buf.build/protocolbuffers/js:v4.0.1
     out: clients/js/src/protos
     opt:
       - import_style=commonjs
       - binary
+    include_imports: true
 
   # Generates the service definitions specifically for the @grpc/grpc-js library.
   # This provides the actual client/server stubs needed for network communication.

@@ -67,37 +67,42 @@ func IsReadOnly(sql string) bool {
 // compatible with the Go `database/sql` driver.
 //
 // LOGIC:
-// 1. Handles `oneof`: Detects if parameters are Positional (Array) or Named (Map).
-// 2. Applies Hints: Uses `applyHint` to convert generic types (string) to specific types (bytes).
+//
+//	Applies Hints: Uses `applyHint` to convert generic types (string) to specific types (bytes).
 func convertParameters(params *dbv1.Parameters) ([]any, error) {
+
+	// log.Printf("params: %s", params)
+	// log.Printf("Received Hints: %v", params.PositionalHints)
 	if params == nil {
 		return nil, nil
 	}
-	switch v := params.Values.(type) {
-	case *dbv1.Parameters_Positional:
-		rawList := v.Positional.AsSlice()
-		converted := make([]any, len(rawList))
+
+	var converted []any
+
+	// 1. Process Positional
+	if params.Positional != nil {
+		rawList := params.Positional.AsSlice()
 		hints := params.PositionalHints
 		for i, val := range rawList {
 			hint, hasHint := hints[int32(i)]
-			converted[i] = applyHint(val, hint, hasHint)
+			converted = append(converted, applyHint(val, hint, hasHint))
 		}
-		return converted, nil
-	case *dbv1.Parameters_Named:
-		rawMap := v.Named.AsMap()
-		converted := make([]any, 0, len(rawMap))
+	}
+
+	// 2. Process Named
+	if params.Named != nil {
+		rawMap := params.Named.AsMap()
 		hints := params.NamedHints
 		for key, val := range rawMap {
 			hint, hasHint := hints[key]
-			// Named args in sql usually don't want the prefix (:, @, $) in the name field
+			// Clean prefix (:, @, $) and wrap in sql.Named
 			cleanKey := strings.TrimLeft(key, ":@$")
 			finalVal := applyHint(val, hint, hasHint)
 			converted = append(converted, sql.Named(cleanKey, finalVal))
 		}
-		return converted, nil
-	default:
-		return nil, nil
 	}
+
+	return converted, nil
 }
 
 // applyHint performs type coercion based on the "Sparse Hint" provided by the client.
@@ -106,20 +111,49 @@ func applyHint(val any, hint dbv1.ColumnType, hasHint bool) any {
 	if !hasHint || val == nil {
 		return val
 	}
+
+	// log.Printf("val: %s", val)
+	// log.Printf("hint: %s", hint)
 	switch hint {
 	case dbv1.ColumnType_COLUMN_TYPE_BLOB:
-		// Client sends BLOB as Base64 String -> We decode to []byte
+		// Logic: Clients send binary data as Base64 strings.
+		// We decode it back to []byte so SQLite driver uses binary mode.
 		if strVal, ok := val.(string); ok {
 			if decoded, err := base64.StdEncoding.DecodeString(strVal); err == nil {
 				return decoded
 			}
 		}
+
 	case dbv1.ColumnType_COLUMN_TYPE_INTEGER:
-		// Client sends INT as JSON Number (float64) -> We cast to int64
-		if floatVal, ok := val.(float64); ok {
-			return int64(floatVal)
+		// Logic: Handle precision safety.
+		// JS sends Large Integers (> 2^53) as strings.
+		// Standard JSON numbers arrive as float64.
+		switch v := val.(type) {
+		case string:
+			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return i
+			}
+		case float64:
+			return int64(v)
+		}
+
+	case dbv1.ColumnType_COLUMN_TYPE_BOOLEAN:
+		// Logic: Coerce various truthy values to int 0/1 for SQLite
+		if b, ok := val.(bool); ok {
+			if b {
+				return 1
+			}
+			return 0
+		}
+
+	case dbv1.ColumnType_COLUMN_TYPE_FLOAT:
+		if s, ok := val.(string); ok {
+			if f, err := strconv.ParseFloat(s, 64); err == nil {
+				return f
+			}
 		}
 	}
+
 	return val
 }
 
@@ -315,6 +349,7 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 // It is intended for small, precise lookups only.
 func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.Parameters) (*dbv1.QueryResult, error) {
 	startTime := time.Now()
+	// log.Printf("sql: %s", sqlQuery)
 
 	params, err := convertParameters(paramsMsg)
 	if err != nil {
@@ -360,6 +395,7 @@ func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, para
 			DurationMs: float64(time.Since(startTime).Milliseconds()),
 			RowsRead:   rowsRead,
 		}
+		// log.Printf("select: %s", selectResult)
 		return &dbv1.QueryResult{
 			Result: &dbv1.QueryResult_Select{Select: selectResult},
 			Stats:  stats,
@@ -444,9 +480,46 @@ func valuesToProto(values []sql.RawBytes, colTypes []dbv1.ColumnType) *structpb.
 		case dbv1.ColumnType_COLUMN_TYPE_BLOB:
 			// Base64 encoding creates a new string (Allocation required)
 			pbValues[i] = structpb.NewStringValue(base64.StdEncoding.EncodeToString(rb))
+			// log.Printf("blob: %s", rb)
+			// log.Printf("b64: %s", pbValues[i])
 
 		default:
-			// Fallback for unspecified types
+			// --- UPDATED DEFAULT CASE ---
+			// For expressions like 'SELECT 1+1', SQLite returns no type info.
+			// We attempt to parse as a number to satisfy JS client expectations.
+
+			// Use unsafe string for parsing (0 allocation)
+			tempStr := UnsafeBytesToStringNoCopy(rb)
+
+			// 1. Try Integer
+			if val, err := strconv.ParseInt(tempStr, 10, 64); err == nil {
+				// Update metadata for the client
+				if colTypes[i] == dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED {
+					colTypes[i] = dbv1.ColumnType_COLUMN_TYPE_INTEGER
+				}
+
+				if val > maxSafeInteger || val < -maxSafeInteger {
+					pbValues[i] = structpb.NewStringValue(tempStr)
+				} else {
+					pbValues[i] = structpb.NewNumberValue(float64(val))
+				}
+				continue
+			}
+
+			// 2. Try Float
+			if val, err := strconv.ParseFloat(tempStr, 64); err == nil {
+				// Update metadata for the client
+				if colTypes[i] == dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED {
+					colTypes[i] = dbv1.ColumnType_COLUMN_TYPE_FLOAT
+				}
+				pbValues[i] = structpb.NewNumberValue(val)
+				continue
+			}
+
+			// 3. Fallback to Text
+			if colTypes[i] == dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED {
+				colTypes[i] = dbv1.ColumnType_COLUMN_TYPE_TEXT
+			}
 			pbValues[i] = structpb.NewStringValue(string(rb))
 		}
 	}

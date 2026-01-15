@@ -1,0 +1,21 @@
+{
+  "name": "sqlite-server",
+  "version": "0.1.0",
+  "description": "Client Lib for go sqlite server ",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --expose-gc node_modules/.bin/jest --detectOpenHandles"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.3",
+    "google-protobuf": "^4.0.1",
+    "sql-template-strings": "^2.2.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0"
+  }
+}

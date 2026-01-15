@@ -281,11 +281,8 @@ message QueryRequest {
  * This structure avoids overhead by only requiring types for ambiguous values.
  */
 message Parameters {
-  // The actual data values. Can be either a list (positional) or a struct (named).
-  oneof values {
-    google.protobuf.ListValue positional = 1;
-    google.protobuf.Struct named = 2;
-  }
+  google.protobuf.ListValue positional = 1;
+  google.protobuf.Struct named = 2;
 
   // Sparse Type Hints.
   // ONLY populate these for values that JSON/ListValue handles poorly.
