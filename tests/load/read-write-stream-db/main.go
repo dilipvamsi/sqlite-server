@@ -325,7 +325,7 @@ func verifyDataIntegrity() {
 }
 
 // listValue is a helper to quickly create a *structpb.ListValue.
-func listValue(vals ...interface{}) *structpb.ListValue {
+func listValue(vals ...any) *structpb.ListValue {
 	l, _ := structpb.NewList(vals)
 	return l
 }

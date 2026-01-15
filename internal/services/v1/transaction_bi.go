@@ -167,6 +167,14 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
 			}
 
+			// SECURITY CHECK:
+			// Ensure the SQL string doesn't contain manual BEGIN/COMMIT/ROLLBACK.
+			// In an atomic script, users MUST use the structured 'commit' or 'rollback' fields.
+			if err := ValidateStatelessQuery(cmd.Query.Sql); err != nil {
+				log.Printf("[%s] Blocked manual transaction control in script query: %s", traceID, cmd.Query.Sql)
+				return err // Return immediate protocol error
+			}
+
 			// Execute Query
 			// Note: We do NOT return the error here. If a query fails (e.g., syntax error),
 			// we send an application-level error message and keep the stream/transaction alive.
@@ -186,6 +194,14 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 		case *dbv1.TransactionRequest_QueryStream:
 			if tx == nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
+			}
+
+			// SECURITY CHECK:
+			// Ensure the SQL string doesn't contain manual BEGIN/COMMIT/ROLLBACK.
+			// In an atomic script, users MUST use the structured 'commit' or 'rollback' fields.
+			if err := ValidateStatelessQuery(cmd.QueryStream.Sql); err != nil {
+				log.Printf("[%s] Blocked manual transaction control in script query: %s", traceID, cmd.QueryStream.Sql)
+				return err // Return immediate protocol error
 			}
 
 			// Use the transactional writer adapter
@@ -233,6 +249,35 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 				Response: &dbv1.TransactionResponse_Rollback{Rollback: &dbv1.RollbackResponse{Success: true}},
 			})
 			return nil // End of workflow
+
+			// Inside Transaction event loop switch...
+		case *dbv1.TransactionRequest_Savepoint:
+			if tx == nil {
+				return connect.NewError(connect.CodeInvalidArgument, errors.New("no active transaction"))
+			}
+
+			sql, err := generateSavepointSQL(cmd.Savepoint)
+			if err != nil {
+				sendAppError(stream, traceID, err, "SAVEPOINT_GEN")
+				continue
+			}
+
+			if _, err := tx.ExecContext(ctx, sql); err != nil {
+				// Sends ErrorResponse as a stream message
+				sendAppError(stream, traceID, err, sql)
+				continue
+			}
+
+			// Success response
+			_ = stream.Send(&dbv1.TransactionResponse{
+				Response: &dbv1.TransactionResponse_Savepoint{
+					Savepoint: &dbv1.SavepointResponse{
+						Success: true,
+						Name:    cmd.Savepoint.Name,
+						Action:  cmd.Savepoint.Action,
+					},
+				},
+			})
 		}
 	}
 }

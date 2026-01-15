@@ -105,7 +105,7 @@ func worker(id int, client dbv1connect.DatabaseServiceClient, wg *sync.WaitGroup
 	defer wg.Done()
 
 	// Convert query parameters to ListValue once per worker.
-	params, _ := structpb.NewList([]interface{}{"USA"})
+	params, _ := structpb.NewList([]any{"USA"})
 
 	// Process jobs from the channel until it's closed.
 	for range jobs {

@@ -6,28 +6,31 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	dbv1 "sqlite-server/internal/protos/db/v1"
 
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
+
+	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
 // ExecuteTransaction handles the unary `ExecuteTransaction` RPC.
 //
-// USE CASE:
-// Atomic scripts (e.g., "Migration V1", "Seeding Data").
+// ARCHITECTURAL DESIGN:
 //
-// BEHAVIOR:
-// 1. Opens a Transaction.
-// 2. Executes a list of commands sequentially.
-// 3. Atomicity: If ANY command fails, the ENTIRE transaction is rolled back.
-// 4. Returns a list of results, one for each command.
+//  1. ATOMICITY: This RPC executes a sequence of commands as a single unit of work.
+//     If any command fails, the loop exits immediately and the `defer` block
+//     triggers a database ROLLBACK.
 //
-// TRACING:
-// Uses Request ID from headers or generates one.
+//  2. UNARY STREAMING MAPPING: While the proto allows `query_stream` inside the script,
+//     since this is a Unary RPC, the server MUST buffer those results and return
+//     them in a single response. For real-time streaming, use the `Transaction` RPC.
+//
+//  3. ISOLATION: Supports standard SQLite BEGIN modes (DEFERRED, IMMEDIATE, EXCLUSIVE)
+//     to manage lock contention during script execution.
 func (s *DbServer) ExecuteTransaction(ctx context.Context, req *connect.Request[dbv1.ExecuteTransactionRequest]) (*connect.Response[dbv1.ExecuteTransactionResponse], error) {
 	reqID := ensureRequestID(req.Header())
 
+	// 1. Fail-Fast Validation
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		log.Printf("[%s] Validation failed: %v", reqID, err)
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -41,118 +44,146 @@ func (s *DbServer) ExecuteTransaction(ctx context.Context, req *connect.Request[
 	var tx *sql.Tx
 	var allResponses []*dbv1.TransactionResponse
 
-	// Safety: Ensure rollback on failure
+	// CRITICAL SAFETY: The defer block ensures that if the loop exits via 'return'
+	// (due to an error) or a panic, the transaction is rolled back, preventing
+	// the connection pool from being left in a "dirty" state.
 	defer func() {
 		if tx != nil {
+			log.Printf("[%s] Script interrupted or failed; rolling back transaction.", reqID)
 			_ = tx.Rollback()
 		}
 	}()
 
 	// Sequential Execution Loop
-	for _, request := range requests {
+	for i, request := range requests {
+		// Use a Type Switch to handle the 'oneof' command
+		switch cmd := request.Command.(type) {
 
-		// 1. Handle BEGIN (Must be first)
-		if beginCmd := request.GetBegin(); beginCmd != nil {
+		case *dbv1.TransactionRequest_Begin:
+			// --- Handle BEGIN ---
 			if tx != nil {
-				return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("transaction already begun"))
+				return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: transaction already active"))
 			}
-			db, ok := s.Dbs[beginCmd.Database]
+
+			db, ok := s.Dbs[cmd.Begin.Database]
 			if !ok {
-				return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", beginCmd.Database))
+				return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", cmd.Begin.Database))
 			}
 
 			// Configure Locking Mode
-			// SQLite "IMMEDIATE" and "EXCLUSIVE" help avoid busy loops in write-heavy scenarios.
 			txOpts := &sql.TxOptions{ReadOnly: false}
-			// Map the proto mode to the SQL driver
-			if beginCmd.Mode == dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE ||
-				beginCmd.Mode == dbv1.TransactionMode_TRANSACTION_MODE_EXCLUSIVE {
-				// This is a common trick for mattn/go-sqlite3 to trigger IMMEDIATE/EXCLUSIVE
+			if cmd.Begin.Mode == dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE ||
+				cmd.Begin.Mode == dbv1.TransactionMode_TRANSACTION_MODE_EXCLUSIVE {
+				// Standard Go SQL trick: LevelSerializable triggers an IMMEDIATE/EXCLUSIVE lock in sqlite3 driver
 				txOpts.Isolation = sql.LevelSerializable
 			}
 
 			var err error
-			tx, err = db.BeginTx(ctx, txOpts) // Use BeginTx instead of Begin
+			tx, err = db.BeginTx(ctx, txOpts)
 			if err != nil {
-				log.Printf("[%s] Failed to begin transaction: %v", reqID, err)
 				return nil, connect.NewError(connect.CodeInternal, err)
 			}
 
-			// For scripts, we return the RequestID as the TransactionID for consistency
 			allResponses = append(allResponses, &dbv1.TransactionResponse{
 				Response: &dbv1.TransactionResponse_Begin{
-					Begin: &dbv1.BeginResponse{
-						Success:       true,
-						TransactionId: reqID,
+					Begin: &dbv1.BeginResponse{Success: true, TransactionId: reqID},
+				},
+			})
+
+		case *dbv1.TransactionRequest_Query, *dbv1.TransactionRequest_QueryStream:
+			// --- Handle QUERY & QUERY_STREAM ---
+			// Note: Both are treated as buffered queries in a Unary script execution.
+			if tx == nil {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("no active transaction; first command must be 'begin'"))
+			}
+
+			// Extract SQL and Params regardless of which query type was used
+			var sqlStr string
+			var params *dbv1.Parameters
+			if q := request.GetQuery(); q != nil {
+				sqlStr, params = q.Sql, q.Parameters
+			} else {
+				qs := request.GetQueryStream()
+				sqlStr, params = qs.Sql, qs.Parameters
+			}
+
+			// SECURITY CHECK:
+			// Ensure the SQL string doesn't contain manual BEGIN/COMMIT/ROLLBACK.
+			// In an atomic script, users MUST use the structured 'commit' or 'rollback' fields.
+			if err := ValidateStatelessQuery(sqlStr); err != nil {
+				log.Printf("[%s] Blocked manual transaction control in script query: %s", reqID, sqlStr)
+				return nil, err // Return immediate protocol error
+			}
+
+			result, err := executeQueryAndBuffer(ctx, tx, sqlStr, params)
+			if err != nil {
+				// We append the error to the response list so the client knows exactly which step (i) failed.
+				allResponses = append(allResponses, &dbv1.TransactionResponse{
+					Response: &dbv1.TransactionResponse_Error{
+						Error: makeStreamError(err, sqlStr),
+					},
+				})
+				// Return the collected responses and exit. Defer will handle the Rollback.
+				return connect.NewResponse(&dbv1.ExecuteTransactionResponse{Responses: allResponses}), nil
+			}
+
+			allResponses = append(allResponses, &dbv1.TransactionResponse{
+				Response: &dbv1.TransactionResponse_QueryResult{QueryResult: result},
+			})
+
+		case *dbv1.TransactionRequest_Savepoint:
+			// --- Handle SAVEPOINT (Nested Transactions) ---
+			if tx == nil {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("no active transaction for savepoint"))
+			}
+
+			sqlStr, err := generateSavepointSQL(cmd.Savepoint)
+			if err != nil {
+				return nil, connect.NewError(connect.CodeInvalidArgument, err)
+			}
+
+			if _, err := tx.ExecContext(ctx, sqlStr); err != nil {
+				allResponses = append(allResponses, &dbv1.TransactionResponse{
+					Response: &dbv1.TransactionResponse_Error{Error: makeStreamError(err, sqlStr)},
+				})
+				return connect.NewResponse(&dbv1.ExecuteTransactionResponse{Responses: allResponses}), nil
+			}
+
+			allResponses = append(allResponses, &dbv1.TransactionResponse{
+				Response: &dbv1.TransactionResponse_Savepoint{
+					Savepoint: &dbv1.SavepointResponse{
+						Success: true,
+						Name:    cmd.Savepoint.Name,
+						Action:  cmd.Savepoint.Action,
 					},
 				},
 			})
-			continue
-		}
 
-		if tx == nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("first command must be 'begin'"))
-		}
-
-		// 2. Handle QUERY
-		if queryCmd := request.GetQuery(); queryCmd != nil {
-			// Helper executes query and buffers result into a simulation of the streaming response
-			result, err := executeQueryAndBuffer(ctx, tx, queryCmd.Sql, queryCmd.Parameters)
-			if err != nil {
-				log.Printf("[%s] Script Query failed: %v", reqID, err)
-				// Append Error and return immediately. Defer will rollback.
-				allResponses = append(allResponses, &dbv1.TransactionResponse{
-					Response: &dbv1.TransactionResponse_Error{Error: &dbv1.ErrorResponse{Message: err.Error(), FailedSql: queryCmd.Sql}},
-				})
-				return connect.NewResponse(&dbv1.ExecuteTransactionResponse{Responses: allResponses}), nil
+		case *dbv1.TransactionRequest_Commit:
+			// --- Handle COMMIT ---
+			if tx == nil {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("no active transaction to commit"))
 			}
-			allResponses = append(allResponses, &dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_QueryResult{
-					QueryResult: result,
-				},
-			})
-			continue
-		}
-
-		if queryStreamCmd := request.GetQueryStream(); queryStreamCmd != nil {
-			// Helper executes query and buffers result into a simulation of the streaming response
-			result, err := executeQueryAndBuffer(ctx, tx, queryStreamCmd.Sql, queryStreamCmd.Parameters)
-			if err != nil {
-				log.Printf("[%s] Script Query failed: %v", reqID, err)
-				// Append Error and return immediately. Defer will rollback.
-				allResponses = append(allResponses, &dbv1.TransactionResponse{
-					Response: &dbv1.TransactionResponse_Error{Error: &dbv1.ErrorResponse{Message: err.Error(), FailedSql: queryStreamCmd.Sql}},
-				})
-				return connect.NewResponse(&dbv1.ExecuteTransactionResponse{Responses: allResponses}), nil
-			}
-			allResponses = append(allResponses, &dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_QueryResult{
-					QueryResult: result,
-				},
-			})
-			continue
-		}
-
-		// 3. Handle COMMIT
-		if request.GetCommit() != nil {
 			if err := tx.Commit(); err != nil {
 				return nil, connect.NewError(connect.CodeInternal, err)
 			}
-			tx = nil // Prevent defer rollback
+			tx = nil // Successfully committed, disable defer rollback
 			allResponses = append(allResponses, &dbv1.TransactionResponse{
 				Response: &dbv1.TransactionResponse_Commit{Commit: &dbv1.CommitResponse{Success: true}},
 			})
-			continue
-		}
 
-		// 4. Handle ROLLBACK
-		if request.GetRollback() != nil {
-			_ = tx.Rollback()
-			tx = nil // Prevent defer rollback
+		case *dbv1.TransactionRequest_Rollback:
+			// --- Handle ROLLBACK ---
+			if tx != nil {
+				_ = tx.Rollback()
+				tx = nil // Manually rolled back, disable defer rollback
+			}
 			allResponses = append(allResponses, &dbv1.TransactionResponse{
 				Response: &dbv1.TransactionResponse_Rollback{Rollback: &dbv1.RollbackResponse{Success: true}},
 			})
-			continue
+
+		default:
+			log.Printf("[%s] Received unimplemented command type in script at index %d", reqID, i)
 		}
 	}
 

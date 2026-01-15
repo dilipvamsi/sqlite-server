@@ -2,8 +2,10 @@ package servicesv1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 
 	"buf.build/go/protovalidate"
@@ -30,6 +32,27 @@ func (w *statelessStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
 	return w.stream.Send(&dbv1.QueryResponse{Response: &dbv1.QueryResponse_Complete{Complete: &dbv1.QueryComplete{Stats: s}}})
 }
 
+// Matches BEGIN, COMMIT, ROLLBACK, END, SAVEPOINT, RELEASE at the start of the string.
+// We use \b to ensure we don't match words like "BEGINNER".
+var txControlRegex = regexp.MustCompile(`(?i)^\s*(BEGIN|COMMIT|ROLLBACK|END|SAVEPOINT|RELEASE)\b`)
+
+// IsTransactionControl checks if the SQL string contains manual transaction management.
+func IsTransactionControl(sql string) bool {
+	return txControlRegex.MatchString(sql)
+}
+
+// ValidateStatelessQuery ensures that manual transaction commands are not
+// present in stateless RPC calls.
+func ValidateStatelessQuery(sql string) error {
+	if IsTransactionControl(sql) {
+		return connect.NewError(
+			connect.CodeInvalidArgument,
+			errors.New("manual transaction control (BEGIN/COMMIT/ROLLBACK) is not allowed in stateless Query/QueryStream. Use the Transaction RPCs instead."),
+		)
+	}
+	return nil
+}
+
 // Query handles the unary `Query` RPC.
 //
 // USE CASE:
@@ -51,6 +74,10 @@ func (s *DbServer) Query(ctx context.Context, req *connect.Request[dbv1.QueryReq
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		log.Printf("[%s] Validation failed for Query: %v", reqID, err)
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := ValidateStatelessQuery(req.Msg.Sql); err != nil {
+		return nil, err
 	}
 
 	msg := req.Msg
@@ -100,6 +127,9 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		log.Printf("[%s] Validation failed for QueryStream: %v", reqID, err)
 		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := ValidateStatelessQuery(req.Msg.Sql); err != nil {
+		return err
 	}
 
 	msg := req.Msg

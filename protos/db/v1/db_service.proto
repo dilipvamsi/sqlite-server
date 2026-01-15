@@ -225,6 +225,13 @@ service DatabaseService {
    */
   rpc TransactionQueryStream(TransactionQueryRequest) returns (stream QueryResponse);
 
+
+  /**
+   * Manages a savepoint (nested transaction) within an existing transaction ID.
+   * If the ID is invalid or timed out, returns NOT_FOUND.
+   */
+  rpc TransactionSavepoint(TransactionSavepointRequest) returns (SavepointResponse);
+
   /**
    * Commits the transaction associated with the ID and releases server resources.
    */
@@ -346,6 +353,17 @@ message TransactionQueryRequest {
 }
 
 /**
+ * Request to perform a savepoint operation using a transaction ID.
+ */
+message TransactionSavepointRequest {
+  // The token received from BeginTransaction.
+  string transaction_id = 1 [(buf.validate.field).string.min_len = 1];
+
+  // The savepoint action and name.
+  SavepointRequest savepoint = 2 [(buf.validate.field).required = true];
+}
+
+/**
  * Request to Commit or Rollback a transaction session.
  */
 message TransactionControlRequest {
@@ -384,11 +402,14 @@ message TransactionRequest {
     // Executes a query and expects the result to be streamed back in multiple
     // TransactionResponse messages (Header -> Batch... -> Complete).
     // Use this for large SELECTs within a transaction.
-    TransactionalQueryRequest query_stream = 5;
+    TransactionalQueryRequest query_stream = 3;
+
+    // Manages a sub-transaction (Nested Transaction) using SQLite SAVEPOINTS.
+    SavepointRequest savepoint = 4;
 
     // Finalizes the transaction
-    CommitRequest commit = 3;
-    RollbackRequest rollback = 4;
+    CommitRequest commit = 8;
+    RollbackRequest rollback = 9;
   }
 }
 
@@ -419,6 +440,32 @@ message TransactionalQueryRequest {
 
   // Parameters definition.
   Parameters parameters = 2;
+}
+
+/**
+ * Defines the action to take on a Savepoint (Nested Transaction).
+ */
+enum SavepointAction {
+  SAVEPOINT_ACTION_UNSPECIFIED = 0;
+  // Creates a new savepoint: "SAVEPOINT <name>"
+  SAVEPOINT_ACTION_CREATE = 1;
+  // Commits/Removes a savepoint: "RELEASE <name>"
+  SAVEPOINT_ACTION_RELEASE = 2;
+  // Reverts to a savepoint: "ROLLBACK TO <name>"
+  SAVEPOINT_ACTION_ROLLBACK = 3;
+}
+
+/**
+ * Request to manage a named checkpoint within an active transaction.
+ */
+message SavepointRequest {
+  // The name of the savepoint. Must be alphanumeric (plus _-).
+  string name = 1 [(buf.validate.field).string = {
+    pattern: "^[a-zA-Z0-9_-]{1,64}$"
+  }];
+
+  // The operation to perform on this savepoint.
+  SavepointAction action = 2 [(buf.validate.field).enum.defined_only = true];
 }
 
 /**
@@ -487,25 +534,50 @@ message QueryResponse {
  */
 message TransactionResponse {
   oneof response {
-    // Lifecycle responses
+    // Starts the transaction
     BeginResponse begin = 1;
-    CommitResponse commit = 2;
-    RollbackResponse rollback = 3;
 
     // --- Query Result Models ---
 
     // Returned exactly once in response to a 'query' request.
     // Contains the full rows and column metadata in one message.
-    QueryResult query_result = 4;
+    QueryResult query_result = 2;
 
     // Returned multiple times in response to a 'query_stream' request.
     // Follows the streaming protocol (Header -> Batch... -> Complete).
-    QueryResponse stream_result = 5;
+    QueryResponse stream_result = 3;
+
+    // Response for a savepoint operation.
+    SavepointResponse savepoint = 4;
+
+    // Finalizes the transaction
+    CommitResponse commit = 8;
+    RollbackResponse rollback = 9;
 
     // --- System Errors ---
     // Used for failures in Begin/Commit/Rollback or protocol violations.
-    ErrorResponse error = 6;
+    ErrorResponse error = 10;
   }
+}
+
+/**
+ * Response indicating the outcome of a savepoint-related command.
+ *
+ * This message is returned within the TransactionResponse envelope in
+ * response to a SavepointRequest.
+ */
+message SavepointResponse {
+  // Indicates if the SQLite savepoint command (SAVEPOINT, RELEASE, or ROLLBACK TO)
+  // was executed successfully.
+  bool success = 1;
+
+  // The name of the savepoint that was targeted.
+  // Echoed back to allow the client to track multiple nested checkpoints.
+  string name = 2;
+
+  // The action that was performed.
+  // Echoed back to help the client correlate the response with their command.
+  SavepointAction action = 3;
 }
 
 /**

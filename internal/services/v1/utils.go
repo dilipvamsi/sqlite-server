@@ -77,3 +77,17 @@ func ensureRequestID(headers http.Header) string {
 func UnsafeStringToBytesNoCopy(s string) []byte {
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
+
+// UnsafeBytesToStringNoCopy converts a byte slice to a string without allocation.
+//
+// SAFETY WARNING: The resulting string shares the same memory as the byte slice.
+// Only use this for temporary operations (like parsing) where the byte slice
+// will not be modified during the string's life.
+// Since sql.RawBytes is reused by the driver, NEVER store strings created
+// this way in long-lived structs or Protobuf messages.
+func UnsafeBytesToStringNoCopy(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	return unsafe.String(&b[0], len(b))
+}

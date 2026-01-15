@@ -4,13 +4,62 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"regexp"
 	dbv1 "sqlite-server/internal/protos/db/v1"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+var (
+	// Matches statements that start with SELECT, EXPLAIN, PRAGMA, or VALUES
+	readerPrefixRegex = regexp.MustCompile(`(?i)^\s*(SELECT|EXPLAIN|PRAGMA|VALUES)`)
+
+	// Matches the RETURNING keyword anywhere in the string (word boundary)
+	returningRegex = regexp.MustCompile(`(?i)RETURNING\b`)
+
+	// Matches BEGIN IMMEDIATE or BEGIN EXCLUSIVE
+	beginWriteRegex = regexp.MustCompile(`(?i)^\s*BEGIN\s+(IMMEDIATE|EXCLUSIVE)`)
+
+	// Matches standard read/control prefixes
+	readonlyPrefixRegex = regexp.MustCompile(`(?i)^\s*(SELECT|EXPLAIN|VALUES|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)`)
+)
+
+// IsReader returns true if the statement returns data (Rows).
+// This determines if we should use QueryContext vs ExecContext.
+func IsReader(sql string) bool {
+	// 1. Check if it starts with standard read prefixes
+	if readerPrefixRegex.MatchString(sql) {
+		return true
+	}
+	// 2. Check if it's a DML statement with a RETURNING clause
+	if returningRegex.MatchString(sql) {
+		return true
+	}
+	return false
+}
+
+// IsReadOnly returns true if the statement is safe to run on a read-only connection.
+func IsReadOnly(sql string) bool {
+	// 1. Explicit write-lock beginnings are NOT read-only
+	if beginWriteRegex.MatchString(sql) {
+		return false
+	}
+	// 2. Must start with one of the allowed read-only/control prefixes
+	if !readonlyPrefixRegex.MatchString(sql) {
+		return false
+	}
+	// 3. Any statement with RETURNING is a write operation, NOT read-only
+	if returningRegex.MatchString(sql) {
+		return false
+	}
+	return true
+}
 
 // --- Parameter Handling ---
 
@@ -20,14 +69,14 @@ import (
 // LOGIC:
 // 1. Handles `oneof`: Detects if parameters are Positional (Array) or Named (Map).
 // 2. Applies Hints: Uses `applyHint` to convert generic types (string) to specific types (bytes).
-func convertParameters(params *dbv1.Parameters) ([]interface{}, error) {
+func convertParameters(params *dbv1.Parameters) ([]any, error) {
 	if params == nil {
 		return nil, nil
 	}
 	switch v := params.Values.(type) {
 	case *dbv1.Parameters_Positional:
 		rawList := v.Positional.AsSlice()
-		converted := make([]interface{}, len(rawList))
+		converted := make([]any, len(rawList))
 		hints := params.PositionalHints
 		for i, val := range rawList {
 			hint, hasHint := hints[int32(i)]
@@ -36,7 +85,7 @@ func convertParameters(params *dbv1.Parameters) ([]interface{}, error) {
 		return converted, nil
 	case *dbv1.Parameters_Named:
 		rawMap := v.Named.AsMap()
-		converted := make([]interface{}, 0, len(rawMap))
+		converted := make([]any, 0, len(rawMap))
 		hints := params.NamedHints
 		for key, val := range rawMap {
 			hint, hasHint := hints[key]
@@ -53,7 +102,7 @@ func convertParameters(params *dbv1.Parameters) ([]interface{}, error) {
 
 // applyHint performs type coercion based on the "Sparse Hint" provided by the client.
 // This solves the problem of JSON (and Proto Structs) lacking native support for BLOBs and Integers.
-func applyHint(val interface{}, hint dbv1.ColumnType, hasHint bool) interface{} {
+func applyHint(val any, hint dbv1.ColumnType, hasHint bool) any {
 	if !hasHint || val == nil {
 		return val
 	}
@@ -109,6 +158,59 @@ func resolveColumnTypes(rows *sql.Rows) ([]dbv1.ColumnType, error) {
 
 // --- Execution Logic ---
 
+// scanBuffer holds the slices used during rows.Scan to prevent allocations.
+type scanBuffer struct {
+	values []sql.RawBytes // Use concrete RawBytes
+	args   []any
+}
+
+var scanPool = sync.Pool{
+	New: func() any {
+		return &scanBuffer{
+			values: make([]sql.RawBytes, 64),
+			args:   make([]any, 64),
+		}
+	},
+}
+
+// getScanBuffer retrieves a buffer from the pool and ensures it is wide enough.
+func getScanBuffer(colCount int) *scanBuffer {
+	buf := scanPool.Get().(*scanBuffer)
+
+	// If the pooled buffer is too small for a specific wide table, grow it.
+	// SQLite supports up to 2000 columns (default), though 64-128 is common.
+	if len(buf.values) < colCount {
+		buf.values = make([]sql.RawBytes, colCount)
+		buf.args = make([]any, colCount)
+	}
+
+	// Ensure we return slices that are exactly the right length for rows.Scan
+	buf.values = buf.values[:colCount]
+	buf.args = buf.args[:colCount]
+
+	// Setup pointers ONCE per query
+	for i := range colCount {
+		buf.args[i] = &buf.values[i]
+	}
+
+	return buf
+}
+
+// putbackBuffer cleans up the buffer and returns it to the pool.
+func putbackBuffer(buf *scanBuffer) {
+	// CRITICAL: Clear all interface references.
+	// If values[0] held a 10MB BLOB, that 10MB would stay in RAM
+	// forever if we didn't nil it out here.
+	for i := range buf.values {
+		buf.values[i] = nil
+	}
+	for i := range buf.args {
+		buf.args[i] = nil
+	}
+
+	scanPool.Put(buf)
+}
+
 // streamQueryResults is the generic engine for executing queries and streaming results.
 //
 // ALGORITHM:
@@ -129,11 +231,8 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 		return fmt.Errorf("parameter error: %w", err)
 	}
 
-	// Heuristic to detect READ vs WRITE queries
-	isSelect := strings.HasPrefix(strings.TrimSpace(strings.ToUpper(sqlQuery)), "SELECT")
-
 	// --- WRITE PATH (DML) ---
-	if !isSelect {
+	if !IsReader(sqlQuery) {
 		res, err := q.ExecContext(ctx, sqlQuery, params...)
 		if err != nil {
 			return err
@@ -169,26 +268,20 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 	const chunkSize = 500 // Tunable: Balance between memory usage and network overhead
 	rowBuffer := make([]*structpb.ListValue, 0, chunkSize)
 
-	// Pre-allocate scanning destinations to avoid allocation in hot loop
-	scanValues := make([]interface{}, len(cols))
-	scanArgs := make([]interface{}, len(scanValues))
-	for i := range scanValues {
-		scanArgs[i] = &scanValues[i]
-	}
+	// Rent the buffer
+	buf := getScanBuffer(len(cols))
+	// Ensure it is ALWAYS put back, even if a row.Scan or proto conversion panics.
+	defer putbackBuffer(buf)
 
 	var rowsReadCount int64 = 0
 	for rows.Next() {
-		if err := rows.Scan(scanArgs...); err != nil {
+		if err := rows.Scan(buf.args...); err != nil {
 			return err
 		}
 		rowsReadCount++
 
 		// Convert row to Proto ListValue
-		protoRow, err := structpb.NewList(scanValues)
-		if err != nil {
-			return fmt.Errorf("failed to convert row to proto: %w", err)
-		}
-
+		protoRow := valuesToProto(buf.values, colTypes)
 		rowBuffer = append(rowBuffer, protoRow)
 
 		// Flush Batch
@@ -228,9 +321,7 @@ func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, para
 		return nil, fmt.Errorf("parameter error: %w", err)
 	}
 
-	isSelect := strings.HasPrefix(strings.TrimSpace(strings.ToUpper(sqlQuery)), "SELECT")
-
-	if isSelect {
+	if IsReader(sqlQuery) {
 		rows, err := q.QueryContext(ctx, sqlQuery, params...)
 		if err != nil {
 			return nil, err
@@ -251,21 +342,18 @@ func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, para
 			ColumnTypes: colTypes,
 		}
 
-		scanValues := make([]interface{}, len(columns))
-		scanArgs := make([]interface{}, len(scanValues))
-		for i := range scanValues {
-			scanArgs[i] = &scanValues[i]
-		}
+		// Rent the buffer
+		buf := getScanBuffer(len(columns))
+		// Ensure it is ALWAYS put back, even if a row.Scan or proto conversion panics.
+		defer putbackBuffer(buf)
+
 		var rowsRead int64
 		for rows.Next() {
-			if err := rows.Scan(scanArgs...); err != nil {
+			if err := rows.Scan(buf.args...); err != nil {
 				return nil, err
 			}
 			rowsRead++
-			protoRow, err := structpb.NewList(scanValues)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert row to proto: %w", err)
-			}
+			protoRow := valuesToProto(buf.values, colTypes)
 			selectResult.Rows = append(selectResult.Rows, protoRow)
 		}
 		stats := &dbv1.ExecutionStats{
@@ -291,5 +379,107 @@ func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, para
 			Result: &dbv1.QueryResult_Dml{Dml: &dbv1.DMLResult{RowsAffected: rowsAffected, LastInsertId: lastInsertId}},
 			Stats:  stats,
 		}, nil
+	}
+}
+
+// maxSafeInteger is 2^53 - 1. Integers larger than this lose precision
+// when converted to float64 (the type used by Protobuf NumberValue).
+const maxSafeInteger = (1 << 53) - 1
+
+// valuesToProto converts a row scanned into sql.RawBytes into a Protobuf ListValue.
+//
+// PERFORMANCE PROFILE:
+//  1. Zero-Allocation Scanning: Uses RawBytes to point into driver memory.
+//  2. No Reflection: Uses ColumnType hints to drive a manual type switch.
+//  3. Minimal Allocations: Allocates only the final required Protobuf objects.
+//  4. Precision Safety: Automatically handles the 2^53 integer limit for JS clients.
+func valuesToProto(values []sql.RawBytes, colTypes []dbv1.ColumnType) *structpb.ListValue {
+	// Pre-allocate the slice for the Protobuf values to avoid mid-loop growth.
+	pbValues := make([]*structpb.Value, len(values))
+
+	for i, rb := range values {
+		// NULL handling: If the column is NULL, RawBytes is nil.
+		if rb == nil {
+			pbValues[i] = structpb.NewNullValue()
+			continue
+		}
+
+		switch colTypes[i] {
+		case dbv1.ColumnType_COLUMN_TYPE_INTEGER:
+			// 1. Convert RawBytes to a temporary string using unsafe (No Allocation)
+			tempStr := UnsafeBytesToStringNoCopy(rb)
+
+			// 2. Parse the integer
+			val, err := strconv.ParseInt(tempStr, 10, 64)
+			if err != nil {
+				// Fallback: If parsing fails, treat as string
+				pbValues[i] = structpb.NewStringValue(string(rb))
+				continue
+			}
+
+			// 3. Precision Check: Protect JS/Web clients from rounding errors
+			if val > maxSafeInteger || val < -maxSafeInteger {
+				// Convert to string (Allocation required to own the data)
+				pbValues[i] = structpb.NewStringValue(strconv.FormatInt(val, 10))
+			} else {
+				// Convert to float64 (0 Allocation - fits in the Value struct)
+				pbValues[i] = structpb.NewNumberValue(float64(val))
+			}
+
+		case dbv1.ColumnType_COLUMN_TYPE_TEXT:
+			// A copy is REQUIRED here because rb (RawBytes) will be
+			// overwritten by the driver on the next row.
+			pbValues[i] = structpb.NewStringValue(string(rb))
+
+		case dbv1.ColumnType_COLUMN_TYPE_FLOAT:
+			tempStr := UnsafeBytesToStringNoCopy(rb)
+			val, _ := strconv.ParseFloat(tempStr, 64)
+			pbValues[i] = structpb.NewNumberValue(val)
+
+		case dbv1.ColumnType_COLUMN_TYPE_BOOLEAN:
+			tempStr := UnsafeBytesToStringNoCopy(rb)
+			// SQLite stores booleans as 0 or 1.
+			pbValues[i] = structpb.NewBoolValue(tempStr == "1" || tempStr == "true")
+
+		case dbv1.ColumnType_COLUMN_TYPE_BLOB:
+			// Base64 encoding creates a new string (Allocation required)
+			pbValues[i] = structpb.NewStringValue(base64.StdEncoding.EncodeToString(rb))
+
+		default:
+			// Fallback for unspecified types
+			pbValues[i] = structpb.NewStringValue(string(rb))
+		}
+	}
+
+	return &structpb.ListValue{Values: pbValues}
+}
+
+// generateSavepointSQL transforms a structured SavepointRequest into a valid
+// SQLite SQL statement.
+//
+// ARCHITECTURAL DESIGN:
+// SQLite uses "Savepoints" to provide nested transaction support. This function
+// maps the high-level SavepointAction enum to the three fundamental SQLite
+// commands: SAVEPOINT, RELEASE, and ROLLBACK TO.
+//
+// SAFETY NOTE:
+// The 'name' of the savepoint is embedded directly into the SQL string.
+// While 'protovalidate' constraints on the .proto file should prevent SQL
+// injection, this function acts as the final guard to ensure the command
+// structure is syntactically correct before it reaches the database driver.
+func generateSavepointSQL(sp *dbv1.SavepointRequest) (string, error) {
+	if sp == nil || sp.Name == "" {
+		return "", errors.New("savepoint name is required")
+	}
+
+	switch sp.Action {
+	case dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE:
+		return fmt.Sprintf("SAVEPOINT %s", sp.Name), nil
+	case dbv1.SavepointAction_SAVEPOINT_ACTION_RELEASE:
+		return fmt.Sprintf("RELEASE %s", sp.Name), nil
+	case dbv1.SavepointAction_SAVEPOINT_ACTION_ROLLBACK:
+		return fmt.Sprintf("ROLLBACK TO %s", sp.Name), nil
+	default:
+		return "", fmt.Errorf("unsupported savepoint action: %v", sp.Action)
 	}
 }

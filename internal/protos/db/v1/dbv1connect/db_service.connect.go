@@ -74,6 +74,9 @@ const (
 	// DatabaseServiceTransactionQueryStreamProcedure is the fully-qualified name of the
 	// DatabaseService's TransactionQueryStream RPC.
 	DatabaseServiceTransactionQueryStreamProcedure = "/db.v1.DatabaseService/TransactionQueryStream"
+	// DatabaseServiceTransactionSavepointProcedure is the fully-qualified name of the DatabaseService's
+	// TransactionSavepoint RPC.
+	DatabaseServiceTransactionSavepointProcedure = "/db.v1.DatabaseService/TransactionSavepoint"
 	// DatabaseServiceCommitTransactionProcedure is the fully-qualified name of the DatabaseService's
 	// CommitTransaction RPC.
 	DatabaseServiceCommitTransactionProcedure = "/db.v1.DatabaseService/CommitTransaction"
@@ -120,6 +123,10 @@ type DatabaseServiceClient interface {
 	// The server will stream the results back to the client.
 	// If the ID is invalid or timed out, returns NOT_FOUND.
 	TransactionQueryStream(context.Context, *connect.Request[v1.TransactionQueryRequest]) (*connect.ServerStreamForClient[v1.QueryResponse], error)
+	// *
+	// Manages a savepoint (nested transaction) within an existing transaction ID.
+	// If the ID is invalid or timed out, returns NOT_FOUND.
+	TransactionSavepoint(context.Context, *connect.Request[v1.TransactionSavepointRequest]) (*connect.Response[v1.SavepointResponse], error)
 	// *
 	// Commits the transaction associated with the ID and releases server resources.
 	CommitTransaction(context.Context, *connect.Request[v1.TransactionControlRequest]) (*connect.Response[v1.TransactionControlResponse], error)
@@ -179,6 +186,12 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("TransactionQueryStream")),
 			connect.WithClientOptions(opts...),
 		),
+		transactionSavepoint: connect.NewClient[v1.TransactionSavepointRequest, v1.SavepointResponse](
+			httpClient,
+			baseURL+DatabaseServiceTransactionSavepointProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("TransactionSavepoint")),
+			connect.WithClientOptions(opts...),
+		),
 		commitTransaction: connect.NewClient[v1.TransactionControlRequest, v1.TransactionControlResponse](
 			httpClient,
 			baseURL+DatabaseServiceCommitTransactionProcedure,
@@ -208,6 +221,7 @@ type databaseServiceClient struct {
 	beginTransaction       *connect.Client[v1.BeginTransactionRequest, v1.BeginTransactionResponse]
 	transactionQuery       *connect.Client[v1.TransactionQueryRequest, v1.QueryResult]
 	transactionQueryStream *connect.Client[v1.TransactionQueryRequest, v1.QueryResponse]
+	transactionSavepoint   *connect.Client[v1.TransactionSavepointRequest, v1.SavepointResponse]
 	commitTransaction      *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
 	rollbackTransaction    *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
 	executeTransaction     *connect.Client[v1.ExecuteTransactionRequest, v1.ExecuteTransactionResponse]
@@ -241,6 +255,11 @@ func (c *databaseServiceClient) TransactionQuery(ctx context.Context, req *conne
 // TransactionQueryStream calls db.v1.DatabaseService.TransactionQueryStream.
 func (c *databaseServiceClient) TransactionQueryStream(ctx context.Context, req *connect.Request[v1.TransactionQueryRequest]) (*connect.ServerStreamForClient[v1.QueryResponse], error) {
 	return c.transactionQueryStream.CallServerStream(ctx, req)
+}
+
+// TransactionSavepoint calls db.v1.DatabaseService.TransactionSavepoint.
+func (c *databaseServiceClient) TransactionSavepoint(ctx context.Context, req *connect.Request[v1.TransactionSavepointRequest]) (*connect.Response[v1.SavepointResponse], error) {
+	return c.transactionSavepoint.CallUnary(ctx, req)
 }
 
 // CommitTransaction calls db.v1.DatabaseService.CommitTransaction.
@@ -293,6 +312,10 @@ type DatabaseServiceHandler interface {
 	// The server will stream the results back to the client.
 	// If the ID is invalid or timed out, returns NOT_FOUND.
 	TransactionQueryStream(context.Context, *connect.Request[v1.TransactionQueryRequest], *connect.ServerStream[v1.QueryResponse]) error
+	// *
+	// Manages a savepoint (nested transaction) within an existing transaction ID.
+	// If the ID is invalid or timed out, returns NOT_FOUND.
+	TransactionSavepoint(context.Context, *connect.Request[v1.TransactionSavepointRequest]) (*connect.Response[v1.SavepointResponse], error)
 	// *
 	// Commits the transaction associated with the ID and releases server resources.
 	CommitTransaction(context.Context, *connect.Request[v1.TransactionControlRequest]) (*connect.Response[v1.TransactionControlResponse], error)
@@ -348,6 +371,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("TransactionQueryStream")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceTransactionSavepointHandler := connect.NewUnaryHandler(
+		DatabaseServiceTransactionSavepointProcedure,
+		svc.TransactionSavepoint,
+		connect.WithSchema(databaseServiceMethods.ByName("TransactionSavepoint")),
+		connect.WithHandlerOptions(opts...),
+	)
 	databaseServiceCommitTransactionHandler := connect.NewUnaryHandler(
 		DatabaseServiceCommitTransactionProcedure,
 		svc.CommitTransaction,
@@ -380,6 +409,8 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceTransactionQueryHandler.ServeHTTP(w, r)
 		case DatabaseServiceTransactionQueryStreamProcedure:
 			databaseServiceTransactionQueryStreamHandler.ServeHTTP(w, r)
+		case DatabaseServiceTransactionSavepointProcedure:
+			databaseServiceTransactionSavepointHandler.ServeHTTP(w, r)
 		case DatabaseServiceCommitTransactionProcedure:
 			databaseServiceCommitTransactionHandler.ServeHTTP(w, r)
 		case DatabaseServiceRollbackTransactionProcedure:
@@ -417,6 +448,10 @@ func (UnimplementedDatabaseServiceHandler) TransactionQuery(context.Context, *co
 
 func (UnimplementedDatabaseServiceHandler) TransactionQueryStream(context.Context, *connect.Request[v1.TransactionQueryRequest], *connect.ServerStream[v1.QueryResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TransactionQueryStream is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) TransactionSavepoint(context.Context, *connect.Request[v1.TransactionSavepointRequest]) (*connect.Response[v1.SavepointResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TransactionSavepoint is not implemented"))
 }
 
 func (UnimplementedDatabaseServiceHandler) CommitTransaction(context.Context, *connect.Request[v1.TransactionControlRequest]) (*connect.Response[v1.TransactionControlResponse], error) {
