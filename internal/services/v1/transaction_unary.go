@@ -87,13 +87,13 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 // TransactionQuery executes a SQL statement within an existing transaction context.
 //
 // HEARTBEAT MECHANISM:
-// Every successful call to this RPC extends the transaction's TTL by `defaultTxTimeout`.
-// This allows long-running workflows to stay alive as long as they are active.
+//   Every successful call to this RPC extends the transaction's TTL by `defaultTxTimeout`.
+//   This allows long-running workflows to stay alive as long as they are active.
 //
 // ERROR HANDLING:
-// If a SQL error occurs (e.g., Syntax Error), we return the error details but
-// **DO NOT** automatically rollback the transaction. This gives the client the choice
-// to retry or manually rollback, mirroring standard SQL behavior.
+//   If a SQL error occurs (e.g., Syntax Error), we return the error details but
+//   **DO NOT** automatically rollback the transaction. This gives the client the choice
+//   to retry or manually rollback, mirroring standard SQL behavior.
 func (s *DbServer) TransactionalQuery(ctx context.Context, req *connect.Request[dbv1.TransactionQueryRequest]) (*connect.Response[dbv1.QueryResult], error) {
 	reqID := ensureRequestID(req.Header())
 	msg := req.Msg
@@ -148,13 +148,13 @@ func (s *DbServer) TransactionalQuery(ctx context.Context, req *connect.Request[
 // TransactionQueryStream executes a SQL statement within an existing transaction context.
 //
 // HEARTBEAT MECHANISM:
-// Every successful call to this RPC extends the transaction's TTL by `defaultTxTimeout`.
-// This allows long-running workflows to stay alive as long as they are active.
+//   Every successful call to this RPC extends the transaction's TTL by `defaultTxTimeout`.
+//   This allows long-running workflows to stay alive as long as they are active.
 //
 // ERROR HANDLING:
-// If a SQL error occurs (e.g., Syntax Error), we return the error details but
-// **DO NOT** automatically rollback the transaction. This gives the client the choice
-// to retry or manually rollback, mirroring standard SQL behavior.
+//   If a SQL error occurs (e.g., Syntax Error), we return the error details but
+//   **DO NOT** automatically rollback the transaction. This gives the client the choice
+//   to retry or manually rollback, mirroring standard SQL behavior.
 func (s *DbServer) TransactionQueryStream(
 	ctx context.Context,
 	req *connect.Request[dbv1.TransactionQueryRequest],
@@ -228,9 +228,9 @@ func (s *DbServer) TransactionQueryStream(
 // CommitTransaction finalizes the transaction and releases resources.
 //
 // MEMORY SAFETY:
-// Regardless of whether the DB Commit succeeds or fails, the session is
-// removed from `txRegistry`. A failed commit means the transaction is broken
-// and cannot be reused.
+//   Regardless of whether the DB Commit succeeds or fails, the session is
+//   removed from `txRegistry`. A failed commit means the transaction is broken
+//   and cannot be reused.
 func (s *DbServer) CommitTransaction(ctx context.Context, req *connect.Request[dbv1.TransactionControlRequest]) (*connect.Response[dbv1.TransactionControlResponse], error) {
 	msg := req.Msg
 	if err := protovalidate.Validate(msg); err != nil {
@@ -261,8 +261,8 @@ func (s *DbServer) CommitTransaction(ctx context.Context, req *connect.Request[d
 // RollbackTransaction aborts the transaction.
 //
 // IDEMPOTENCY:
-// If the transaction ID is already gone (e.g., reaped by timeout or already rolled back),
-// this function returns `Success: true`. This prevents client errors when racing against timeouts.
+//   If the transaction ID is already gone (e.g., reaped by timeout or already rolled back),
+//   this function returns `Success: true`. This prevents client errors when racing against timeouts.
 func (s *DbServer) RollbackTransaction(ctx context.Context, req *connect.Request[dbv1.TransactionControlRequest]) (*connect.Response[dbv1.TransactionControlResponse], error) {
 	msg := req.Msg
 	if err := protovalidate.Validate(msg); err != nil {
@@ -285,9 +285,9 @@ func (s *DbServer) RollbackTransaction(ctx context.Context, req *connect.Request
 // ID-based transaction session.
 //
 // ARCHITECTURAL DESIGN:
-// Unlike the Bidirectional stream where the connection state is local to the function,
-// this Unary RPC must retrieve the transaction handle from the server's global
-// registry using the provided 'transaction_id'.
+//   Unlike the Bidirectional stream where the connection state is local to the function,
+//   this Unary RPC must retrieve the transaction handle from the server's global
+//   registry using the provided 'transaction_id'.
 //
 // This allows stateless clients to perform complex, multi-step nested logic
 // (e.g., trying an operation, rolling back to a savepoint on failure, and

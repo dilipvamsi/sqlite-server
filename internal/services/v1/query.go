@@ -59,10 +59,11 @@ func ValidateStatelessQuery(sql string) error {
 // Ideal for "Point Lookups" (e.g., GetUserByID) where the result is known to be small.
 //
 // BEHAVIOR:
-// 1. Traceability: Ensures an X-Request-Id exists (generating one if missing).
-// 2. Validation: Checks input constraints (SQL length, DB name format).
-// 3. Execution: Buffers ALL results into memory.
-// 4. Response: Returns the complete result set and echoes the Request ID in headers.
+// 
+//   1. Traceability: Ensures an X-Request-Id exists (generating one if missing).
+//   2. Validation: Checks input constraints (SQL length, DB name format).
+//   3. Execution: Buffers ALL results into memory.
+//   4. Response: Returns the complete result set and echoes the Request ID in headers.
 //
 // WARNING:
 // Do not use for "SELECT * FROM LargeTable". It will cause high memory pressure.
@@ -115,6 +116,7 @@ func (s *DbServer) Query(ctx context.Context, req *connect.Request[dbv1.QueryReq
 //     send data in chunks (Header -> Batch... -> Complete).
 //
 // MEMORY SAFETY:
+// 
 // This handler operates in O(1) memory space relative to the result size.
 func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.QueryRequest], stream *connect.ServerStream[dbv1.QueryResponse]) error {
 	// 1. Traceability

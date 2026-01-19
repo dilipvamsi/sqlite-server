@@ -225,7 +225,6 @@ service DatabaseService {
    */
   rpc TransactionQueryStream(TransactionQueryRequest) returns (stream QueryResponse);
 
-
   /**
    * Manages a savepoint (nested transaction) within an existing transaction ID.
    * If the ID is invalid or timed out, returns NOT_FOUND.
@@ -457,9 +456,7 @@ enum SavepointAction {
  */
 message SavepointRequest {
   // The name of the savepoint. Must be alphanumeric (plus _-).
-  string name = 1 [(buf.validate.field).string = {
-    pattern: "^[a-zA-Z0-9_-]{1,64}$"
-  }];
+  string name = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{1,64}$"}];
 
   // The operation to perform on this savepoint.
   SavepointAction action = 2 [(buf.validate.field).enum.defined_only = true];
@@ -483,9 +480,24 @@ message RollbackRequest {}
  * This is meant for simple, linear scripts (like migrations) where client-side interactivity isn't needed.
  */
 message ExecuteTransactionRequest {
-  // Must contain at least one request (e.g., Begin).
-  // The server executes these in order. If one fails, the whole transaction rolls back.
-  repeated TransactionRequest requests = 1 [(buf.validate.field).repeated.min_items = 1];
+  // ATOMIC SCRIPT CONSTRAINTS:
+  // 1. Must contain between 2 and 100 requests (Begin + at least 1 action + Commit).
+  // 2. The first command MUST be a 'Begin' command.
+  // 3. The last command MUST be either 'Commit' or 'Rollback' to ensure no dangling locks.
+  repeated TransactionRequest requests = 1 [
+    (buf.validate.field).repeated.min_items = 2,
+    (buf.validate.field).repeated.max_items = 100,
+    (buf.validate.field).cel = {
+      id: "transaction.sequence_start"
+      message: "The first command in an ExecuteTransaction script must be 'begin'"
+      expression: "has(this[0].begin)"
+    },
+    (buf.validate.field).cel = {
+      id: "transaction.sequence_end"
+      message: "The script must explicitly end with 'commit' or 'rollback'"
+      expression: "has(this[this.size() - 1].commit) || has(this[this.size() - 1].rollback)"
+    }
+  ];
 }
 
 // -----------------------------------------------------------------------------

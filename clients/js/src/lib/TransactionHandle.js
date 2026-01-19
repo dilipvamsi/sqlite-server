@@ -114,7 +114,7 @@ class TransactionHandle {
 
     // Register this instance for GC tracking
     cleanupRegistry.register(
-      this._state,
+      this,
       {
         state: this._state,
         databaseName: this.databaseName,
@@ -141,7 +141,7 @@ class TransactionHandle {
       // Update registry with the actual stream object
       cleanupRegistry.unregister(this._state);
       cleanupRegistry.register(
-        this._state,
+        this,
         {
           state: this._state,
           databaseName: this.databaseName,

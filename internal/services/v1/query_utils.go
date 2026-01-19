@@ -252,11 +252,11 @@ func putbackBuffer(buf *scanBuffer) {
 //  2. Determine Query Type (Select vs DML).
 //  3. If DML: Execute, return rows affected, exit.
 //  4. If SELECT:
-//     a. Fetch Schema.
-//     b. Send Header.
-//     c. Iterate Rows (buffering up to `chunkSize`).
-//     d. Flush Batches.
-//     e. Send Complete w/ Stats.
+//    a. Fetch Schema.
+//    b. Send Header.
+//    c. Iterate Rows (buffering up to `chunkSize`).
+//    d. Flush Batches.
+//    e. Send Complete w/ Stats.
 func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.Parameters, writer StreamWriter) error {
 	startTime := time.Now()
 
@@ -345,6 +345,7 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 // Used by the unary `Query` RPC.
 //
 // MEMORY WARNING:
+// 
 // This function allocates memory proportional to the result set size.
 // It is intended for small, precise lookups only.
 func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.Parameters) (*dbv1.QueryResult, error) {

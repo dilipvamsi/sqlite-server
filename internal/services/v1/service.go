@@ -60,7 +60,7 @@ const headerRequestID = "X-Request-Id"
 // ===================================================================================
 
 // defaultTxTimeout is the fallback duration a transaction stays alive without activity.
-const defaultTxTimeout = 30 * time.Second
+const defaultTxTimeout = 15 * time.Second
 
 // reaperInterval determines how often the background routine scans for "Zombie" transactions.
 const reaperInterval = 5 * time.Second

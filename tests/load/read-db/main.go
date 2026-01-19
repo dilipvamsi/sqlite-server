@@ -113,9 +113,7 @@ func worker(id int, client dbv1connect.DatabaseServiceClient, wg *sync.WaitGroup
 			Database: databaseName,
 			Sql:      querySQL,
 			Parameters: &dbv1.Parameters{
-				Values: &dbv1.Parameters_Positional{
-					Positional: params,
-				},
+				Positional: params,
 			},
 		})
 

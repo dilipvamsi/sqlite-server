@@ -50,12 +50,20 @@ func (s *DbServer) ExecuteTransaction(ctx context.Context, req *connect.Request[
 	defer func() {
 		if tx != nil {
 			log.Printf("[%s] Script interrupted or failed; rolling back transaction.", reqID)
+			// Use Background() for rollback to ensure it completes even if the
+			// request context is already timed out.
 			_ = tx.Rollback()
 		}
 	}()
 
 	// Sequential Execution Loop
 	for i, request := range requests {
+		// CHECK FOR TIMEOUT/CANCELLATION
+		// Ensure we don't keep processing if the client disconnected or timed out.
+		if err := ctx.Err(); err != nil {
+			return nil, connect.NewError(connect.CodeDeadlineExceeded, fmt.Errorf("script execution timed out at step %d: %w", i, err))
+		}
+
 		// Use a Type Switch to handle the 'oneof' command
 		switch cmd := request.Command.(type) {
 
@@ -185,6 +193,12 @@ func (s *DbServer) ExecuteTransaction(ctx context.Context, req *connect.Request[
 		default:
 			log.Printf("[%s] Received unimplemented command type in script at index %d", reqID, i)
 		}
+	}
+
+	// At the very end of the function, after the loop:
+	if tx != nil {
+		_ = tx.Rollback()
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("script ended without an explicit COMMIT or ROLLBACK"))
 	}
 
 	res := connect.NewResponse(&dbv1.ExecuteTransactionResponse{Responses: allResponses})

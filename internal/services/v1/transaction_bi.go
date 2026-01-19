@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	dbv1 "sqlite-server/internal/protos/db/v1"
+	"time"
 
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
@@ -63,40 +64,74 @@ func (w *transactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
 // Interactive workflows needing ACID guarantees (e.g., "Read balance, Calculate, Update balance").
 //
 // ARCHITECTURE - SESSION MANAGEMENT:
-// Unlike unary calls, a stream is a long-lived session.
-// 1. Connection: We generate a specific `traceID` (Session ID) immediately.
-// 2. Logging: All server logs use this ID.
-// 3. Handshake: When the client sends `Begin`, we return this ID in `BeginResponse.transaction_id`.
+//   Unlike unary calls, a stream is a long-lived session.
+//   1. Connection: We generate a specific `traceID` (Session ID) immediately.
+//   2. Logging: All server logs use this ID.
+//   3. Handshake: When the client sends `Begin`, we return this ID in `BeginResponse.transaction_id`.
 //
 // ARCHITECTURE - STATE MACHINE:
-// The handler implements a strict loop:
-// - State: `tx` (active transaction).
-// - Transitions: `Begin` (nil -> tx), `Commit`/`Rollback` (tx -> nil).
+//   The handler implements a strict loop:
+//   - State: `tx` (active transaction).
+//   - Transitions: `Begin` (nil -> tx), `Commit`/`Rollback` (tx -> nil).
 //
 // SAFETY - AUTOMATIC ROLLBACK:
-// A `defer` block guarantees that `tx.Rollback()` is called when the function exits.
-// This handles:
-// - Client disconnects (io.EOF).
-// - Network errors.
-// - Application Panics.
-// - Logic Errors.
+//   A `defer` block guarantees that `tx.Rollback()` is called when the function exits.
+//   This handles:
+//   - Client disconnects (io.EOF).
+//   - Network errors.
+//   - Application Panics.
+//   - Logic Errors.
+//   - Timeout Errors.
+// 
 // This prevents "Zombie Transactions" from locking the SQLite file indefinitely.
 func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse]) error {
 	// 1. Generate Session Trace ID
 	// We favor a server-generated ID here to uniquely identify this specific socket connection.
 	traceID := genRequestID()
-
 	log.Printf("[%s] Transaction stream connected", traceID)
+
+	// 1. Create a cancelable context for this stream session.
+	// This allows the heartbeat monitor to force-close the stream.
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	var tx *sql.Tx
 	var transactionDB string
+
+	// 2. Heartbeat/Idle Timeout Logic
+	// We use a timer to track inactivity.
+	heartbeatTimer := time.NewTimer(defaultTxTimeout)
+	defer heartbeatTimer.Stop()
+
+	// This goroutine waits for the timer to expire or the context to end.
+	go func() {
+		select {
+		case <-heartbeatTimer.C:
+			log.Printf("[%s] Idle timeout: No activity for %v. Closing stream.", traceID, defaultTxTimeout)
+			cancel() // This will cause stream.Receive() to return an error
+		case <-streamCtx.Done():
+			// Stream finished normally or via error
+			return
+		}
+	}()
+
+	// Function to reset the heartbeat whenever a message is received
+	resetHeartbeat := func() {
+		if !heartbeatTimer.Stop() {
+			select {
+			case <-heartbeatTimer.C:
+			default:
+			}
+		}
+		heartbeatTimer.Reset(defaultTxTimeout)
+	}
 
 	// CRITICAL SAFETY NET:
 	// Ensures the DB lock is released no matter how the function exits.
 	defer func() {
 		if tx != nil {
 			log.Printf("[%s] Stream closing with active transaction, performing emergency rollback.", traceID)
-			_ = tx.Rollback() // SQLite handles "already closed" errors gracefully.
+			_ = tx.Rollback()
 		}
 	}()
 
@@ -112,6 +147,9 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			log.Printf("[%s] Stream receive error: %v", traceID, err)
 			return err
 		}
+
+		// HEARTBEAT: Reset the timer on every successful message received
+		resetHeartbeat()
 
 		// Validate payload
 		if err := protovalidate.Validate(req); err != nil {

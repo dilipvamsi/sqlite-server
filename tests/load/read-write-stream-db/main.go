@@ -132,9 +132,7 @@ func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Data
 				Database: dbName,
 				Sql:      "SELECT balance FROM accounts WHERE id = ?;",
 				Parameters: &dbv1.Parameters{
-					Values: &dbv1.Parameters_Positional{
-						Positional: listValue(rand.Intn(numAccounts) + 1),
-					},
+					Positional: listValue(rand.Intn(numAccounts) + 1),
 				},
 			})
 
@@ -228,9 +226,7 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 			Query: &dbv1.TransactionalQueryRequest{
 				Sql: "UPDATE accounts SET balance = balance - ? WHERE id = ?;",
 				Parameters: &dbv1.Parameters{
-					Values: &dbv1.Parameters_Positional{
-						Positional: listValue(amount, fromID),
-					},
+					Positional: listValue(amount, fromID),
 				},
 			},
 		},
@@ -247,9 +243,7 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 			Query: &dbv1.TransactionalQueryRequest{
 				Sql: "UPDATE accounts SET balance = balance + ? WHERE id = ?;",
 				Parameters: &dbv1.Parameters{
-					Values: &dbv1.Parameters_Positional{
-						Positional: listValue(amount, toID),
-					},
+					Positional: listValue(amount, toID),
 				},
 			},
 		},

@@ -15,13 +15,13 @@ import (
 // genRequestID creates a Version 7 UUID (time-ordered) as defined in RFC 9562.
 //
 // WHY UUIDv7?
-// Unlike random UUIDv4, v7 is time-ordered (Unix Timestamp Milliseconds).
-// This makes logs easier to sort chronologically and significantly improves
-// database indexing performance if these IDs are ever stored as primary keys.
+//   Unlike random UUIDv4, v7 is time-ordered (Unix Timestamp Milliseconds).
+//   This makes logs easier to sort chronologically and significantly improves
+//   database indexing performance if these IDs are ever stored as primary keys.
 //
 // IMPLEMENTATION:
-// We strictly follow the bit-layout defined in the RFC without importing
-// external libraries like 'google/uuid' to keep the service lightweight.
+//   We strictly follow the bit-layout defined in the RFC without importing
+//   external libraries like 'google/uuid' to keep the service lightweight.
 func genRequestID() string {
 	var b [16]byte
 
@@ -69,11 +69,11 @@ func ensureRequestID(headers http.Header) string {
 // UnsafeStringToBytesNoCopy converts a string to a byte slice without allocation.
 //
 // PERFORMANCE:
-// Standard `[]byte(str)` allocates new memory and copies the data.
-// This function relies on `unsafe` to reuse the string's underlying data array.
+//   Standard `[]byte(str)` allocates new memory and copies the data.
+//   This function relies on `unsafe` to reuse the string's underlying data array.
 //
 // SAFETY WARNING:
-// The returned byte slice is immutable. Attempting to modify it will panic or corrupt memory.
+//   The returned byte slice is immutable. Attempting to modify it will panic or corrupt memory.
 func UnsafeStringToBytesNoCopy(s string) []byte {
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
@@ -81,10 +81,10 @@ func UnsafeStringToBytesNoCopy(s string) []byte {
 // UnsafeBytesToStringNoCopy converts a byte slice to a string without allocation.
 //
 // SAFETY WARNING: The resulting string shares the same memory as the byte slice.
-// Only use this for temporary operations (like parsing) where the byte slice
-// will not be modified during the string's life.
-// Since sql.RawBytes is reused by the driver, NEVER store strings created
-// this way in long-lived structs or Protobuf messages.
+//   Only use this for temporary operations (like parsing) where the byte slice
+//   will not be modified during the string's life.
+//   Since sql.RawBytes is reused by the driver, NEVER store strings created
+//   this way in long-lived structs or Protobuf messages.
 func UnsafeBytesToStringNoCopy(b []byte) string {
 	if len(b) == 0 {
 		return ""
