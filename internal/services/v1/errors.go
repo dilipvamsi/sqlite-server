@@ -74,9 +74,14 @@ func makeUnaryError(err error, sql string) *connect.Error {
 	return connectErr
 }
 
+// transactionSender abstracts the stream for testing
+type transactionSender interface {
+	Send(*dbv1.TransactionResponse) error
+}
+
 // sendAppError writes an application-level error message to the stream.
 // Used for "Soft Errors" (e.g. SQL Syntax) where the stream protocol should remain intact.
-func sendAppError(stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse], reqID string, err error, sql string) {
+func sendAppError(stream transactionSender, reqID string, err error, sql string) {
 	errResp := makeStreamError(err, sql)
 
 	res := &dbv1.TransactionResponse{

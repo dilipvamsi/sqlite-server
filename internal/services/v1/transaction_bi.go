@@ -151,6 +151,12 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			return err
 		}
 
+		// Check if we timed out while waiting for this message
+		if streamCtx.Err() != nil {
+			log.Printf("[%s] Stream context canceled (likely timeout). rejecting message.", traceID)
+			return streamCtx.Err()
+		}
+
 		// HEARTBEAT: Reset the timer on every successful message received
 		resetHeartbeat()
 

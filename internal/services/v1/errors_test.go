@@ -33,3 +33,36 @@ func TestSqliteErrorMapping(t *testing.T) {
 	// Test non-sqlite error
 	assert.Equal(t, dbv1.SqliteCode(0), extractSqliteCode(errors.New("generic")))
 }
+
+// --- Mocks for sendAppError ---
+
+type mockTxSender struct {
+	failSend bool
+	lastMsg  *dbv1.TransactionResponse
+}
+
+func (m *mockTxSender) Send(msg *dbv1.TransactionResponse) error {
+	if m.failSend {
+		return errors.New("mock network error")
+	}
+	m.lastMsg = msg
+	return nil
+}
+
+func TestSendAppError_Coverage(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		mock := &mockTxSender{}
+		err := errors.New("syntax error")
+		sendAppError(mock, "req1", err, "SELECT *")
+
+		assert.NotNil(t, mock.lastMsg)
+		assert.Equal(t, "syntax error", mock.lastMsg.GetError().Message)
+	})
+
+	t.Run("Send Failure", func(t *testing.T) {
+		mock := &mockTxSender{failSend: true}
+		err := errors.New("syntax error")
+		// This should log error but not panic
+		sendAppError(mock, "req1", err, "SELECT *")
+	})
+}
