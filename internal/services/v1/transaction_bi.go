@@ -64,25 +64,28 @@ func (w *transactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
 // Interactive workflows needing ACID guarantees (e.g., "Read balance, Calculate, Update balance").
 //
 // ARCHITECTURE - SESSION MANAGEMENT:
-//   Unlike unary calls, a stream is a long-lived session.
-//   1. Connection: We generate a specific `traceID` (Session ID) immediately.
-//   2. Logging: All server logs use this ID.
-//   3. Handshake: When the client sends `Begin`, we return this ID in `BeginResponse.transaction_id`.
+//
+//	Unlike unary calls, a stream is a long-lived session.
+//	1. Connection: We generate a specific `traceID` (Session ID) immediately.
+//	2. Logging: All server logs use this ID.
+//	3. Handshake: When the client sends `Begin`, we return this ID in `BeginResponse.transaction_id`.
 //
 // ARCHITECTURE - STATE MACHINE:
-//   The handler implements a strict loop:
-//   - State: `tx` (active transaction).
-//   - Transitions: `Begin` (nil -> tx), `Commit`/`Rollback` (tx -> nil).
+//
+//	The handler implements a strict loop:
+//	- State: `tx` (active transaction).
+//	- Transitions: `Begin` (nil -> tx), `Commit`/`Rollback` (tx -> nil).
 //
 // SAFETY - AUTOMATIC ROLLBACK:
-//   A `defer` block guarantees that `tx.Rollback()` is called when the function exits.
-//   This handles:
-//   - Client disconnects (io.EOF).
-//   - Network errors.
-//   - Application Panics.
-//   - Logic Errors.
-//   - Timeout Errors.
-// 
+//
+//	A `defer` block guarantees that `tx.Rollback()` is called when the function exits.
+//	This handles:
+//	- Client disconnects (io.EOF).
+//	- Network errors.
+//	- Application Panics.
+//	- Logic Errors.
+//	- Timeout Errors.
+//
 // This prevents "Zombie Transactions" from locking the SQLite file indefinitely.
 func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse]) error {
 	// 1. Generate Session Trace ID
@@ -198,6 +201,7 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 					},
 				},
 			})
+			continue
 
 		// --- QUERY COMMAND ---
 		case *dbv1.TransactionRequest_Query:
@@ -221,12 +225,14 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			if err != nil {
 				log.Printf("[%s] Query error: %v", traceID, err)
 				sendAppError(stream, traceID, err, cmd.Query.Sql)
+			} else {
+				_ = stream.Send(&dbv1.TransactionResponse{
+					Response: &dbv1.TransactionResponse_QueryResult{
+						QueryResult: result,
+					},
+				})
 			}
-			_ = stream.Send(&dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_QueryResult{
-					QueryResult: result,
-				},
-			})
+			continue
 
 		// --- QUERY COMMAND ---
 		case *dbv1.TransactionRequest_QueryStream:
@@ -254,6 +260,7 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 				log.Printf("[%s] Query error: %v", traceID, err)
 				sendAppError(stream, traceID, err, cmd.QueryStream.Sql)
 			}
+			continue
 
 		// --- COMMIT COMMAND ---
 		case *dbv1.TransactionRequest_Commit:

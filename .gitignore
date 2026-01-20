@@ -1,3 +1,7 @@
+# Coverage
+coverage.html
+coverage.out
+
 # db
 *.db
 *db-shm

@@ -16,7 +16,7 @@ endif
 # Variables
 # ==============================================================================
 BINARY_NAME    := sqlite-server
-SERVER_DIR     := ./cmd/sever
+SERVER_DIR     := ./cmd/server
 BUILD_DIR      := ./bin
 TEST_DATA_DIR  := ./data-test
 LOAD_TEST_DIR  := ./tests/load
@@ -87,6 +87,36 @@ proto-lint: ## Run linting on .proto files
 	buf lint
 
 # ==============================================================================
+# Testing & Coverage
+# ==============================================================================
+
+.PHONY: test
+test: ## Run standard unit tests (no coverage report)
+	@echo "🧪 Running unit tests..."
+	CGO_ENABLED=1 $(GOCMD) test -v ./...
+
+.PHONY: test-coverage
+test-coverage: ## Run tests and generate coverage report (excluding protos and load tests)
+	@echo "🧪 Running tests with coverage..."
+	# 1. Run tests forcing CGO, output raw profile
+	CGO_ENABLED=1 $(GOCMD) test -v -coverprofile=coverage.raw.out ./...
+
+	# 2. Filter out generated proto files AND load tests using grep -E (extended regex)
+	@echo "🧹 Filtering generated code and load tests..."
+	@grep -vE "internal/protos|tests/load|cmd/server" coverage.raw.out > coverage.out
+
+	# 3. Display function-level coverage summary in terminal
+	@echo "📊 Coverage Summary:"
+	@$(GOCMD) tool cover -func=coverage.out
+
+	# 4. Generate HTML report for visualization
+	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "✅ HTML report generated: coverage.html"
+
+	# 5. Cleanup raw intermediate file
+	@rm coverage.raw.out
+
+# ==============================================================================
 # Load Test: Data Initialization
 # ==============================================================================
 
@@ -154,9 +184,10 @@ tidy: ## Clean up and sync go.mod and go.sum
 	$(GOCMD) mod tidy
 
 .PHONY: clean
-clean: ## Remove binaries and database files
+clean: ## Remove binaries, database files, and coverage reports
 	rm -rf $(BUILD_DIR)
 	rm -rf $(TEST_DATA_DIR)
+	rm -f coverage.out coverage.raw.out coverage.html
 	@echo "Cleanup complete."
 
 .PHONY: help
