@@ -5,22 +5,24 @@
  * ARCHITECTURAL DESIGN:
  *
  * 1. DUAL TRANSACTION MODELS:
- *    - Streaming (Bidirectional): Best for short, interactive sessions where the
- *      connection lifespan equals the transaction lifespan. Automatic rollback on disconnect.
- *    - Unary (ID-Based): Best for stateless HTTP clients or long-running workflows where
- *      holding a TCP connection open is brittle. Requires manual 'Begin'/'Commit' and
- *      relies on server-side Timeouts (TTL) to clean up "Zombie" transactions.
+ *    - Streaming (Bidirectional): Best for short, interactive sessions where
+ * the connection lifespan equals the transaction lifespan. Automatic rollback
+ * on disconnect.
+ *    - Unary (ID-Based): Best for stateless HTTP clients or long-running
+ * workflows where holding a TCP connection open is brittle. Requires manual
+ * 'Begin'/'Commit' and relies on server-side Timeouts (TTL) to clean up
+ * "Zombie" transactions.
  *
  * 2. TYPE SAFETY (SPARSE HINTS):
- *    Since JSON/Protobuf lacks native support for some SQLite types (like BLOBs or
- *    large Integers), we use a "Hint" system. The client sends data as standard JSON
- *    types but provides a mapping (e.g., "param 0 is a BLOB") so the server knows
- *    to decode Base64 before hitting the DB.
+ *    Since JSON/Protobuf lacks native support for some SQLite types (like BLOBs
+ * or large Integers), we use a "Hint" system. The client sends data as standard
+ * JSON types but provides a mapping (e.g., "param 0 is a BLOB") so the server
+ * knows to decode Base64 before hitting the DB.
  *
  * 3. ERROR FIDELITY:
- *    We map native C SQLite result codes to a Proto Enum (`SqliteCode`). This allows
- *    clients to programmatically react to specific errors (e.g., retrying on SQLITE_BUSY)
- *    without parsing error string messages.
+ *    We map native C SQLite result codes to a Proto Enum (`SqliteCode`). This
+ * allows clients to programmatically react to specific errors (e.g., retrying
+ * on SQLITE_BUSY) without parsing error string messages.
  */
 
 syntax = "proto3";
@@ -110,7 +112,8 @@ enum SqliteCode {
 
 /**
  * QueryType hints at the intent of the query, allowing the proxy to route
- * requests to the appropriate connection (e.g., read-only replicas vs WAL writers).
+ * requests to the appropriate connection (e.g., read-only replicas vs WAL
+ * writers).
  */
 enum QueryType {
   // Default behavior (typically treats as a write or checks leader).
@@ -123,12 +126,14 @@ enum QueryType {
 
 /**
  * TransactionMode defines the locking behavior for the start of a transaction.
- * Choosing the right mode is crucial for SQLite to prevent "Database Locked" errors.
+ * Choosing the right mode is crucial for SQLite to prevent "Database Locked"
+ * errors.
  */
 enum TransactionMode {
   // Defaults to DEFERRED.
   TRANSACTION_MODE_UNSPECIFIED = 0;
-  // Locks the DB only when the first table access occurs. Standard SQLite behavior.
+  // Locks the DB only when the first table access occurs. Standard SQLite
+  // behavior.
   TRANSACTION_MODE_DEFERRED = 1;
   // Acquires a write lock immediately. Recommended for write-heavy transactions
   // to prevent SQLITE_BUSY deadlocks.
@@ -180,8 +185,8 @@ service DatabaseService {
    * Executes a single stateless query and returns the entire result.
    * Best for point-lookups (SELECT ... WHERE id=?).
    *
-   * WARNING: The server enforces a hard limit on row count (e.g., 1000) for this RPC.
-   * For larger datasets, use `QueryStream`.
+   * WARNING: The server enforces a hard limit on row count (e.g., 1000) for
+   * this RPC. For larger datasets, use `QueryStream`.
    */
   rpc Query(QueryRequest) returns (QueryResult);
 
@@ -202,15 +207,18 @@ service DatabaseService {
    * 2. Client sends multiple `TransactionalQueryRequest`
    * 3. Client sends `Commit` or `Rollback`
    */
-  rpc Transaction(stream TransactionRequest) returns (stream TransactionResponse);
+  rpc Transaction(stream TransactionRequest)
+      returns (stream TransactionResponse);
 
   // --- Stateful Operations (Model B: Unary ID-Based) ---
 
   /**
-   * Starts a new transaction context on the server and returns a 'transaction_id'.
-   * The server holds the connection open in memory until Commit, Rollback, or Timeout.
+   * Starts a new transaction context on the server and returns a
+   * 'transaction_id'. The server holds the connection open in memory until
+   * Commit, Rollback, or Timeout.
    */
-  rpc BeginTransaction(BeginTransactionRequest) returns (BeginTransactionResponse);
+  rpc BeginTransaction(BeginTransactionRequest)
+      returns (BeginTransactionResponse);
 
   /**
    * Executes a query inside the context of an existing 'transaction_id'.
@@ -223,23 +231,29 @@ service DatabaseService {
    * The server will stream the results back to the client.
    * If the ID is invalid or timed out, returns NOT_FOUND.
    */
-  rpc TransactionQueryStream(TransactionQueryRequest) returns (stream QueryResponse);
+  rpc TransactionQueryStream(TransactionQueryRequest)
+      returns (stream QueryResponse);
 
   /**
    * Manages a savepoint (nested transaction) within an existing transaction ID.
    * If the ID is invalid or timed out, returns NOT_FOUND.
    */
-  rpc TransactionSavepoint(TransactionSavepointRequest) returns (SavepointResponse);
+  rpc TransactionSavepoint(TransactionSavepointRequest)
+      returns (SavepointResponse);
 
   /**
-   * Commits the transaction associated with the ID and releases server resources.
+   * Commits the transaction associated with the ID and releases server
+   * resources.
    */
-  rpc CommitTransaction(TransactionControlRequest) returns (TransactionControlResponse);
+  rpc CommitTransaction(TransactionControlRequest)
+      returns (TransactionControlResponse);
 
   /**
-   * Rolls back the transaction associated with the ID and releases server resources.
+   * Rolls back the transaction associated with the ID and releases server
+   * resources.
    */
-  rpc RollbackTransaction(TransactionControlRequest) returns (TransactionControlResponse);
+  rpc RollbackTransaction(TransactionControlRequest)
+      returns (TransactionControlResponse);
 
   // --- Utility Operations ---
 
@@ -247,12 +261,115 @@ service DatabaseService {
    * Executes a predefined script of commands atomically.
    * Useful for migrations or testing where interactivity is not required.
    */
-  rpc ExecuteTransaction(ExecuteTransactionRequest) returns (ExecuteTransactionResponse);
+  rpc ExecuteTransaction(ExecuteTransactionRequest)
+      returns (ExecuteTransactionResponse);
+}
+
+/**
+ * AdminService handles restricted operations for user management and system
+ * maintenance. Access to this service MUST be restricted to the 'admin' role.
+ */
+service AdminService {
+  // --- User Management ---
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
+
+  // --- API Key Management ---
+  rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
+  rpc ListApiKeys(ListApiKeysRequest) returns (ListApiKeysResponse);
+  rpc RevokeApiKey(RevokeApiKeyRequest) returns (RevokeApiKeyResponse);
+
+  // --- Disaster Recovery ---
+  rpc BackupDatabase(BackupDatabaseRequest)
+      returns (stream BackupDatabaseResponse);
+  rpc RestoreDatabase(stream RestoreDatabaseRequest)
+      returns (RestoreDatabaseResponse);
 }
 
 // -----------------------------------------------------------------------------
 // Core Request Messages
 // -----------------------------------------------------------------------------
+
+// ... [Existing Core Messages] ...
+
+// -----------------------------------------------------------------------------
+// Admin Messages
+// -----------------------------------------------------------------------------
+
+message CreateUserRequest {
+  string username = 1 [ (buf.validate.field).string.min_len = 3 ];
+  string password = 2 [ (buf.validate.field).string.min_len = 8 ];
+  string role = 3 [
+    (buf.validate.field).string.in = "admin",
+    (buf.validate.field).string.in = "read_write",
+    (buf.validate.field).string.in = "read_only"
+  ];
+}
+
+message CreateUserResponse {
+  int64 user_id = 1;
+  string created_at = 2; // ISO8601
+}
+
+message DeleteUserRequest {
+  string username = 1 [ (buf.validate.field).string.min_len = 1 ];
+}
+
+message DeleteUserResponse { bool success = 1; }
+
+message UpdatePasswordRequest {
+  string username = 1 [ (buf.validate.field).string.min_len = 1 ];
+  string new_password = 2 [ (buf.validate.field).string.min_len = 8 ];
+}
+
+message UpdatePasswordResponse { bool success = 1; }
+
+message CreateApiKeyRequest {
+  int64 user_id = 1;
+  string name = 2;       // e.g. "Laptop"
+  string expires_at = 3; // ISO8601, optional
+}
+
+message CreateApiKeyResponse {
+  string api_key = 1; // The raw secret key (only shown once)
+  int64 key_id = 2;
+}
+
+message ListApiKeysRequest { int64 user_id = 1; }
+
+message ListApiKeysResponse {
+  message ApiKeySummary {
+    int64 id = 1;
+    string name = 2;
+    string prefix = 3; // First 8 chars
+    string created_at = 4;
+  }
+  repeated ApiKeySummary keys = 1;
+}
+
+message RevokeApiKeyRequest { int64 key_id = 1; }
+
+message RevokeApiKeyResponse { bool success = 1; }
+
+message BackupDatabaseRequest {
+  // Optional: database name to backup (if multiple DBs supported)
+  string database = 1;
+}
+
+message BackupDatabaseResponse { bytes chunk = 1; }
+
+message RestoreDatabaseRequest {
+  oneof payload {
+    string database_name = 1; // Sent in first message
+    bytes chunk = 2;          // Sent in subsequent messages
+  }
+}
+
+message RestoreDatabaseResponse {
+  bool success = 1;
+  int64 bytes_written = 2;
+}
 
 /**
  * A request for the stateless `Query` and `QueryStream` RPCs.
@@ -260,13 +377,12 @@ service DatabaseService {
 message QueryRequest {
   // Database name. Must be alphanumeric (plus _-), 3-64 chars.
   // Validated to prevent directory traversal attacks.
-  string database = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{3,64}$"}];
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
 
   // SQL Statement. Max 10KB to prevent memory abuse.
-  string sql = 2 [(buf.validate.field).string = {
-    min_len: 1
-    max_len: 10240
-  }];
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
 
   // Optional hint to optimize connection routing (Read vs Write).
   QueryType type = 3;
@@ -307,7 +423,8 @@ message Parameters {
  */
 message BeginTransactionRequest {
   // Database name to lock.
-  string database = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{3,64}$"}];
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
 
   // How long the server should keep this transaction alive without activity
   // before auto-rolling back. (e.g., "30s", "1m").
@@ -322,11 +439,12 @@ message BeginTransactionRequest {
  * Response containing the transaction session token.
  */
 message BeginTransactionResponse {
-  // The unique session token the client MUST send in subsequent 'TransactionQuery' calls.
+  // The unique session token the client MUST send in subsequent
+  // 'TransactionQuery' calls.
   string transaction_id = 1;
 
-  // When this transaction will expire (Unix MS) if no further commands are sent.
-  // Clients can use this to anticipate timeouts.
+  // When this transaction will expire (Unix MS) if no further commands are
+  // sent. Clients can use this to anticipate timeouts.
   int64 expires_at_unix_ms = 2;
 }
 
@@ -336,13 +454,11 @@ message BeginTransactionResponse {
 message TransactionQueryRequest {
   // The token received from BeginTransaction.
   // Note: No database name needed; the ID implies the database context.
-  string transaction_id = 1 [(buf.validate.field).string.min_len = 1];
+  string transaction_id = 1 [ (buf.validate.field).string.min_len = 1 ];
 
   // The SQL statement to execute.
-  string sql = 2 [(buf.validate.field).string = {
-    min_len: 1
-    max_len: 10240
-  }];
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
 
   // Parameters for the query.
   Parameters parameters = 3;
@@ -353,10 +469,10 @@ message TransactionQueryRequest {
  */
 message TransactionSavepointRequest {
   // The token received from BeginTransaction.
-  string transaction_id = 1 [(buf.validate.field).string.min_len = 1];
+  string transaction_id = 1 [ (buf.validate.field).string.min_len = 1 ];
 
   // The savepoint action and name.
-  SavepointRequest savepoint = 2 [(buf.validate.field).required = true];
+  SavepointRequest savepoint = 2 [ (buf.validate.field).required = true ];
 }
 
 /**
@@ -364,7 +480,7 @@ message TransactionSavepointRequest {
  */
 message TransactionControlRequest {
   // The session token to finalize.
-  string transaction_id = 1 [(buf.validate.field).string.min_len = 1];
+  string transaction_id = 1 [ (buf.validate.field).string.min_len = 1 ];
 }
 
 /**
@@ -372,7 +488,8 @@ message TransactionControlRequest {
  */
 message TransactionControlResponse {
   // True if the Commit/Rollback was successful.
-  // False usually indicates the transaction ID was not found (already expired/closed).
+  // False usually indicates the transaction ID was not found (already
+  // expired/closed).
   bool success = 1;
 }
 
@@ -415,24 +532,26 @@ message TransactionRequest {
  */
 message BeginRequest {
   // Database name. Must match the standard naming pattern.
-  // This locks the connection to this specific database for the duration of the stream.
-  string database = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{3,64}$"}];
+  // This locks the connection to this specific database for the duration of the
+  // stream.
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
 
   // The locking mode. Defaults to DEFERRED if unspecified.
-  // Use IMMEDIATE or EXCLUSIVE for write-heavy transactions to avoid busy-loops.
+  // Use IMMEDIATE or EXCLUSIVE for write-heavy transactions to avoid
+  // busy-loops.
   TransactionMode mode = 2;
 }
 
 /**
  * A query executed within an active transaction context.
- * Unlike `QueryRequest`, this does not specify a database name as the context is already established.
+ * Unlike `QueryRequest`, this does not specify a database name as the context
+ * is already established.
  */
 message TransactionalQueryRequest {
   // SQL Statement. Max 10KB.
-  string sql = 1 [(buf.validate.field).string = {
-    min_len: 1
-    max_len: 10240
-  }];
+  string sql = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
 
   // Parameters definition.
   Parameters parameters = 2;
@@ -456,10 +575,11 @@ enum SavepointAction {
  */
 message SavepointRequest {
   // The name of the savepoint. Must be alphanumeric (plus _-).
-  string name = 1 [(buf.validate.field).string = {pattern: "^[a-zA-Z0-9_-]{1,64}$"}];
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{1,64}$"} ];
 
   // The operation to perform on this savepoint.
-  SavepointAction action = 2 [(buf.validate.field).enum.defined_only = true];
+  SavepointAction action = 2 [ (buf.validate.field).enum.defined_only = true ];
 }
 
 /**
@@ -476,26 +596,31 @@ message CommitRequest {}
 message RollbackRequest {}
 
 /**
- * A container for a sequence of transaction steps to be executed atomically via Unary RPC.
- * This is meant for simple, linear scripts (like migrations) where client-side interactivity isn't needed.
+ * A container for a sequence of transaction steps to be executed atomically via
+ * Unary RPC. This is meant for simple, linear scripts (like migrations) where
+ * client-side interactivity isn't needed.
  */
 message ExecuteTransactionRequest {
   // ATOMIC SCRIPT CONSTRAINTS:
-  // 1. Must contain between 2 and 100 requests (Begin + at least 1 action + Commit).
+  // 1. Must contain between 2 and 100 requests (Begin + at least 1 action +
+  // Commit).
   // 2. The first command MUST be a 'Begin' command.
-  // 3. The last command MUST be either 'Commit' or 'Rollback' to ensure no dangling locks.
+  // 3. The last command MUST be either 'Commit' or 'Rollback' to ensure no
+  // dangling locks.
   repeated TransactionRequest requests = 1 [
     (buf.validate.field).repeated.min_items = 2,
     (buf.validate.field).repeated.max_items = 100,
     (buf.validate.field).cel = {
-      id: "transaction.sequence_start"
-      message: "The first command in an ExecuteTransaction script must be 'begin'"
-      expression: "has(this[0].begin)"
+      id : "transaction.sequence_start"
+      message : "The first command in an ExecuteTransaction script must be "
+                "'begin'"
+      expression : "has(this[0].begin)"
     },
     (buf.validate.field).cel = {
-      id: "transaction.sequence_end"
-      message: "The script must explicitly end with 'commit' or 'rollback'"
-      expression: "has(this[this.size() - 1].commit) || has(this[this.size() - 1].rollback)"
+      id : "transaction.sequence_end"
+      message : "The script must explicitly end with 'commit' or 'rollback'"
+      expression : "has(this[this.size() - 1].commit) || has(this[this.size() "
+                   "- 1].rollback)"
     }
   ];
 }
@@ -576,8 +701,8 @@ message TransactionResponse {
  * response to a SavepointRequest.
  */
 message SavepointResponse {
-  // Indicates if the SQLite savepoint command (SAVEPOINT, RELEASE, or ROLLBACK TO)
-  // was executed successfully.
+  // Indicates if the SQLite savepoint command (SAVEPOINT, RELEASE, or ROLLBACK
+  // TO) was executed successfully.
   bool success = 1;
 
   // The name of the savepoint that was targeted.
@@ -593,8 +718,8 @@ message SavepointResponse {
  * The response for the unary `ExecuteTransaction` RPC.
  */
 message ExecuteTransactionResponse {
-  // A list of responses corresponding 1-to-1 with the requests in the input script.
-  // Allows the client to verify which step succeeded or failed.
+  // A list of responses corresponding 1-to-1 with the requests in the input
+  // script. Allows the client to verify which step succeeded or failed.
   repeated TransactionResponse responses = 1;
 }
 
@@ -608,14 +733,16 @@ message ExecuteTransactionResponse {
 message SelectResult {
   // The names of the columns returned by the query.
   repeated string columns = 1;
-  // The resolved column types mapped from SQLite declarations (e.g. VARCHAR -> TEXT).
+  // The resolved column types mapped from SQLite declarations (e.g. VARCHAR ->
+  // TEXT).
   repeated ColumnType column_types = 2;
   // All rows buffered in memory.
   repeated google.protobuf.ListValue rows = 3;
 }
 
 /**
- * Represents the result of a Data Modification Language query (INSERT, UPDATE, DELETE).
+ * Represents the result of a Data Modification Language query (INSERT, UPDATE,
+ * DELETE).
  */
 message DMLResult {
   // The number of rows modified by the query.
@@ -670,18 +797,14 @@ message BeginResponse {
   bool success = 1;
   // Optional internal transaction identifier (useful for debugging).
   // Trace Id for the whole transaction
-  string transaction_id = 2 [(buf.validate.field).string = {uuid: true}];
+  string transaction_id = 2 [ (buf.validate.field).string = {uuid : true} ];
 }
 
 /** Response indicating a transaction successfully committed. */
-message CommitResponse {
-  bool success = 1;
-}
+message CommitResponse { bool success = 1; }
 
 /** Response indicating a transaction successfully rolled back. */
-message RollbackResponse {
-  bool success = 1;
-}
+message RollbackResponse { bool success = 1; }
 
 /**
  * Standard error response attached to failures.

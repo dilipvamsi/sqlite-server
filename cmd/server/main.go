@@ -14,6 +14,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"sqlite-server/internal/auth"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 	servicesv1 "sqlite-server/internal/services/v1"
 	"sqlite-server/internal/sqldrivers"
@@ -47,12 +48,52 @@ func main() {
 	// NewDbServer starts the background 'Reaper' goroutine.
 	dbServer := servicesv1.NewDbServer(configs)
 
+	// Check if auth is enabled (default: true)
+	authEnabled := os.Getenv("SQLITE_SERVER_AUTH_ENABLED") != "false"
+
+	var interceptors connect.HandlerOption
+	var authStore *auth.MetaStore
+
+	if authEnabled {
+		// Initialize Auth MetaStore
+		var err error
+		authStore, err = auth.NewMetaStore("_meta.db")
+		if err != nil {
+			log.Fatalf("Fatal: could not initialize auth store: %v", err)
+		}
+		defer authStore.Close()
+
+		// Create Default Admin (if needed)
+		if _, err := authStore.EnsureDefaultAdmin(); err != nil {
+			log.Printf("Warning: failed to ensure default admin: %v", err)
+		}
+
+		// Chain Logging and Auth interceptors
+		authInterceptor := servicesv1.NewAuthInterceptor(authStore)
+		interceptors = connect.WithInterceptors(
+			servicesv1.LoggingInterceptor(),
+			authInterceptor,
+		)
+		log.Println("[AUTH] Authentication ENABLED")
+	} else {
+		// No auth, just logging
+		interceptors = connect.WithInterceptors(
+			servicesv1.LoggingInterceptor(),
+		)
+		log.Println("[AUTH] Authentication DISABLED (SQLITE_SERVER_AUTH_ENABLED=false)")
+	}
+
 	// 3. HTTP Server Setup
-	// Add the option to the handler
-	interceptors := connect.WithInterceptors(servicesv1.LoggingInterceptor())
 	path, handler := dbv1connect.NewDatabaseServiceHandler(dbServer, interceptors)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
+
+	// Register AdminService (only if auth is enabled)
+	if authEnabled && authStore != nil {
+		adminServer := servicesv1.NewAdminServer(authStore)
+		adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
+		mux.Handle(adminPath, adminHandler)
+	}
 
 	srv := &http.Server{
 		Addr: ":50051",

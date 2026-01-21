@@ -8,28 +8,52 @@
 // ARCHITECTURAL DESIGN:
 // 
 // 1. DUAL TRANSACTION MODELS:
-//    - Streaming (Bidirectional): Best for short, interactive sessions where the
-//      connection lifespan equals the transaction lifespan. Automatic rollback on disconnect.
-//    - Unary (ID-Based): Best for stateless HTTP clients or long-running workflows where
-//      holding a TCP connection open is brittle. Requires manual 'Begin'/'Commit' and
-//      relies on server-side Timeouts (TTL) to clean up "Zombie" transactions.
+//    - Streaming (Bidirectional): Best for short, interactive sessions where
+// the connection lifespan equals the transaction lifespan. Automatic rollback
+// on disconnect.
+//    - Unary (ID-Based): Best for stateless HTTP clients or long-running
+// workflows where holding a TCP connection open is brittle. Requires manual
+// 'Begin'/'Commit' and relies on server-side Timeouts (TTL) to clean up
+// "Zombie" transactions.
 // 
 // 2. TYPE SAFETY (SPARSE HINTS):
-//    Since JSON/Protobuf lacks native support for some SQLite types (like BLOBs or
-//    large Integers), we use a "Hint" system. The client sends data as standard JSON
-//    types but provides a mapping (e.g., "param 0 is a BLOB") so the server knows
-//    to decode Base64 before hitting the DB.
+//    Since JSON/Protobuf lacks native support for some SQLite types (like BLOBs
+// or large Integers), we use a "Hint" system. The client sends data as standard
+// JSON types but provides a mapping (e.g., "param 0 is a BLOB") so the server
+// knows to decode Base64 before hitting the DB.
 // 
 // 3. ERROR FIDELITY:
-//    We map native C SQLite result codes to a Proto Enum (`SqliteCode`). This allows
-//    clients to programmatically react to specific errors (e.g., retrying on SQLITE_BUSY)
-//    without parsing error string messages.
+//    We map native C SQLite result codes to a Proto Enum (`SqliteCode`). This
+// allows clients to programmatically react to specific errors (e.g., retrying
+// on SQLITE_BUSY) without parsing error string messages.
 //
 'use strict';
 var grpc = require('@grpc/grpc-js');
 var db_v1_db_service_pb = require('../../db/v1/db_service_pb.js');
 var buf_validate_validate_pb = require('../../buf/validate/validate_pb.js');
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
+
+function serialize_db_v1_BackupDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.BackupDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.BackupDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_BackupDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.BackupDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_BackupDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.BackupDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.BackupDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_BackupDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.BackupDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
 
 function serialize_db_v1_BeginTransactionRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.BeginTransactionRequest)) {
@@ -53,6 +77,72 @@ function deserialize_db_v1_BeginTransactionResponse(buffer_arg) {
   return db_v1_db_service_pb.BeginTransactionResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_CreateApiKeyRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CreateApiKeyRequest)) {
+    throw new Error('Expected argument of type db.v1.CreateApiKeyRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CreateApiKeyRequest(buffer_arg) {
+  return db_v1_db_service_pb.CreateApiKeyRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_CreateApiKeyResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CreateApiKeyResponse)) {
+    throw new Error('Expected argument of type db.v1.CreateApiKeyResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CreateApiKeyResponse(buffer_arg) {
+  return db_v1_db_service_pb.CreateApiKeyResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_CreateUserRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CreateUserRequest)) {
+    throw new Error('Expected argument of type db.v1.CreateUserRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CreateUserRequest(buffer_arg) {
+  return db_v1_db_service_pb.CreateUserRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_CreateUserResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CreateUserResponse)) {
+    throw new Error('Expected argument of type db.v1.CreateUserResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CreateUserResponse(buffer_arg) {
+  return db_v1_db_service_pb.CreateUserResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_DeleteUserRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DeleteUserRequest)) {
+    throw new Error('Expected argument of type db.v1.DeleteUserRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DeleteUserRequest(buffer_arg) {
+  return db_v1_db_service_pb.DeleteUserRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_DeleteUserResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DeleteUserResponse)) {
+    throw new Error('Expected argument of type db.v1.DeleteUserResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DeleteUserResponse(buffer_arg) {
+  return db_v1_db_service_pb.DeleteUserResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_ExecuteTransactionRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.ExecuteTransactionRequest)) {
     throw new Error('Expected argument of type db.v1.ExecuteTransactionRequest');
@@ -73,6 +163,28 @@ function serialize_db_v1_ExecuteTransactionResponse(arg) {
 
 function deserialize_db_v1_ExecuteTransactionResponse(buffer_arg) {
   return db_v1_db_service_pb.ExecuteTransactionResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListApiKeysRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListApiKeysRequest)) {
+    throw new Error('Expected argument of type db.v1.ListApiKeysRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListApiKeysRequest(buffer_arg) {
+  return db_v1_db_service_pb.ListApiKeysRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListApiKeysResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListApiKeysResponse)) {
+    throw new Error('Expected argument of type db.v1.ListApiKeysResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListApiKeysResponse(buffer_arg) {
+  return db_v1_db_service_pb.ListApiKeysResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_QueryRequest(arg) {
@@ -106,6 +218,50 @@ function serialize_db_v1_QueryResult(arg) {
 
 function deserialize_db_v1_QueryResult(buffer_arg) {
   return db_v1_db_service_pb.QueryResult.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_RestoreDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.RestoreDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.RestoreDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_RestoreDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.RestoreDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_RestoreDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.RestoreDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.RestoreDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_RestoreDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.RestoreDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_RevokeApiKeyRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.RevokeApiKeyRequest)) {
+    throw new Error('Expected argument of type db.v1.RevokeApiKeyRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_RevokeApiKeyRequest(buffer_arg) {
+  return db_v1_db_service_pb.RevokeApiKeyRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_RevokeApiKeyResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.RevokeApiKeyResponse)) {
+    throw new Error('Expected argument of type db.v1.RevokeApiKeyResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_RevokeApiKeyResponse(buffer_arg) {
+  return db_v1_db_service_pb.RevokeApiKeyResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_SavepointResponse(arg) {
@@ -185,6 +341,28 @@ function deserialize_db_v1_TransactionSavepointRequest(buffer_arg) {
   return db_v1_db_service_pb.TransactionSavepointRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_UpdatePasswordRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UpdatePasswordRequest)) {
+    throw new Error('Expected argument of type db.v1.UpdatePasswordRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UpdatePasswordRequest(buffer_arg) {
+  return db_v1_db_service_pb.UpdatePasswordRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_UpdatePasswordResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UpdatePasswordResponse)) {
+    throw new Error('Expected argument of type db.v1.UpdatePasswordResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UpdatePasswordResponse(buffer_arg) {
+  return db_v1_db_service_pb.UpdatePasswordResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 
 // -----------------------------------------------------------------------------
 // Service Definition
@@ -202,8 +380,8 @@ var DatabaseServiceService = exports.DatabaseServiceService = {
 // Executes a single stateless query and returns the entire result.
 // Best for point-lookups (SELECT ... WHERE id=?).
 // 
-// WARNING: The server enforces a hard limit on row count (e.g., 1000) for this RPC.
-// For larger datasets, use `QueryStream`.
+// WARNING: The server enforces a hard limit on row count (e.g., 1000) for
+// this RPC. For larger datasets, use `QueryStream`.
 query: {
     path: '/db.v1.DatabaseService/Query',
     requestStream: false,
@@ -253,8 +431,9 @@ transaction: {
   // --- Stateful Operations (Model B: Unary ID-Based) ---
 //
 // *
-// Starts a new transaction context on the server and returns a 'transaction_id'.
-// The server holds the connection open in memory until Commit, Rollback, or Timeout.
+// Starts a new transaction context on the server and returns a
+// 'transaction_id'. The server holds the connection open in memory until
+// Commit, Rollback, or Timeout.
 beginTransaction: {
     path: '/db.v1.DatabaseService/BeginTransaction',
     requestStream: false,
@@ -310,7 +489,8 @@ transactionSavepoint: {
     responseDeserialize: deserialize_db_v1_SavepointResponse,
   },
   // *
-// Commits the transaction associated with the ID and releases server resources.
+// Commits the transaction associated with the ID and releases server
+// resources.
 commitTransaction: {
     path: '/db.v1.DatabaseService/CommitTransaction',
     requestStream: false,
@@ -323,7 +503,8 @@ commitTransaction: {
     responseDeserialize: deserialize_db_v1_TransactionControlResponse,
   },
   // *
-// Rolls back the transaction associated with the ID and releases server resources.
+// Rolls back the transaction associated with the ID and releases server
+// resources.
 rollbackTransaction: {
     path: '/db.v1.DatabaseService/RollbackTransaction',
     requestStream: false,
@@ -355,3 +536,101 @@ executeTransaction: {
 
 exports.DatabaseServiceClient = grpc.makeGenericClientConstructor(DatabaseServiceService, 'DatabaseService');
 // --- Stateless Operations ---
+// *
+// AdminService handles restricted operations for user management and system
+// maintenance. Access to this service MUST be restricted to the 'admin' role.
+var AdminServiceService = exports.AdminServiceService = {
+  // --- User Management ---
+createUser: {
+    path: '/db.v1.AdminService/CreateUser',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.CreateUserRequest,
+    responseType: db_v1_db_service_pb.CreateUserResponse,
+    requestSerialize: serialize_db_v1_CreateUserRequest,
+    requestDeserialize: deserialize_db_v1_CreateUserRequest,
+    responseSerialize: serialize_db_v1_CreateUserResponse,
+    responseDeserialize: deserialize_db_v1_CreateUserResponse,
+  },
+  deleteUser: {
+    path: '/db.v1.AdminService/DeleteUser',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.DeleteUserRequest,
+    responseType: db_v1_db_service_pb.DeleteUserResponse,
+    requestSerialize: serialize_db_v1_DeleteUserRequest,
+    requestDeserialize: deserialize_db_v1_DeleteUserRequest,
+    responseSerialize: serialize_db_v1_DeleteUserResponse,
+    responseDeserialize: deserialize_db_v1_DeleteUserResponse,
+  },
+  updatePassword: {
+    path: '/db.v1.AdminService/UpdatePassword',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.UpdatePasswordRequest,
+    responseType: db_v1_db_service_pb.UpdatePasswordResponse,
+    requestSerialize: serialize_db_v1_UpdatePasswordRequest,
+    requestDeserialize: deserialize_db_v1_UpdatePasswordRequest,
+    responseSerialize: serialize_db_v1_UpdatePasswordResponse,
+    responseDeserialize: deserialize_db_v1_UpdatePasswordResponse,
+  },
+  // --- API Key Management ---
+createApiKey: {
+    path: '/db.v1.AdminService/CreateApiKey',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.CreateApiKeyRequest,
+    responseType: db_v1_db_service_pb.CreateApiKeyResponse,
+    requestSerialize: serialize_db_v1_CreateApiKeyRequest,
+    requestDeserialize: deserialize_db_v1_CreateApiKeyRequest,
+    responseSerialize: serialize_db_v1_CreateApiKeyResponse,
+    responseDeserialize: deserialize_db_v1_CreateApiKeyResponse,
+  },
+  listApiKeys: {
+    path: '/db.v1.AdminService/ListApiKeys',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.ListApiKeysRequest,
+    responseType: db_v1_db_service_pb.ListApiKeysResponse,
+    requestSerialize: serialize_db_v1_ListApiKeysRequest,
+    requestDeserialize: deserialize_db_v1_ListApiKeysRequest,
+    responseSerialize: serialize_db_v1_ListApiKeysResponse,
+    responseDeserialize: deserialize_db_v1_ListApiKeysResponse,
+  },
+  revokeApiKey: {
+    path: '/db.v1.AdminService/RevokeApiKey',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.RevokeApiKeyRequest,
+    responseType: db_v1_db_service_pb.RevokeApiKeyResponse,
+    requestSerialize: serialize_db_v1_RevokeApiKeyRequest,
+    requestDeserialize: deserialize_db_v1_RevokeApiKeyRequest,
+    responseSerialize: serialize_db_v1_RevokeApiKeyResponse,
+    responseDeserialize: deserialize_db_v1_RevokeApiKeyResponse,
+  },
+  // --- Disaster Recovery ---
+backupDatabase: {
+    path: '/db.v1.AdminService/BackupDatabase',
+    requestStream: false,
+    responseStream: true,
+    requestType: db_v1_db_service_pb.BackupDatabaseRequest,
+    responseType: db_v1_db_service_pb.BackupDatabaseResponse,
+    requestSerialize: serialize_db_v1_BackupDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_BackupDatabaseRequest,
+    responseSerialize: serialize_db_v1_BackupDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_BackupDatabaseResponse,
+  },
+  restoreDatabase: {
+    path: '/db.v1.AdminService/RestoreDatabase',
+    requestStream: true,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.RestoreDatabaseRequest,
+    responseType: db_v1_db_service_pb.RestoreDatabaseResponse,
+    requestSerialize: serialize_db_v1_RestoreDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_RestoreDatabaseRequest,
+    responseSerialize: serialize_db_v1_RestoreDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_RestoreDatabaseResponse,
+  },
+};
+
+exports.AdminServiceClient = grpc.makeGenericClientConstructor(AdminServiceService, 'AdminService');

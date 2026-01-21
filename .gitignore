@@ -7,6 +7,9 @@ coverage.out
 *db-shm
 *.db-wal
 
+# api-key
+.loadtest-api-key
+
 # bin
 bin/
 

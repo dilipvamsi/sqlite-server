@@ -148,9 +148,15 @@ build-load-test-setup-cipher: $(TEST_DATA_DIR) $(BUILD_DIR)/tests/setup-read-db$
 # ==============================================================================
 
 .PHONY: run-load-test-setup
-run-load-test-setup: build-load-test-setup build ## Setup DBs and run server with loadtest config
-	@echo "🚀 Starting server with LOADTEST config..."
-	$(BINARY_OUT) $(LOADTEST_CONFIG)
+run-load-test-setup: build-load-test-setup build ## Setup DBs and run server with loadtest config (NO AUTH)
+	@echo "🚀 Starting server with LOADTEST config (AUTH DISABLED)..."
+	SQLITE_SERVER_AUTH_ENABLED=false $(BINARY_OUT) $(LOADTEST_CONFIG)
+
+.PHONY: run-load-test-setup-auth
+run-load-test-setup-auth: build-load-test-setup build ## Setup DBs and run server WITH auth enabled
+	@echo "🔐 Starting server with LOADTEST config (AUTH ENABLED)..."
+	@echo "   Credentials: admin / admin"
+	SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true $(BINARY_OUT) $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-setup-cipher
 run-load-test-setup-cipher: build-load-test-setup-cipher build ## Setup encrypted DBs and run server with cipher config
@@ -176,6 +182,82 @@ load-test: $(BENCH_BINS) ## Run benchmark clients (Server must be running)
 	@echo "🏁 Benchmarks finished."
 
 # ==============================================================================
+# Load Test: With API Key Authentication (Fast)
+# ==============================================================================
+
+LOAD_TEST_APIKEY_DIR := ./tests/load-with-api-key
+
+$(BUILD_DIR)/tests-apikey/%$(EXT): $(LOAD_TEST_APIKEY_DIR)/%/main.go
+	@mkdir -p $(BUILD_DIR)/tests-apikey
+	@echo "🔨 Compiling API key tool: $*..."
+	CGO_ENABLED=1 $(GOCMD) build -ldflags "$(LDFLAGS_COMMON)" -o $@ $<
+
+APIKEY_BENCH_BINS := $(BUILD_DIR)/tests-apikey/read-db$(EXT) \
+                     $(BUILD_DIR)/tests-apikey/read-stream-db$(EXT) \
+                     $(BUILD_DIR)/tests-apikey/read-write-db$(EXT) \
+                     $(BUILD_DIR)/tests-apikey/read-write-stream-db$(EXT)
+
+.PHONY: setup-apikey
+setup-apikey: $(BUILD_DIR)/tests-apikey/setup-apikey$(EXT) ## Generate API key for load tests
+	@echo "🔑 Generating API key for load tests..."
+	@$(BUILD_DIR)/tests-apikey/setup-apikey$(EXT)
+	@echo "✅ API key saved to .loadtest-api-key"
+
+.PHONY: build-load-test-apikey
+build-load-test-apikey: $(APIKEY_BENCH_BINS) $(BUILD_DIR)/tests-apikey/setup-apikey$(EXT) ## Build API key benchmark clients
+	@echo "✅ All API key load test binaries ready in $(BUILD_DIR)/tests-apikey/"
+
+.PHONY: load-test-apikey
+load-test-apikey: $(APIKEY_BENCH_BINS) ## Run API key benchmark clients (requires LOADTEST_API_KEY)
+	@if [ -z "$$LOADTEST_API_KEY" ] && [ -f .loadtest-api-key ]; then \
+		echo "🔑 Using API key from .loadtest-api-key"; \
+		export LOADTEST_API_KEY=$$(cat .loadtest-api-key); \
+		echo "🔐 Running API key benchmarks..."; \
+		LOADTEST_API_KEY=$$LOADTEST_API_KEY $(BUILD_DIR)/tests-apikey/read-db$(EXT); \
+		LOADTEST_API_KEY=$$LOADTEST_API_KEY $(BUILD_DIR)/tests-apikey/read-stream-db$(EXT); \
+		LOADTEST_API_KEY=$$LOADTEST_API_KEY $(BUILD_DIR)/tests-apikey/read-write-db$(EXT); \
+		LOADTEST_API_KEY=$$LOADTEST_API_KEY $(BUILD_DIR)/tests-apikey/read-write-stream-db$(EXT); \
+	elif [ -n "$$LOADTEST_API_KEY" ]; then \
+		echo "🔐 Running API key benchmarks..."; \
+		$(BUILD_DIR)/tests-apikey/read-db$(EXT); \
+		$(BUILD_DIR)/tests-apikey/read-stream-db$(EXT); \
+		$(BUILD_DIR)/tests-apikey/read-write-db$(EXT); \
+		$(BUILD_DIR)/tests-apikey/read-write-stream-db$(EXT); \
+	else \
+		echo "❌ LOADTEST_API_KEY not set. Run: make setup-apikey"; \
+		exit 1; \
+	fi
+	@echo "🏁 API key benchmarks finished."
+
+# ==============================================================================
+# Load Test: With Basic Auth (Username/Password)
+# ==============================================================================
+
+LOAD_TEST_BASIC_DIR := ./tests/load-with-basic-auth
+
+$(BUILD_DIR)/tests-basic/%$(EXT): $(LOAD_TEST_BASIC_DIR)/%/main.go
+	@mkdir -p $(BUILD_DIR)/tests-basic
+	@echo "🔨 Compiling Basic Auth tool: $*..."
+	CGO_ENABLED=1 $(GOCMD) build -ldflags "$(LDFLAGS_COMMON)" -o $@ $<
+
+BASIC_BENCH_BINS := $(BUILD_DIR)/tests-basic/read-db$(EXT) \
+                    $(BUILD_DIR)/tests-basic/read-stream-db$(EXT) \
+                    $(BUILD_DIR)/tests-basic/read-write-db$(EXT) \
+                    $(BUILD_DIR)/tests-basic/read-write-stream-db$(EXT)
+
+.PHONY: build-load-test-basic
+build-load-test-basic: $(BASIC_BENCH_BINS) ## Build Basic Auth benchmark clients
+	@echo "✅ All Basic Auth load test binaries ready in $(BUILD_DIR)/tests-basic/"
+
+.PHONY: load-test-basic
+load-test-basic: $(BASIC_BENCH_BINS) ## Run Basic Auth benchmark clients (uses admin/admin)
+	@echo "🔐 Running Basic Auth benchmarks..."
+	@LOADTEST_USERNAME=admin LOADTEST_PASSWORD=admin $(BUILD_DIR)/tests-basic/read-db$(EXT)
+	@LOADTEST_USERNAME=admin LOADTEST_PASSWORD=admin $(BUILD_DIR)/tests-basic/read-stream-db$(EXT)
+	@LOADTEST_USERNAME=admin LOADTEST_PASSWORD=admin $(BUILD_DIR)/tests-basic/read-write-db$(EXT)
+	@LOADTEST_USERNAME=admin LOADTEST_PASSWORD=admin $(BUILD_DIR)/tests-basic/read-write-stream-db$(EXT)
+	@echo "🏁 Basic Auth benchmarks finished."
+# ==============================================================================
 # Helpers
 # ==============================================================================
 
@@ -187,6 +269,7 @@ tidy: ## Clean up and sync go.mod and go.sum
 clean: ## Remove binaries, database files, and coverage reports
 	rm -rf $(BUILD_DIR)
 	rm -rf $(TEST_DATA_DIR)
+	rm -rf _meta.db
 	rm -f coverage.out coverage.raw.out coverage.html
 	@echo "Cleanup complete."
 
