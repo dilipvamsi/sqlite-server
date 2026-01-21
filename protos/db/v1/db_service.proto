@@ -271,18 +271,58 @@ service DatabaseService {
  */
 service AdminService {
   // --- User Management ---
+
+  /**
+   * Creates a new user with specific role-based access.
+   * Requires admin privileges.
+   */
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+
+  /**
+   * Permanently removes a user from the system.
+   * Existing connections for this user may be terminated.
+   */
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+  /**
+   * Rotates the password for a specific user.
+   * The new password takes effect immediately for new connections.
+   */
   rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
 
   // --- API Key Management ---
+
+  /**
+   * Generates a long-lived API key for a specific user.
+   * The key is only returned once in the response.
+   */
   rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
+
+  /**
+   * Retrieves all active API keys for a specific user.
+   * Returns metadata (name, prefix) but not the full key secrets.
+   */
   rpc ListApiKeys(ListApiKeysRequest) returns (ListApiKeysResponse);
+
+  /**
+   * Revokes (deletes) a specific API key immediately.
+   */
   rpc RevokeApiKey(RevokeApiKeyRequest) returns (RevokeApiKeyResponse);
 
   // --- Disaster Recovery ---
+
+  /**
+   * Streams a binary backup of the specified database file.
+   * The stream delivers the file in 4MB chunks.
+   */
   rpc BackupDatabase(BackupDatabaseRequest)
       returns (stream BackupDatabaseResponse);
+
+  /**
+   * Restores a database from a backup stream.
+   * This overwrites the existing database file.
+   * Protocol: [Metadata] -> [Chunk] -> [Chunk]...
+   */
   rpc RestoreDatabase(stream RestoreDatabaseRequest)
       returns (RestoreDatabaseResponse);
 }
@@ -291,15 +331,29 @@ service AdminService {
 // Core Request Messages
 // -----------------------------------------------------------------------------
 
-// ... [Existing Core Messages] ...
-
 // -----------------------------------------------------------------------------
 // Admin Messages
 // -----------------------------------------------------------------------------
 
+/**
+ * Request to create a new database user.
+ */
 message CreateUserRequest {
-  string username = 1 [ (buf.validate.field).string.min_len = 3 ];
-  string password = 2 [ (buf.validate.field).string.min_len = 8 ];
+  string username = 1
+      [ (buf.validate.field).string =
+            {min_len : 3, max_len : 64, pattern : "^[a-zA-Z0-9_.-]+$"} ];
+  // Password MUST meet basic complexity requirements:
+  // 1. Length between 8 and 128 chars.
+  // 2. No whitespace allowed.
+  // 3. Must contain at least one letter and one number.
+  string password = 2 [ (buf.validate.field) = {
+    string : {min_len : 8 max_len : 128 pattern : "^[^\\s]+$"},
+    cel : [ {
+      id : "password_complexity",
+      message : "Password must contain at least one letter and one number",
+      expression : "this.matches('.*[a-zA-Z].*') && this.matches('.*[0-9].*')"
+    } ]
+  } ];
   string role = 3 [
     (buf.validate.field).string.in = "admin",
     (buf.validate.field).string.in = "read_write",
@@ -307,37 +361,76 @@ message CreateUserRequest {
   ];
 }
 
+/**
+ * Response containing details of the created user.
+ */
 message CreateUserResponse {
   int64 user_id = 1;
   string created_at = 2; // ISO8601
 }
 
+/**
+ * Request to delete an existing user.
+ */
 message DeleteUserRequest {
-  string username = 1 [ (buf.validate.field).string.min_len = 1 ];
+  string username = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
 }
 
+/**
+ * Response indicating the success of the user deletion.
+ */
 message DeleteUserResponse { bool success = 1; }
 
+/**
+ * Request to update a user's password.
+ */
 message UpdatePasswordRequest {
-  string username = 1 [ (buf.validate.field).string.min_len = 1 ];
-  string new_password = 2 [ (buf.validate.field).string.min_len = 8 ];
+  string username = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
+  string new_password = 2 [ (buf.validate.field) = {
+    string : {min_len : 8 max_len : 128 pattern : "^[^\\s]+$"},
+    cel : [ {
+      id : "password_complexity",
+      message : "Password must contain at least one letter and one number",
+      expression : "this.matches('.*[a-zA-Z].*') && this.matches('.*[0-9].*')"
+    } ]
+  } ];
 }
 
+/**
+ * Response indicating the success of the password update.
+ */
 message UpdatePasswordResponse { bool success = 1; }
 
+/**
+ * Request to generate a new API key for a user.
+ */
 message CreateApiKeyRequest {
-  int64 user_id = 1;
-  string name = 2;       // e.g. "Laptop"
+  int64 user_id = 1 [ (buf.validate.field).int64.gt = 0 ];
+  string name = 2 [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
   string expires_at = 3; // ISO8601, optional
 }
 
+/**
+ * Response containing the generated API key.
+ * WARNING: The `api_key` field is only shown once here.
+ */
 message CreateApiKeyResponse {
   string api_key = 1; // The raw secret key (only shown once)
   int64 key_id = 2;
 }
 
-message ListApiKeysRequest { int64 user_id = 1; }
+/**
+ * Request to list active API keys for a user.
+ */
+message ListApiKeysRequest {
+  int64 user_id = 1 [ (buf.validate.field).int64.gt = 0 ];
+}
 
+/**
+ * Response containing a list of API key summaries.
+ */
 message ListApiKeysResponse {
   message ApiKeySummary {
     int64 id = 1;
@@ -348,24 +441,57 @@ message ListApiKeysResponse {
   repeated ApiKeySummary keys = 1;
 }
 
-message RevokeApiKeyRequest { int64 key_id = 1; }
-
-message RevokeApiKeyResponse { bool success = 1; }
-
-message BackupDatabaseRequest {
-  // Optional: database name to backup (if multiple DBs supported)
-  string database = 1;
+/**
+ * Request to revoke (delete) a specific API key.
+ */
+message RevokeApiKeyRequest {
+  int64 key_id = 1 [ (buf.validate.field).int64.gt = 0 ];
 }
 
-message BackupDatabaseResponse { bytes chunk = 1; }
+/**
+ * Response indicating the success of the key revocation.
+ */
+message RevokeApiKeyResponse { bool success = 1; }
 
+/**
+ * Request to initiate a database backup.
+ */
+message BackupDatabaseRequest {
+  // Optional: database name to backup (if multiple DBs supported).
+  // Regex allows empty string OR valid database name.
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^$|^[a-zA-Z0-9_-]{3,64}$"} ];
+}
+
+/**
+ * A chunk of binary data from the backup stream.
+ */
+message BackupDatabaseResponse {
+  // 4MB limit for safety chunks
+  bytes chunk = 1 [ (buf.validate.field).bytes.max_len = 4194304 ];
+}
+
+/**
+ * A message in the restore stream.
+ * The first message must contain `database_name`.
+ * Subsequent messages must contain `chunk`.
+ */
 message RestoreDatabaseRequest {
   oneof payload {
-    string database_name = 1; // Sent in first message
-    bytes chunk = 2;          // Sent in subsequent messages
+    option (buf.validate.oneof).required = true;
+
+    // The name of the database to restore (sent in the first message).
+    string database_name = 1
+        [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+    // A chunk of binary data to write (sent in subsequent messages).
+    bytes chunk = 2
+        [ (buf.validate.field).bytes = {min_len : 1, max_len : 4194304} ];
   }
 }
 
+/**
+ * Response indicating the final status of the restore operation.
+ */
 message RestoreDatabaseResponse {
   bool success = 1;
   int64 bytes_written = 2;
@@ -385,7 +511,7 @@ message QueryRequest {
       [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
 
   // Optional hint to optimize connection routing (Read vs Write).
-  QueryType type = 3;
+  QueryType type = 3 [ (buf.validate.field).enum.defined_only = true ];
 
   // Parameters definition (Positional or Named).
   Parameters parameters = 4;
@@ -408,10 +534,18 @@ message Parameters {
   // For standard strings, bools, and small ints, NO HINT IS NEEDED.
 
   // Key: The 0-based index of the positional parameter.
-  map<int32, ColumnType> positional_hints = 3;
+  map<int32, ColumnType> positional_hints = 3 [
+    (buf.validate.field).map.keys.int32.gte = 0,
+    (buf.validate.field).map.max_pairs = 1000,
+    (buf.validate.field).map.values.enum.defined_only = true
+  ];
 
   // Key: The parameter name (e.g., ":id", "@user").
-  map<string, ColumnType> named_hints = 4;
+  map<string, ColumnType> named_hints = 4 [
+    (buf.validate.field).map.keys.string.min_len = 1,
+    (buf.validate.field).map.max_pairs = 1000,
+    (buf.validate.field).map.values.enum.defined_only = true
+  ];
 }
 
 // -----------------------------------------------------------------------------
@@ -429,10 +563,13 @@ message BeginTransactionRequest {
   // How long the server should keep this transaction alive without activity
   // before auto-rolling back. (e.g., "30s", "1m").
   // If unspecified, defaults to server configuration (usually 30s).
-  string timeout = 2;
+  // Validates common duration formats, allowing empty string (unspecified).
+  string timeout = 2 [ (buf.validate.field).string = {
+    pattern : "^$|^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+  } ];
 
   // The locking mode to use (DEFERRED, IMMEDIATE, EXCLUSIVE).
-  TransactionMode mode = 3;
+  TransactionMode mode = 3 [ (buf.validate.field).enum.defined_only = true ];
 }
 
 /**
@@ -454,7 +591,8 @@ message BeginTransactionResponse {
 message TransactionQueryRequest {
   // The token received from BeginTransaction.
   // Note: No database name needed; the ID implies the database context.
-  string transaction_id = 1 [ (buf.validate.field).string.min_len = 1 ];
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 128} ];
 
   // The SQL statement to execute.
   string sql = 2
@@ -469,7 +607,8 @@ message TransactionQueryRequest {
  */
 message TransactionSavepointRequest {
   // The token received from BeginTransaction.
-  string transaction_id = 1 [ (buf.validate.field).string.min_len = 1 ];
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 128} ];
 
   // The savepoint action and name.
   SavepointRequest savepoint = 2 [ (buf.validate.field).required = true ];
@@ -480,7 +619,8 @@ message TransactionSavepointRequest {
  */
 message TransactionControlRequest {
   // The session token to finalize.
-  string transaction_id = 1 [ (buf.validate.field).string.min_len = 1 ];
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 128} ];
 }
 
 /**
@@ -540,7 +680,7 @@ message BeginRequest {
   // The locking mode. Defaults to DEFERRED if unspecified.
   // Use IMMEDIATE or EXCLUSIVE for write-heavy transactions to avoid
   // busy-loops.
-  TransactionMode mode = 2;
+  TransactionMode mode = 2 [ (buf.validate.field).enum.defined_only = true ];
 }
 
 /**

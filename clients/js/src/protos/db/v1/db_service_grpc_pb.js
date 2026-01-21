@@ -540,7 +540,9 @@ exports.DatabaseServiceClient = grpc.makeGenericClientConstructor(DatabaseServic
 // AdminService handles restricted operations for user management and system
 // maintenance. Access to this service MUST be restricted to the 'admin' role.
 var AdminServiceService = exports.AdminServiceService = {
-  // --- User Management ---
+  // *
+// Creates a new user with specific role-based access.
+// Requires admin privileges.
 createUser: {
     path: '/db.v1.AdminService/CreateUser',
     requestStream: false,
@@ -552,7 +554,10 @@ createUser: {
     responseSerialize: serialize_db_v1_CreateUserResponse,
     responseDeserialize: deserialize_db_v1_CreateUserResponse,
   },
-  deleteUser: {
+  // *
+// Permanently removes a user from the system.
+// Existing connections for this user may be terminated.
+deleteUser: {
     path: '/db.v1.AdminService/DeleteUser',
     requestStream: false,
     responseStream: false,
@@ -563,7 +568,10 @@ createUser: {
     responseSerialize: serialize_db_v1_DeleteUserResponse,
     responseDeserialize: deserialize_db_v1_DeleteUserResponse,
   },
-  updatePassword: {
+  // *
+// Rotates the password for a specific user.
+// The new password takes effect immediately for new connections.
+updatePassword: {
     path: '/db.v1.AdminService/UpdatePassword',
     requestStream: false,
     responseStream: false,
@@ -575,6 +583,10 @@ createUser: {
     responseDeserialize: deserialize_db_v1_UpdatePasswordResponse,
   },
   // --- API Key Management ---
+//
+// *
+// Generates a long-lived API key for a specific user.
+// The key is only returned once in the response.
 createApiKey: {
     path: '/db.v1.AdminService/CreateApiKey',
     requestStream: false,
@@ -586,7 +598,10 @@ createApiKey: {
     responseSerialize: serialize_db_v1_CreateApiKeyResponse,
     responseDeserialize: deserialize_db_v1_CreateApiKeyResponse,
   },
-  listApiKeys: {
+  // *
+// Retrieves all active API keys for a specific user.
+// Returns metadata (name, prefix) but not the full key secrets.
+listApiKeys: {
     path: '/db.v1.AdminService/ListApiKeys',
     requestStream: false,
     responseStream: false,
@@ -597,7 +612,9 @@ createApiKey: {
     responseSerialize: serialize_db_v1_ListApiKeysResponse,
     responseDeserialize: deserialize_db_v1_ListApiKeysResponse,
   },
-  revokeApiKey: {
+  // *
+// Revokes (deletes) a specific API key immediately.
+revokeApiKey: {
     path: '/db.v1.AdminService/RevokeApiKey',
     requestStream: false,
     responseStream: false,
@@ -609,6 +626,10 @@ createApiKey: {
     responseDeserialize: deserialize_db_v1_RevokeApiKeyResponse,
   },
   // --- Disaster Recovery ---
+//
+// *
+// Streams a binary backup of the specified database file.
+// The stream delivers the file in 4MB chunks.
 backupDatabase: {
     path: '/db.v1.AdminService/BackupDatabase',
     requestStream: false,
@@ -620,7 +641,11 @@ backupDatabase: {
     responseSerialize: serialize_db_v1_BackupDatabaseResponse,
     responseDeserialize: deserialize_db_v1_BackupDatabaseResponse,
   },
-  restoreDatabase: {
+  // *
+// Restores a database from a backup stream.
+// This overwrites the existing database file.
+// Protocol: [Metadata] -> [Chunk] -> [Chunk]...
+restoreDatabase: {
     path: '/db.v1.AdminService/RestoreDatabase',
     requestStream: true,
     responseStream: false,
@@ -634,3 +659,4 @@ backupDatabase: {
 };
 
 exports.AdminServiceClient = grpc.makeGenericClientConstructor(AdminServiceService, 'AdminService');
+// --- User Management ---

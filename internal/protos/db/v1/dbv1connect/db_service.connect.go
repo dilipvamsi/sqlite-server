@@ -500,16 +500,37 @@ func (UnimplementedDatabaseServiceHandler) ExecuteTransaction(context.Context, *
 
 // AdminServiceClient is a client for the db.v1.AdminService service.
 type AdminServiceClient interface {
-	// --- User Management ---
+	// *
+	// Creates a new user with specific role-based access.
+	// Requires admin privileges.
 	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
+	// *
+	// Permanently removes a user from the system.
+	// Existing connections for this user may be terminated.
 	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
+	// *
+	// Rotates the password for a specific user.
+	// The new password takes effect immediately for new connections.
 	UpdatePassword(context.Context, *connect.Request[v1.UpdatePasswordRequest]) (*connect.Response[v1.UpdatePasswordResponse], error)
-	// --- API Key Management ---
+	// *
+	// Generates a long-lived API key for a specific user.
+	// The key is only returned once in the response.
 	CreateApiKey(context.Context, *connect.Request[v1.CreateApiKeyRequest]) (*connect.Response[v1.CreateApiKeyResponse], error)
+	// *
+	// Retrieves all active API keys for a specific user.
+	// Returns metadata (name, prefix) but not the full key secrets.
 	ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error)
+	// *
+	// Revokes (deletes) a specific API key immediately.
 	RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error)
-	// --- Disaster Recovery ---
+	// *
+	// Streams a binary backup of the specified database file.
+	// The stream delivers the file in 4MB chunks.
 	BackupDatabase(context.Context, *connect.Request[v1.BackupDatabaseRequest]) (*connect.ServerStreamForClient[v1.BackupDatabaseResponse], error)
+	// *
+	// Restores a database from a backup stream.
+	// This overwrites the existing database file.
+	// Protocol: [Metadata] -> [Chunk] -> [Chunk]...
 	RestoreDatabase(context.Context) *connect.ClientStreamForClient[v1.RestoreDatabaseRequest, v1.RestoreDatabaseResponse]
 }
 
@@ -629,16 +650,37 @@ func (c *adminServiceClient) RestoreDatabase(ctx context.Context) *connect.Clien
 
 // AdminServiceHandler is an implementation of the db.v1.AdminService service.
 type AdminServiceHandler interface {
-	// --- User Management ---
+	// *
+	// Creates a new user with specific role-based access.
+	// Requires admin privileges.
 	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
+	// *
+	// Permanently removes a user from the system.
+	// Existing connections for this user may be terminated.
 	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
+	// *
+	// Rotates the password for a specific user.
+	// The new password takes effect immediately for new connections.
 	UpdatePassword(context.Context, *connect.Request[v1.UpdatePasswordRequest]) (*connect.Response[v1.UpdatePasswordResponse], error)
-	// --- API Key Management ---
+	// *
+	// Generates a long-lived API key for a specific user.
+	// The key is only returned once in the response.
 	CreateApiKey(context.Context, *connect.Request[v1.CreateApiKeyRequest]) (*connect.Response[v1.CreateApiKeyResponse], error)
+	// *
+	// Retrieves all active API keys for a specific user.
+	// Returns metadata (name, prefix) but not the full key secrets.
 	ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error)
+	// *
+	// Revokes (deletes) a specific API key immediately.
 	RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error)
-	// --- Disaster Recovery ---
+	// *
+	// Streams a binary backup of the specified database file.
+	// The stream delivers the file in 4MB chunks.
 	BackupDatabase(context.Context, *connect.Request[v1.BackupDatabaseRequest], *connect.ServerStream[v1.BackupDatabaseResponse]) error
+	// *
+	// Restores a database from a backup stream.
+	// This overwrites the existing database file.
+	// Protocol: [Metadata] -> [Chunk] -> [Chunk]...
 	RestoreDatabase(context.Context, *connect.ClientStream[v1.RestoreDatabaseRequest]) (*connect.Response[v1.RestoreDatabaseResponse], error)
 }
 
