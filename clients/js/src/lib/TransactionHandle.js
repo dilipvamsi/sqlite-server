@@ -5,7 +5,13 @@
 
 const db_service_pb = require("../protos/db/v1/db_service_pb");
 const { TransactionMode, SavepointAction } = require("./constants");
-const { toProtoParams, fromProtoList, resolveArgs } = require("./utils");
+const {
+  toProtoParams,
+  resolveArgs,
+  createRowIterator,
+  createBatchIterator,
+  mapQueryResult,
+} = require("./utils");
 const AsyncQueue = require("./AsyncQueue");
 
 /**
@@ -25,7 +31,7 @@ const cleanupRegistry = new FinalizationRegistry((heldValue) => {
   ) {
     console.error(
       `[sqlite-server] CRITICAL: TransactionHandle for "${databaseName}" was garbage collected ` +
-        `without calling commit() or rollback(). Forcing stream cancellation.`,
+      `without calling commit() or rollback(). Forcing stream cancellation.`,
     );
     stream.cancel();
   }
@@ -69,17 +75,21 @@ function _attachStreamListeners(stream, state, weakHandle) {
  */
 class TransactionHandle {
   /**
+   * Creates a new TransactionHandle.
    * @param {object} client - The generated DatabaseServiceClient instance.
    * @param {string} databaseName - The logical name of the database to lock.
    * @param {number} mode - Initial locking mode (DEFERRED, IMMEDIATE, EXCLUSIVE).
+   * @param {object} [config] - Client configuration.
    */
-  constructor(client, databaseName, mode) {
+  constructor(client, databaseName, mode, config) {
     /** @private */
     this.client = client;
     /** @private */
     this.databaseName = databaseName;
     /** @private */
     this.mode = mode;
+    /** @private */
+    this.config = config || {};
 
     /** @type {import('@grpc/grpc-js').ClientDuplexStream | null} The raw gRPC stream */
     this.stream = null;
@@ -235,6 +245,14 @@ class TransactionHandle {
       req.setQueryStream(queryReq);
 
       this.stream.write(req);
+    }).then((res) => {
+      // res is { columns, columnTypes, rows: activeQueue }
+      // We replace 'rows' with our helper wrapper
+      return {
+        columns: res.columns,
+        columnTypes: res.columnTypes,
+        rows: createRowIterator(res.rows, res.columnTypes, this.config.dateHandling),
+      };
     });
   }
 
@@ -261,26 +279,35 @@ class TransactionHandle {
       resolvedHints = paramsOrHints;
     }
 
-    const {
-      columns,
-      columnTypes,
-      rows: rowIterator,
-    } = await this.iterate(sqlOrObj, paramsOrHints, resolvedHints);
+    if (this.activeQueue || this.pendingResolver)
+      throw new Error("Transaction is busy");
 
-    // Internal batch generator wraps the row iterator
-    const batchGenerator = async function* () {
-      let buffer = [];
-      for await (const row of rowIterator) {
-        buffer.push(row);
-        if (buffer.length >= resolvedBatchSize) {
-          yield buffer;
-          buffer = [];
-        }
-      }
-      if (buffer.length > 0) yield buffer;
-    };
+    const { sql, positional, named, hints } = resolveArgs(
+      sqlOrObj,
+      paramsOrHints,
+      resolvedHints,
+    );
 
-    return { columns, columnTypes, rows: batchGenerator() };
+    return new Promise((resolve, reject) => {
+      this.activeQueue = new AsyncQueue();
+
+      this.pendingResolver = { resolve, reject, type: "QUERY_STREAM_INIT" };
+
+      const queryReq = new db_service_pb.TransactionalQueryRequest();
+      queryReq.setSql(sql);
+      queryReq.setParameters(toProtoParams(positional, named, hints));
+
+      const req = new db_service_pb.TransactionRequest();
+      req.setQueryStream(queryReq);
+
+      this.stream.write(req);
+    }).then(res => {
+      return {
+        columns: res.columns,
+        columnTypes: res.columnTypes,
+        rows: createBatchIterator(res.rows, res.columnTypes, this.config.dateHandling, resolvedBatchSize),
+      };
+    });
   }
 
   /**
@@ -320,7 +347,7 @@ class TransactionHandle {
 
   /**
    * Commits all changes in the current transaction to disk and closes the stream.
-   * @returns {Promise<db_service_pb.CommitResponse>}
+   * @returns {Promise<{success: boolean}>}
    */
   async commit() {
     if (this._state.isFinalized) return;
@@ -338,7 +365,7 @@ class TransactionHandle {
   /**
    * Aborts the transaction and discards all changes.
    * Safe to call multiple times or on a closed stream.
-   * @returns {Promise<db_service_pb.RollbackResponse>}
+   * @returns {Promise<{success: boolean}>}
    */
   async rollback() {
     if (this._state.isFinalized) return { success: true };
@@ -382,24 +409,9 @@ class TransactionHandle {
       if (!this.pendingResolver) return;
 
       const result = res.getQueryResult();
-      const type = result.getResultCase();
-
-      if (type === db_service_pb.QueryResult.ResultCase.SELECT) {
-        const sel = result.getSelect();
-        this.pendingResolver.resolve({
-          type: "SELECT",
-          columns: sel.getColumnsList(),
-          columnTypes: sel.getColumnTypesList(),
-          rows: sel.getRowsList().map((r) => fromProtoList(r)),
-        });
-      } else {
-        const dml = result.getDml();
-        this.pendingResolver.resolve({
-          type: "DML",
-          rowsAffected: dml.getRowsAffected(),
-          lastInsertId: dml.getLastInsertId(),
-        });
-      }
+      // Use helper
+      const mapped = mapQueryResult(result, this.config.dateHandling);
+      this.pendingResolver.resolve(mapped);
       this.pendingResolver = null;
       return;
     }
@@ -422,9 +434,13 @@ class TransactionHandle {
           this.pendingResolver = null;
         }
       } else if (streamCase === SCase.BATCH) {
-        // Data message: Push rows into the queue
-        for (const row of streamRes.getBatch().getRowsList()) {
-          this.activeQueue.push(fromProtoList(row, this._currentColumnTypes));
+        // Data message: Push raw batch (array of ListValue) into the queue
+        // The helper iterator will flatten and hydrate it.
+        const rowsList = streamRes.getBatch().getRowsList();
+        // Since AsyncQueue is item-based, we can push the whole array as one "item"
+        // and the helper "createRowIterator" expects "batchIterator" (yields arrays).
+        if (rowsList && rowsList.length > 0) {
+          this.activeQueue.push(rowsList);
         }
       } else if (streamCase === SCase.DML) {
         // Special Case: DML with RETURNING clause in streaming mode
@@ -458,7 +474,7 @@ class TransactionHandle {
           this.pendingResolver.resolve(res.getRollback());
           this.stream.end();
           break;
-        case Case.SAVEPOINT:
+        case Case.SAVEPOINT: {
           const sp = res.getSavepoint();
           this.pendingResolver.resolve({
             success: sp.getSuccess(),
@@ -466,6 +482,7 @@ class TransactionHandle {
             action: sp.getAction(),
           });
           break;
+        }
       }
       this.pendingResolver = null;
     }

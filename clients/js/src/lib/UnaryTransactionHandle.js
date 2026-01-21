@@ -1,0 +1,281 @@
+const db_service_pb = require("../protos/db/v1/db_service_pb");
+const {
+    toProtoParams,
+    resolveArgs,
+    createRowIterator,
+    createBatchIterator,
+    mapQueryResult,
+} = require("./utils");
+
+/**
+ * Manages a Unary (ID-Based) Transaction.
+ * All operations use a transaction ID and are stateless relative to the connection.
+ * Supports streaming results via the TransactionQueryStream RPC.
+ */
+class UnaryTransactionHandle {
+    /**
+     * @param {Object} client - The gRPC DatabaseServiceClient.
+     * @param {string} databaseName - The name of the database.
+     * @param {number} mode - One of TransactionMode enum (DEFERRED, IMMEDIATE, EXCLUSIVE).
+     * @param {Object} config - Client configuration.
+     */
+    constructor(client, databaseName, mode, config) {
+        this.client = client;
+        this.dbName = databaseName;
+        this.mode = mode;
+        this.config = config || {};
+        this.transactionId = null;
+        this.isFinalized = false;
+    }
+
+    // --- Lifecycle ---
+
+    /**
+     * Begins the transaction by calling the Unary BeginTransaction RPC.
+     * Stores the returned transaction ID.
+     * @returns {Promise<void>}
+     */
+    async begin() {
+        const req = new db_service_pb.BeginTransactionRequest();
+        req.setDatabase(this.dbName);
+        req.setMode(this.mode);
+
+        return new Promise((resolve, reject) => {
+            this.client.beginTransaction(req, (err, res) => {
+                if (err) return reject(err);
+                this.transactionId = res.getTransactionId();
+                resolve();
+            });
+        });
+    }
+
+    /**
+     * Commits the transaction using the CommitTransaction RPC.
+     * @returns {Promise<{success: boolean}>}
+     */
+    async commit() {
+        this._checkActive();
+        const req = new db_service_pb.TransactionControlRequest();
+        req.setTransactionId(this.transactionId);
+
+        return new Promise((resolve, reject) => {
+            this.client.commitTransaction(req, (err, res) => {
+                this.isFinalized = true;
+                if (err) return reject(err);
+                resolve({ success: res.getSuccess() });
+            });
+        });
+    }
+
+    /**
+     * Rolls back the transaction using the RollbackTransaction RPC.
+     * explicit rollback.
+     * @returns {Promise<{success: boolean}>}
+     */
+    async rollback() {
+        // Determine active state safely to avoid double-rollback errors
+        if (!this.transactionId || this.isFinalized) {
+            return { success: false };
+        }
+        const req = new db_service_pb.TransactionControlRequest();
+        req.setTransactionId(this.transactionId);
+
+        return new Promise((resolve, reject) => {
+            this.client.rollbackTransaction(req, (err, res) => {
+                this.isFinalized = true;
+                if (err) {
+                    // Ignore "NOT_FOUND" which means it's already gone
+                    if (err.code === 12 || err.code === 5) { // NOT_FOUND or NOT_FOUND mapped
+                        return resolve({ success: false });
+                    }
+                    return reject(err);
+                }
+                resolve({ success: res.getSuccess() });
+            });
+        });
+    }
+
+    // --- Savepoints ---
+
+    /**
+     * Manages savepoints within the transaction.
+     * @param {string} name - Savepoint name.
+     * @param {number} action - SavepointAction enum (CREATE, RELEASE, ROLLBACK).
+     * @returns {Promise<{success: boolean, name: string, action: number}>}
+     */
+    async savepoint(name, action) {
+        this._checkActive();
+        const savepointReq = new db_service_pb.SavepointRequest();
+        savepointReq.setName(name);
+        savepointReq.setAction(action);
+
+        const req = new db_service_pb.TransactionSavepointRequest();
+        req.setTransactionId(this.transactionId);
+        req.setSavepoint(savepointReq);
+
+        return new Promise((resolve, reject) => {
+            this.client.transactionSavepoint(req, (err, res) => {
+                if (err) return reject(err);
+                resolve({
+                    success: res.getSuccess(),
+                    name: res.getName(),
+                    action: res.getAction(),
+                });
+            });
+        });
+    }
+
+    // --- Queries ---
+
+    /**
+     * Executes a query and buffers the result in memory.
+     * @param {string|Object} sqlOrObj - SQL string or SQLStatement object.
+     * @param {Object|Array} [paramsOrHints] - Parameters or hints (if 3 args).
+     * @param {Object} [hintsOrNull] - Hints (if 3 args) or null.
+     * @returns {Promise<Object>} The query result (SELECT or DML).
+     */
+    async query(sqlOrObj, paramsOrHints, hintsOrNull) {
+        this._checkActive();
+        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+
+        const req = new db_service_pb.TransactionQueryRequest();
+        req.setTransactionId(this.transactionId);
+        req.setSql(sql);
+        req.setParameters(toProtoParams(positional, named, hints));
+
+        return new Promise((resolve, reject) => {
+            this.client.transactionQuery(req, (err, result) => {
+                if (err) return reject(err);
+
+                // Use helper
+                resolve(mapQueryResult(result, this.config.dateHandling));
+            });
+        });
+    }
+
+    /**
+     * Executes a query and yields rows one by one from a stream.
+     * @param {string|Object} sqlOrObj - SQL string or SQLStatement object.
+     * @param {Object|Array} [paramsOrHints] - Parameters.
+     * @param {Object} [hintsOrNull] - Hints.
+     * @returns {Promise<{columns: string[], rows: AsyncIterable<any[]>}>}
+     */
+    async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
+        const iterator = await this._initStream(sqlOrObj, paramsOrHints, hintsOrNull);
+        const { rows, columnTypes, dateHandling } = iterator;
+
+        // _initStream returns a custom object where 'rows' IS ALREADY A BATCH GENERATOR
+        // (see line 294: rows: batchGen()).
+        // So we can pass it directly to the helper.
+
+        return {
+            columns: iterator.columns,
+            rows: createRowIterator(rows, columnTypes, dateHandling),
+        };
+    }
+
+    /**
+     * Executes a query and yields batches of rows from a stream.
+     * @param {string|Object} sqlOrObj - SQL string or SQLStatement object.
+     * @param {Object|Array} [paramsOrHints] - Parameters.
+     * @param {Object} [hintsOrNull] - Hints.
+     * @param {number} [batchSize=500] - Client-side re-batching size.
+     * @returns {Promise<{columns: string[], rows: AsyncIterable<any[][]>}>}
+     */
+    async queryStream(sqlOrObj, paramsOrHints, hintsOrNull, batchSize = 500) {
+        // Handle optional batchSize in 4th arg
+        let resolvedBatchSize = batchSize;
+        let resolvedHints = hintsOrNull;
+        if (sqlOrObj?.text && arguments.length === 3 && typeof hintsOrNull === "number") {
+            resolvedBatchSize = hintsOrNull;
+            resolvedHints = paramsOrHints;
+        }
+
+        const iterator = await this._initStream(sqlOrObj, paramsOrHints, resolvedHints);
+        const { rows, columnTypes, dateHandling } = iterator;
+
+        return {
+            columns: iterator.columns,
+            rows: createBatchIterator(rows, columnTypes, dateHandling, resolvedBatchSize),
+        };
+    }
+
+    /**
+     * Internal: Initiates a TransactionQueryStream RPC.
+     * @private
+     */
+    async _initStream(sqlOrObj, paramsOrHints, hintsOrNull) {
+        this._checkActive();
+        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+
+        const req = new db_service_pb.TransactionQueryRequest();
+        req.setTransactionId(this.transactionId);
+        req.setSql(sql);
+        req.setParameters(toProtoParams(positional, named, hints));
+
+        const stream = this.client.transactionQueryStream(req);
+        const iterator = stream[Symbol.asyncIterator]();
+
+        // Peel header
+        const first = await iterator.next();
+        if (first.done) return { columns: [], columnTypes: [], rows: [] };
+
+        const msg = first.value;
+        const caseType = msg.getResponseCase();
+
+        if (caseType === db_service_pb.QueryResponse.ResponseCase.ERROR) {
+            throw new Error(msg.getError().getMessage());
+        }
+
+        // We expect HEADER first usually
+        let columns = [];
+        let columnTypes = [];
+
+        if (caseType === db_service_pb.QueryResponse.ResponseCase.HEADER) {
+            columns = msg.getHeader().getColumnsList();
+            columnTypes = msg.getHeader().getColumnTypesList();
+        }
+
+        // Generator for raw proto batches
+        const batchGen = async function* () {
+            let nextVal = await iterator.next();
+            while (!nextVal.done) {
+                const res = nextVal.value;
+                const type = res.getResponseCase();
+                if (type === db_service_pb.QueryResponse.ResponseCase.BATCH) {
+                    yield res.getBatch().getRowsList();
+                } else if (type === db_service_pb.QueryResponse.ResponseCase.ERROR) {
+                    throw new Error(res.getError().getMessage());
+                }
+                nextVal = await iterator.next();
+            }
+        };
+
+        return {
+            columns,
+            columnTypes,
+            rows: batchGen(),
+            dateHandling: this.config.dateHandling,
+        };
+    }
+
+    /**
+     * Helper to verify transaction state.
+     * @private
+     */
+    _checkActive() {
+        if (!this.transactionId || this.isFinalized) {
+            throw new Error("Transaction is closed or not started");
+        }
+    }
+
+    /**
+     * Read-only property for internal test checks.
+     * @returns {{isFinalized: boolean}}
+     */
+    get _state() {
+        return { isFinalized: this.isFinalized };
+    }
+}
+
+module.exports = UnaryTransactionHandle;

@@ -44,6 +44,11 @@ export enum TransactionMode {
   TRANSACTION_MODE_EXCLUSIVE = 3,
 }
 
+export enum TransactionType {
+  STREAMING = 1,
+  UNARY = 2,
+}
+
 export enum ColumnType {
   COLUMN_TYPE_UNSPECIFIED = 0,
   COLUMN_TYPE_NULL = 1,
@@ -103,6 +108,17 @@ export interface BatchStreamResult {
   rows: AsyncIterable<any[][]>;
 }
 
+export interface MixedParams {
+  positional?: any[];
+  named?: Record<string, any>;
+}
+
+export interface QueryRequestItem {
+  sql: string | SQLStatement;
+  params?: MixedParams;
+  hints?: QueryHints;
+}
+
 // --- Classes ---
 
 export class TransactionHandle {
@@ -113,7 +129,7 @@ export class TransactionHandle {
   query(statement: SQLStatement, hints?: QueryHints): Promise<BufferedResult>;
   query(
     sql: string,
-    params?: any[] | Record<string, any>,
+    params?: MixedParams,
     hints?: QueryHints,
   ): Promise<BufferedResult>;
 
@@ -124,7 +140,7 @@ export class TransactionHandle {
   iterate(statement: SQLStatement, hints?: QueryHints): Promise<IterateResult>;
   iterate(
     sql: string,
-    params?: any[] | Record<string, any>,
+    params?: MixedParams,
     hints?: QueryHints,
   ): Promise<IterateResult>;
 
@@ -140,21 +156,102 @@ export class TransactionHandle {
   ): Promise<BatchStreamResult>;
   queryStream(
     sql: string,
-    params?: any[] | Record<string, any>,
+    params?: MixedParams,
     hints?: QueryHints,
     batchSize?: number,
   ): Promise<BatchStreamResult>;
 
   /** Manages a SQLite Savepoint (Nested Transaction). */
   savepoint(
-    name,
-    action = SavepointAction,
+    name: string,
+    action: SavepointAction,
   ): Promise<{ success: boolean; name: string; action: SavepointAction }>;
 
   /** Commits the transaction and closes the stream. */
   commit(): Promise<{ success: boolean }>;
 
   /** Rolls back the transaction and closes the stream. */
+  rollback(): Promise<{ success: boolean }>;
+}
+
+export interface RetryConfig {
+  maxRetries?: number;
+  baseDelayMs?: number;
+}
+
+export interface Interceptor {
+  beforeQuery?: (req: { sql?: string; params?: any; type?: string; queries?: any[] }) => void;
+  afterQuery?: (result: any) => void;
+  onError?: (err: Error) => void;
+}
+
+export interface ClientConfig {
+  dateHandling?: 'date' | 'string' | 'number';
+  retry?: RetryConfig;
+  interceptors?: Interceptor[];
+  /**
+   * Maximum integer of rows to buffer in memory during streaming (iterate/queryStream).
+   * Higher values reduce connection hold time but increase memory usage.
+   * Default: 100.
+   */
+  maxStreamBuffer?: number;
+}
+
+/**
+ * Manages a Unary (ID-Based) Transaction.
+ * All operations use a transaction ID and are stateless relative to the connection.
+ * Supports streaming results via the TransactionQueryStream RPC.
+ */
+export class UnaryTransactionHandle {
+  /**
+   * Executes a query and buffers the result in memory.
+   * Use this for DML or small SELECTs.
+   */
+  query(statement: SQLStatement, hints?: QueryHints): Promise<BufferedResult>;
+  query(
+    sql: string,
+    params?: MixedParams,
+    hints?: QueryHints,
+  ): Promise<BufferedResult>;
+
+  /**
+   * Executes a query and yields rows one by one.
+   * Efficient for reading medium-large datasets.
+   */
+  iterate(statement: SQLStatement, hints?: QueryHints): Promise<IterateResult>;
+  iterate(
+    sql: string,
+    params?: MixedParams,
+    hints?: QueryHints,
+  ): Promise<IterateResult>;
+
+  /**
+   * Executes a query and yields batches of rows.
+   * Best for ETL or very large datasets.
+   * @param batchSize - Client-side re-batching size (default 500).
+   */
+  queryStream(
+    statement: SQLStatement,
+    hints?: QueryHints,
+    batchSize?: number,
+  ): Promise<BatchStreamResult>;
+  queryStream(
+    sql: string,
+    params?: MixedParams,
+    hints?: QueryHints,
+    batchSize?: number,
+  ): Promise<BatchStreamResult>;
+
+  /** Manages a SQLite Savepoint (Nested Transaction). */
+  savepoint(
+    name: string,
+    action: SavepointAction,
+  ): Promise<{ success: boolean; name: string; action: SavepointAction }>;
+
+  /** Commits the transaction. */
+  commit(): Promise<{ success: boolean }>;
+
+  /** Rolls back the transaction. */
   rollback(): Promise<{ success: boolean }>;
 }
 
@@ -165,11 +262,7 @@ export class DatabaseClient {
    * @param databaseName - The logical database name in config.json
    * @param credentials - gRPC credentials
    */
-  constructor(
-    address: string,
-    databaseName: string,
-    credentials?: grpc.ChannelCredentials,
-  );
+  constructor(address: string, databaseName: string, credentials?: any, config?: ClientConfig);
 
   /** Closes the underlying gRPC channel. */
   close(): void;
@@ -177,14 +270,14 @@ export class DatabaseClient {
   query(statement: SQLStatement, hints?: QueryHints): Promise<BufferedResult>;
   query(
     sql: string,
-    params?: any[] | Record<string, any>,
+    params?: MixedParams,
     hints?: QueryHints,
   ): Promise<BufferedResult>;
 
   iterate(statement: SQLStatement, hints?: QueryHints): Promise<IterateResult>;
   iterate(
     sql: string,
-    params?: any[] | Record<string, any>,
+    params?: MixedParams,
     hints?: QueryHints,
   ): Promise<IterateResult>;
 
@@ -195,7 +288,7 @@ export class DatabaseClient {
   ): Promise<BatchStreamResult>;
   queryStream(
     sql: string,
-    params?: any[] | Record<string, any>,
+    params?: MixedParams,
     hints?: QueryHints,
     batchSize?: number,
   ): Promise<BatchStreamResult>;
@@ -204,7 +297,19 @@ export class DatabaseClient {
    * Opens a bidirectional stream transaction.
    * @param mode - Locking mode (Default: DEFERRED). Use IMMEDIATE for write-heavy transactions.
    */
-  beginTransaction(mode?: TransactionMode): Promise<TransactionHandle>;
+  executeTransaction(
+    queries: (QueryRequestItem | string | SQLStatement)[],
+    mode?: TransactionMode,
+  ): Promise<BufferedResult[]>;
+
+  beginTransaction(mode?: TransactionMode, type?: TransactionType): Promise<TransactionHandle | UnaryTransactionHandle>;
+
+  transaction(
+    fn: (tx: TransactionHandle | UnaryTransactionHandle, ...args: any[]) => Promise<any>,
+    mode?: TransactionMode,
+    type?: TransactionType,
+    ...args: any[]
+  ): Promise<any>;
 
   /** Helper to convert a row array into an object using column names. */
   static toObject(columns: string[], row: any[]): Record<string, any>;

@@ -7,7 +7,8 @@
   "type": "commonjs",
   "main": "src/index.js",
   "scripts": {
-    "test": "node --expose-gc node_modules/.bin/jest --detectOpenHandles"
+    "test": "node --expose-gc node_modules/.bin/jest --detectOpenHandles",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",
@@ -15,7 +16,10 @@
     "sql-template-strings": "^2.2.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/jest": "^30.0.0",
+    "eslint": "^9.39.2",
+    "globals": "^17.0.0",
     "jest": "^30.2.0"
   }
 }

@@ -84,9 +84,15 @@ const SavepointAction = {
   SAVEPOINT_ACTION_ROLLBACK: 3,
 };
 
+const TransactionType = {
+  STREAMING: 1,
+  UNARY: 2,
+};
+
 module.exports = {
   SqliteCode,
   TransactionMode,
   ColumnType,
   SavepointAction,
+  TransactionType,
 };

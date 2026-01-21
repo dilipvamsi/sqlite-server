@@ -6,13 +6,17 @@
 const {
   Struct,
   ListValue,
-  Value,
 } = require("google-protobuf/google/protobuf/struct_pb");
 const db_service_pb = require("../protos/db/v1/db_service_pb");
 
 /**
  * Converts JS data into the static Protobuf Parameters message.
  * Supports the non-oneof structure where both fields can be populated.
+ *
+ * @param {Array<any>} [positional] - Positional parameters (e.g. [1, "two"]).
+ * @param {Object.<string, any>} [named] - Named parameters (e.g. { id: 1 }).
+ * @param {{positional?: Object.<number, number>, named?: Object.<string, number>}} [hints] - Type hints.
+ * @returns {db_service_pb.Parameters} The Protobuf message.
  */
 function toProtoParams(
   positional = [],
@@ -67,9 +71,10 @@ function toProtoParams(
  *
  * @param {import('../protos/db/v1/db_service_pb').ListValue} listValue - The row data.
  * @param {number[]} columnTypes - An array of ColumnType enum values for this row.
+ * @param {string} [dateHandling='date'] - 'date' | 'string' | 'number'
  * @returns {any[]} A standard JS array containing hydrated types (Number, BigInt, Buffer, etc).
  */
-function fromProtoList(listValue, columnTypes = []) {
+function fromProtoList(listValue, columnTypes = [], dateHandling = 'date') {
   if (!listValue) return [];
 
   // Get the array of Value objects from the ListValue wrapper
@@ -94,7 +99,7 @@ function fromProtoList(listValue, columnTypes = []) {
       case ValueCase.BOOL_VALUE:
         return v.getBoolValue();
 
-      case ValueCase.STRING_VALUE:
+      case ValueCase.STRING_VALUE: {
         const str = v.getStringValue();
 
         /**
@@ -108,7 +113,7 @@ function fromProtoList(listValue, columnTypes = []) {
           try {
             // BigInt parsing is native in Node.js 10.4+
             return BigInt(str);
-          } catch (e) {
+          } catch {
             // Fallback to string if for some reason it's not a valid integer
             return str;
           }
@@ -126,17 +131,28 @@ function fromProtoList(listValue, columnTypes = []) {
         }
 
         /**
-         * LOGIC: DATE HYDRATION (Optional)
-         * If your server sends ISO8601 strings for DATE types,
-         * you can hydrate them to Date objects here.
+         * LOGIC: DATE HYDRATION
+         * Hydrate based on user preference.
          */
         if (colType === db_service_pb.ColumnType.COLUMN_TYPE_DATE) {
+          if (dateHandling === 'string') {
+            return str;
+          }
           const date = new Date(str);
-          return isNaN(date.getTime()) ? str : date;
+          const timestamp = isNaN(date.getTime()) ? null : date.getTime();
+
+          if (timestamp === null) return str; // Invalid date string fallback
+
+          if (dateHandling === 'number') {
+            return timestamp;
+          }
+          // Default to Date object
+          return date;
         }
 
         // Default: Just a standard text string
         return str;
+      }
 
       case ValueCase.STRUCT_VALUE:
         // Recursively convert nested JSON-like structures
@@ -181,9 +197,9 @@ function toObject(columns, row) {
  * @param {object} [hintsOrNull] - Hints (if standard usage).
  * @returns {{
  *   sql: string,
- *   positional: any[],
- *   named: object,
- *   hints: { positional: object, named: object }
+ *   positional: Array<any>,
+ *   named: Object.<string, any>,
+ *   hints: { positional: Object.<number, number>, named: Object.<string, number> }
  * }}
  */
 function resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull) {
@@ -197,20 +213,21 @@ function resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull) {
     sql = sqlOrObj;
     const p = paramsOrHints;
 
-    if (Array.isArray(p)) {
-      // Standard positional usage: query(sql, [1, 2])
-      positional = p;
-      rawHints = hintsOrNull || {};
-    } else if (p && typeof p === "object") {
-      // Check for explicit mixed structure: query(sql, { positional: [], named: {} })
-      if (p.hasOwnProperty("positional") || p.hasOwnProperty("named")) {
-        positional = p.positional || [];
-        named = p.named || {};
-      } else {
-        // Standard named usage: query(sql, { id: 1 })
-        named = p;
+    if (p) {
+      if (Array.isArray(p)) {
+        throw new Error("Direct array parameters are not supported. Use { positional: [...] } instead.");
       }
-      rawHints = hintsOrNull || {};
+      if (typeof p === "object") {
+        if (Object.keys(p).length === 0) {
+          // Empty parameters
+        } else if (Object.prototype.hasOwnProperty.call(p, "positional") || Object.prototype.hasOwnProperty.call(p, "named")) {
+          positional = p.positional || [];
+          named = p.named || {};
+        } else {
+          throw new Error("Direct named parameters are not supported. Use { named: { ... } } instead.");
+        }
+        rawHints = hintsOrNull || {};
+      }
     }
   }
 
@@ -263,9 +280,115 @@ function resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull) {
   };
 }
 
+/**
+ * Creates an async generator that yields single rows from a batch iterator.
+ * 
+ * @param {AsyncIterable<any[]>} batchIterator - Yields lists of Proto-Values (or lists of hydrated if pre-processed, but we assume proto here).
+ * @param {number[]} columnTypes - Enum values for hydration.
+ * @param {string} dateHandling - 'date' | 'string' | 'number'.
+ */
+async function* createRowIterator(batchIterator, columnTypes, dateHandling) {
+  for await (const batch of batchIterator) {
+    if (batch && batch.length > 0) {
+      // Destructively consume the batch array to free memory as we go
+      while (batch.length > 0) {
+        const row = batch.shift();
+        yield fromProtoList(row, columnTypes, dateHandling);
+      }
+    }
+  }
+}
+
+/**
+ * Creates an async generator that yields custom-sized batches from a source batch iterator.
+ * Buffer/Re-batch logic.
+ *
+ * @param {AsyncIterable<any[]>} batchIterator - Source iterator yielding raw proto batches.
+ * @param {number[]} columnTypes
+ * @param {string} dateHandling
+ * @param {number} batchSize
+ */
+async function* createBatchIterator(batchIterator, columnTypes, dateHandling, batchSize) {
+  let buffer = [];
+  for await (const batch of batchIterator) {
+    if (batch && batch.length > 0) {
+      const mapped = batch.map(r => fromProtoList(r, columnTypes, dateHandling));
+      buffer.push(...mapped);
+
+      while (buffer.length >= batchSize) {
+        // Destructively slice off the head
+        yield buffer.splice(0, batchSize);
+      }
+    }
+  }
+  if (buffer.length > 0) yield buffer;
+}
+
+/**
+ * Maps a Protobuf QueryResult to a standardized JS object.
+ * 
+ * @param {import('../protos/db/v1/db_service_pb').QueryResult} result - The result proto.
+ * @param {string} [dateHandling='date'] - 'date' | 'string' | 'number'.
+ * @param {import('../protos/db/v1/db_service_pb').ExecutionStats} [statsPb] - Optional stats.
+ * @returns {object} Standardized result object.
+ */
+function mapQueryResult(result, dateHandling = 'date', statsPb = null) {
+  const resultType = result.getResultCase();
+  const stats = statsPb
+    ? {
+      duration_ms: statsPb.getDurationMs(),
+      rows_read: statsPb.getRowsRead(),
+      rows_written: statsPb.getRowsWritten(),
+    }
+    : result.hasStats()
+      ? {
+        duration_ms: result.getStats().getDurationMs(),
+        rows_read: result.getStats().getRowsRead(),
+        rows_written: result.getStats().getRowsWritten(),
+      }
+      : null;
+
+  if (resultType === db_service_pb.QueryResult.ResultCase.SELECT) {
+    const select = result.getSelect();
+    const columnTypes = select.getColumnTypesList();
+    return {
+      type: "SELECT",
+      columns: select.getColumnsList(),
+      columnTypes,
+      rows: select.getRowsList().map((r) => fromProtoList(r, columnTypes, dateHandling)),
+      stats,
+    };
+  } else {
+    // DML
+    // Handle case where result might be empty/error if not careful, but usually DML case is set
+    // Check if DML exists?
+    if (resultType === db_service_pb.QueryResult.ResultCase.DML) {
+      const dml = result.getDml();
+      return {
+        type: "DML",
+        columns: [],
+        columnTypes: [],
+        rows: [],
+        rowsAffected: Number(dml.getRowsAffected()),
+        lastInsertId: Number(dml.getLastInsertId()),
+        stats,
+      };
+    }
+
+    // Fallback/Empty
+    return {
+      type: "UNKNOWN",
+      stats,
+    };
+  }
+}
+
 module.exports = {
   toProtoParams,
   fromProtoList,
   toObject,
   resolveArgs,
+  createRowIterator,
+  createBatchIterator,
+  mapQueryResult,
 };

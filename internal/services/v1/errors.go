@@ -89,7 +89,7 @@ func sendAppError(stream transactionSender, reqID string, err error, sql string)
 		Response: &dbv1.TransactionResponse_Error{Error: errResp},
 	}
 	if err := stream.Send(res); err != nil {
-		log.Printf("Failed to send error to client: %v", err)
+		log.Printf("Failed to send error to client: %v for reqID: %s", err, reqID)
 	}
 }
 

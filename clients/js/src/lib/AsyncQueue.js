@@ -5,6 +5,9 @@
  * Used to turn gRPC Stream events ('data') into awaitable yields.
  */
 class AsyncQueue {
+  /**
+   * @param {Object} [options]
+   */
   constructor() {
     /** @type {any[]} Internal buffer of items received but not yet requested. */
     this.queue = [];
@@ -62,7 +65,8 @@ class AsyncQueue {
    */
   next() {
     if (this.queue.length > 0) {
-      return Promise.resolve({ value: this.queue.shift(), done: false });
+      const value = this.queue.shift();
+      return Promise.resolve({ value, done: false });
     }
     if (this.closed) {
       if (this.error) return Promise.reject(this.error);
