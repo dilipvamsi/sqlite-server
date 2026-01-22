@@ -9,6 +9,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestExecuteTransaction_EdgeCases(t *testing.T) {
@@ -21,7 +22,7 @@ func TestExecuteTransaction_EdgeCases(t *testing.T) {
 
 	// 2. First Command Not Begin
 	_, err = client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{Requests: []*dbv1.TransactionRequest{
-		{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+		{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 	}}))
 	assert.Error(t, err)
 
@@ -43,7 +44,7 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "missing"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -56,7 +57,7 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -69,9 +70,9 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -85,7 +86,7 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 				{Command: &dbv1.TransactionRequest_Savepoint{
 					Savepoint: &dbv1.SavepointRequest{Name: "sp1", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
 				}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -99,7 +100,7 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 				{Command: &dbv1.TransactionRequest_Savepoint{
 					Savepoint: &dbv1.SavepointRequest{Name: "", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
 				}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -111,7 +112,7 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
 				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "BEGIN"}}}, // Blocked
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -128,7 +129,7 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
 				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -148,7 +149,7 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 					Database: "test",
 					Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
 				}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
 				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT * FROM missing"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -181,7 +182,7 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 				{Command: &dbv1.TransactionRequest_Savepoint{
 					Savepoint: &dbv1.SavepointRequest{Name: "missing_sp", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_RELEASE},
 				}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -196,7 +197,7 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Rollback{Rollback: &dbv1.RollbackRequest{}}},
+				{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)

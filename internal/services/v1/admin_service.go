@@ -2,24 +2,33 @@ package servicesv1
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 
+	"sqlite-server/internal/sqldrivers"
+
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // AdminServer implements the AdminService gRPC handler
 type AdminServer struct {
 	dbv1connect.UnimplementedAdminServiceHandler
-	store *auth.MetaStore
+	store     *auth.MetaStore
+	dbConfigs []sqldrivers.DBConfig
 }
 
 // NewAdminServer creates a new AdminServer instance
-func NewAdminServer(store *auth.MetaStore) *AdminServer {
-	return &AdminServer{store: store}
+func NewAdminServer(store *auth.MetaStore, dbConfigs []sqldrivers.DBConfig) *AdminServer {
+	return &AdminServer{
+		store:     store,
+		dbConfigs: dbConfigs,
+	}
 }
 
 // CreateUser creates a new user account
@@ -36,7 +45,7 @@ func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.
 
 	return connect.NewResponse(&dbv1.CreateUserResponse{
 		UserId:    userID,
-		CreatedAt: time.Now().Format(time.RFC3339),
+		CreatedAt: timestamppb.New(time.Now()),
 	}), nil
 }
 
@@ -82,11 +91,11 @@ func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv
 	}
 
 	var expiresAt *time.Time
-	if req.Msg.ExpiresAt != "" {
-		t, err := time.Parse(time.RFC3339, req.Msg.ExpiresAt)
-		if err != nil {
+	if req.Msg.ExpiresAt != nil {
+		if err := req.Msg.ExpiresAt.CheckValid(); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
+		t := req.Msg.ExpiresAt.AsTime()
 		expiresAt = &t
 	}
 
@@ -119,7 +128,7 @@ func (s *AdminServer) ListApiKeys(ctx context.Context, req *connect.Request[dbv1
 			Id:        k.ID,
 			Name:      k.Name,
 			Prefix:    k.KeyPrefix,
-			CreatedAt: k.CreatedAt.Format(time.RFC3339),
+			CreatedAt: timestamppb.New(k.CreatedAt),
 		})
 	}
 
@@ -142,6 +151,64 @@ func (s *AdminServer) RevokeApiKey(ctx context.Context, req *connect.Request[dbv
 
 	return connect.NewResponse(&dbv1.RevokeApiKeyResponse{
 		Success: true,
+	}), nil
+}
+
+// ListDatabases returns all available databases
+func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[dbv1.ListDatabasesRequest]) (*connect.Response[dbv1.ListDatabasesResponse], error) {
+	// Verify admin role
+	if err := AuthorizeAdmin(ctx); err != nil {
+		return nil, err
+	}
+
+	var databases []string
+	for _, config := range s.dbConfigs {
+		databases = append(databases, config.Name)
+	}
+
+	return connect.NewResponse(&dbv1.ListDatabasesResponse{
+		Databases: databases,
+	}), nil
+}
+
+// Login authenticates a user and returns a session API key.
+func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.LoginRequest]) (*connect.Response[dbv1.LoginResponse], error) {
+	// 1. Verify credentials from request body
+	user, err := s.store.ValidateUser(ctx, req.Msg.Username, req.Msg.Password)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if user == nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+	}
+
+	// 2. Ensure user has admin access (or allowed role)
+	if user.Role != auth.RoleAdmin {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
+	}
+
+	// 3. Determine session duration
+	duration := 7 * 24 * time.Hour // Default 7 days
+	if req.Msg.SessionDuration != nil && req.Msg.SessionDuration.AsDuration() > 0 {
+		duration = req.Msg.SessionDuration.AsDuration()
+	}
+
+	expiresAt := time.Now().Add(duration)
+
+	// 4. Generate API Key
+	apiKey, _, err := s.store.CreateApiKey(ctx, user.UserID, fmt.Sprintf("studio_session_%d", time.Now().Unix()), &expiresAt)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to generate session key: %w", err))
+	}
+
+	return connect.NewResponse(&dbv1.LoginResponse{
+		ApiKey:    apiKey,
+		ExpiresAt: timestamppb.New(expiresAt),
+		User: &dbv1.User{
+			Id:       user.UserID,
+			Username: user.Username,
+			Role:     string(user.Role),
+		},
 	}), nil
 }
 

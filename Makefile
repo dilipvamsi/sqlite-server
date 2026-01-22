@@ -46,7 +46,24 @@ GOBUILD_DYNAMIC := CGO_ENABLED=1 $(GOCMD) build -ldflags "$(LDFLAGS_COMMON)"
 all: proto build ## Generate Protobuf code and build the dynamic binary
 
 .PHONY: build
-build: build-dynamic ## Default build (alias for build-dynamic)
+build: studio-build build-dynamic ## Default build (alias for build-dynamic)
+
+.PHONY: studio-install
+studio-install: ## Install Studio dependencies
+	@echo "📦 Installing Studio dependencies..."
+	@cd studio && npm install
+	@cd studio && npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf
+	@echo "✅ Studio dependencies installed"
+
+.PHONY: studio-build
+studio-build: ## Build Studio assets
+	@echo "🏗️  Building Studio..."
+	@cd studio && npm run build
+	@echo "📂 Copying assets to internal/studio/dist..."
+	@rm -rf internal/studio/dist
+	@mkdir -p internal/studio/dist
+	@cp -r studio/dist/* internal/studio/dist/
+	@echo "✅ Studio built and embedded"
 
 .PHONY: build-dynamic
 build-dynamic: ## Build a dynamically linked binary
@@ -157,6 +174,17 @@ run-load-test-setup-auth: build-load-test-setup build ## Setup DBs and run serve
 	@echo "🔐 Starting server with LOADTEST config (AUTH ENABLED)..."
 	@echo "   Credentials: admin / admin"
 	SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true $(BINARY_OUT) $(LOADTEST_CONFIG)
+
+.PHONY: run-load-test-dev
+run-load-test-dev: build-load-test-setup ## Setup DBs and run server with loadtest config (NO AUTH) using go run
+	@echo "🚀 Starting server (DEV) with LOADTEST config (AUTH DISABLED)..."
+	SQLITE_SERVER_AUTH_ENABLED=false CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
+
+.PHONY: run-load-test-auth-dev
+run-load-test-auth-dev: build-load-test-setup ## Setup DBs and run server WITH auth enabled using go run
+	@echo "🔐 Starting server (DEV) with LOADTEST config (AUTH ENABLED)..."
+	@echo "   Credentials: admin / admin"
+	SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-setup-cipher
 run-load-test-setup-cipher: build-load-test-setup-cipher build ## Setup encrypted DBs and run server with cipher config

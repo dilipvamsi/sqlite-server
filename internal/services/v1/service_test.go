@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	dbv1 "sqlite-server/internal/protos/db/v1"
@@ -173,7 +175,7 @@ func TestUnaryTransaction(t *testing.T) {
 	beginRes, err := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{
 		Database: "test",
 		Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
-		Timeout:  "1s",
+		Timeout:  durationpb.New(1 * time.Second),
 	}))
 	require.NoError(t, err)
 	txID := beginRes.Msg.TransactionId
@@ -215,7 +217,7 @@ func TestTransactionTimeouts(t *testing.T) {
 
 	// Start with short timeout
 	res, _ := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{
-		Database: "test", Timeout: "10ms",
+		Database: "test", Timeout: durationpb.New(10 * time.Millisecond),
 	}))
 	txID := res.Msg.TransactionId
 
@@ -259,7 +261,7 @@ func TestBiDiTransaction(t *testing.T) {
 
 	// 3. Send Rollback
 	err = stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{
-		Rollback: &dbv1.RollbackRequest{},
+		Rollback: &emptypb.Empty{},
 	}})
 	require.NoError(t, err)
 
@@ -282,7 +284,7 @@ func TestExecuteTransactionAtomic(t *testing.T) {
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
 				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "INSERT INTO users (name) VALUES ('Atomic')"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -294,7 +296,7 @@ func TestExecuteTransactionAtomic(t *testing.T) {
 			Requests: []*dbv1.TransactionRequest{
 				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
 				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "BAD SQL"}}}, // Fails here
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)

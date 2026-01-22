@@ -32,6 +32,9 @@ var grpc = require('@grpc/grpc-js');
 var db_v1_db_service_pb = require('../../db/v1/db_service_pb.js');
 var buf_validate_validate_pb = require('../../buf/validate/validate_pb.js');
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
+var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js');
+var google_protobuf_duration_pb = require('google-protobuf/google/protobuf/duration_pb.js');
+var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb.js');
 
 function serialize_db_v1_BackupDatabaseRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.BackupDatabaseRequest)) {
@@ -185,6 +188,50 @@ function serialize_db_v1_ListApiKeysResponse(arg) {
 
 function deserialize_db_v1_ListApiKeysResponse(buffer_arg) {
   return db_v1_db_service_pb.ListApiKeysResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListDatabasesRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListDatabasesRequest)) {
+    throw new Error('Expected argument of type db.v1.ListDatabasesRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListDatabasesRequest(buffer_arg) {
+  return db_v1_db_service_pb.ListDatabasesRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListDatabasesResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListDatabasesResponse)) {
+    throw new Error('Expected argument of type db.v1.ListDatabasesResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListDatabasesResponse(buffer_arg) {
+  return db_v1_db_service_pb.ListDatabasesResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_LoginRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.LoginRequest)) {
+    throw new Error('Expected argument of type db.v1.LoginRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_LoginRequest(buffer_arg) {
+  return db_v1_db_service_pb.LoginRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_LoginResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.LoginResponse)) {
+    throw new Error('Expected argument of type db.v1.LoginResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_LoginResponse(buffer_arg) {
+  return db_v1_db_service_pb.LoginResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_QueryRequest(arg) {
@@ -611,6 +658,33 @@ listApiKeys: {
     requestDeserialize: deserialize_db_v1_ListApiKeysRequest,
     responseSerialize: serialize_db_v1_ListApiKeysResponse,
     responseDeserialize: deserialize_db_v1_ListApiKeysResponse,
+  },
+  // *
+// Lists all available databases.
+listDatabases: {
+    path: '/db.v1.AdminService/ListDatabases',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.ListDatabasesRequest,
+    responseType: db_v1_db_service_pb.ListDatabasesResponse,
+    requestSerialize: serialize_db_v1_ListDatabasesRequest,
+    requestDeserialize: deserialize_db_v1_ListDatabasesRequest,
+    responseSerialize: serialize_db_v1_ListDatabasesResponse,
+    responseDeserialize: deserialize_db_v1_ListDatabasesResponse,
+  },
+  // *
+// Authenticates a user and returns a session API key.
+// Requires Basic Auth for the initial request.
+login: {
+    path: '/db.v1.AdminService/Login',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.LoginRequest,
+    responseType: db_v1_db_service_pb.LoginResponse,
+    requestSerialize: serialize_db_v1_LoginRequest,
+    requestDeserialize: deserialize_db_v1_LoginRequest,
+    responseSerialize: serialize_db_v1_LoginResponse,
+    responseDeserialize: deserialize_db_v1_LoginResponse,
   },
   // *
 // Revokes (deletes) a specific API key immediately.

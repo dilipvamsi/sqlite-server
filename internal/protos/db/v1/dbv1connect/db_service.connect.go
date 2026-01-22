@@ -103,6 +103,11 @@ const (
 	// AdminServiceListApiKeysProcedure is the fully-qualified name of the AdminService's ListApiKeys
 	// RPC.
 	AdminServiceListApiKeysProcedure = "/db.v1.AdminService/ListApiKeys"
+	// AdminServiceListDatabasesProcedure is the fully-qualified name of the AdminService's
+	// ListDatabases RPC.
+	AdminServiceListDatabasesProcedure = "/db.v1.AdminService/ListDatabases"
+	// AdminServiceLoginProcedure is the fully-qualified name of the AdminService's Login RPC.
+	AdminServiceLoginProcedure = "/db.v1.AdminService/Login"
 	// AdminServiceRevokeApiKeyProcedure is the fully-qualified name of the AdminService's RevokeApiKey
 	// RPC.
 	AdminServiceRevokeApiKeyProcedure = "/db.v1.AdminService/RevokeApiKey"
@@ -521,6 +526,13 @@ type AdminServiceClient interface {
 	// Returns metadata (name, prefix) but not the full key secrets.
 	ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error)
 	// *
+	// Lists all available databases.
+	ListDatabases(context.Context, *connect.Request[v1.ListDatabasesRequest]) (*connect.Response[v1.ListDatabasesResponse], error)
+	// *
+	// Authenticates a user and returns a session API key.
+	// Requires Basic Auth for the initial request.
+	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
+	// *
 	// Revokes (deletes) a specific API key immediately.
 	RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error)
 	// *
@@ -575,6 +587,18 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("ListApiKeys")),
 			connect.WithClientOptions(opts...),
 		),
+		listDatabases: connect.NewClient[v1.ListDatabasesRequest, v1.ListDatabasesResponse](
+			httpClient,
+			baseURL+AdminServiceListDatabasesProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("ListDatabases")),
+			connect.WithClientOptions(opts...),
+		),
+		login: connect.NewClient[v1.LoginRequest, v1.LoginResponse](
+			httpClient,
+			baseURL+AdminServiceLoginProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("Login")),
+			connect.WithClientOptions(opts...),
+		),
 		revokeApiKey: connect.NewClient[v1.RevokeApiKeyRequest, v1.RevokeApiKeyResponse](
 			httpClient,
 			baseURL+AdminServiceRevokeApiKeyProcedure,
@@ -603,6 +627,8 @@ type adminServiceClient struct {
 	updatePassword  *connect.Client[v1.UpdatePasswordRequest, v1.UpdatePasswordResponse]
 	createApiKey    *connect.Client[v1.CreateApiKeyRequest, v1.CreateApiKeyResponse]
 	listApiKeys     *connect.Client[v1.ListApiKeysRequest, v1.ListApiKeysResponse]
+	listDatabases   *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
+	login           *connect.Client[v1.LoginRequest, v1.LoginResponse]
 	revokeApiKey    *connect.Client[v1.RevokeApiKeyRequest, v1.RevokeApiKeyResponse]
 	backupDatabase  *connect.Client[v1.BackupDatabaseRequest, v1.BackupDatabaseResponse]
 	restoreDatabase *connect.Client[v1.RestoreDatabaseRequest, v1.RestoreDatabaseResponse]
@@ -631,6 +657,16 @@ func (c *adminServiceClient) CreateApiKey(ctx context.Context, req *connect.Requ
 // ListApiKeys calls db.v1.AdminService.ListApiKeys.
 func (c *adminServiceClient) ListApiKeys(ctx context.Context, req *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error) {
 	return c.listApiKeys.CallUnary(ctx, req)
+}
+
+// ListDatabases calls db.v1.AdminService.ListDatabases.
+func (c *adminServiceClient) ListDatabases(ctx context.Context, req *connect.Request[v1.ListDatabasesRequest]) (*connect.Response[v1.ListDatabasesResponse], error) {
+	return c.listDatabases.CallUnary(ctx, req)
+}
+
+// Login calls db.v1.AdminService.Login.
+func (c *adminServiceClient) Login(ctx context.Context, req *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
+	return c.login.CallUnary(ctx, req)
 }
 
 // RevokeApiKey calls db.v1.AdminService.RevokeApiKey.
@@ -670,6 +706,13 @@ type AdminServiceHandler interface {
 	// Retrieves all active API keys for a specific user.
 	// Returns metadata (name, prefix) but not the full key secrets.
 	ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error)
+	// *
+	// Lists all available databases.
+	ListDatabases(context.Context, *connect.Request[v1.ListDatabasesRequest]) (*connect.Response[v1.ListDatabasesResponse], error)
+	// *
+	// Authenticates a user and returns a session API key.
+	// Requires Basic Auth for the initial request.
+	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	// *
 	// Revokes (deletes) a specific API key immediately.
 	RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error)
@@ -721,6 +764,18 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("ListApiKeys")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceListDatabasesHandler := connect.NewUnaryHandler(
+		AdminServiceListDatabasesProcedure,
+		svc.ListDatabases,
+		connect.WithSchema(adminServiceMethods.ByName("ListDatabases")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceLoginHandler := connect.NewUnaryHandler(
+		AdminServiceLoginProcedure,
+		svc.Login,
+		connect.WithSchema(adminServiceMethods.ByName("Login")),
+		connect.WithHandlerOptions(opts...),
+	)
 	adminServiceRevokeApiKeyHandler := connect.NewUnaryHandler(
 		AdminServiceRevokeApiKeyProcedure,
 		svc.RevokeApiKey,
@@ -751,6 +806,10 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceCreateApiKeyHandler.ServeHTTP(w, r)
 		case AdminServiceListApiKeysProcedure:
 			adminServiceListApiKeysHandler.ServeHTTP(w, r)
+		case AdminServiceListDatabasesProcedure:
+			adminServiceListDatabasesHandler.ServeHTTP(w, r)
+		case AdminServiceLoginProcedure:
+			adminServiceLoginHandler.ServeHTTP(w, r)
 		case AdminServiceRevokeApiKeyProcedure:
 			adminServiceRevokeApiKeyHandler.ServeHTTP(w, r)
 		case AdminServiceBackupDatabaseProcedure:
@@ -784,6 +843,14 @@ func (UnimplementedAdminServiceHandler) CreateApiKey(context.Context, *connect.R
 
 func (UnimplementedAdminServiceHandler) ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.ListApiKeys is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) ListDatabases(context.Context, *connect.Request[v1.ListDatabasesRequest]) (*connect.Response[v1.ListDatabasesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.ListDatabases is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.Login is not implemented"))
 }
 
 func (UnimplementedAdminServiceHandler) RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error) {

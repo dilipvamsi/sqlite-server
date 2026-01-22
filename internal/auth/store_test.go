@@ -459,4 +459,64 @@ func TestMetaStore_ValidateApiKeyImpl(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, claims)
 	})
+
+	t.Run("returns nil for revoked key", func(t *testing.T) {
+		// Create a key then revoke it
+		revokedKey, keyID, err := store.CreateApiKey(ctx, userID, "Revoked Key", nil)
+		require.NoError(t, err)
+
+		err = store.RevokeApiKey(ctx, keyID)
+		require.NoError(t, err)
+
+		claims, err := store.ValidateApiKeyImpl(ctx, revokedKey)
+		require.NoError(t, err)
+		assert.Nil(t, claims)
+	})
+}
+
+func TestMetaStore_ValidateApiKey_Placeholder(t *testing.T) {
+	store := &MetaStore{}
+	claims, err := store.ValidateApiKey(context.Background(), "token")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented yet")
+	assert.Nil(t, claims)
+}
+
+func TestMetaStore_GetDB(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_get_db.db")
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+	defer store.Close()
+
+	assert.NotNil(t, store.GetDB())
+}
+
+func TestMetaStore_NewMetaStore_Errors(t *testing.T) {
+	t.Run("fails with invalid db path", func(t *testing.T) {
+		// Use a directory as file path to cause failure
+		tmpDir := t.TempDir()
+		store, err := NewMetaStore(tmpDir)
+		require.Error(t, err)
+		assert.Nil(t, store)
+	})
+}
+
+func TestMetaStore_ValidateUser_Errors(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_validate_user_errors.db")
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+
+	// Create user to have valid data
+	ctx := context.Background()
+	_, err = store.CreateUser(ctx, "user", "pass", RoleReadWrite)
+	require.NoError(t, err)
+
+	// Close DB to force query error
+	store.Close()
+
+	claims, err := store.ValidateUser(ctx, "user", "pass")
+	require.Error(t, err)
+	assert.Nil(t, claims)
 }

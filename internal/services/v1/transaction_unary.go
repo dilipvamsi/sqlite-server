@@ -11,6 +11,7 @@ import (
 
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ===================================================================================
@@ -40,8 +41,8 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 
 	// 1. Parse Timeout (Defaults to 30s if invalid/empty)
 	timeout := defaultTxTimeout
-	if msg.Timeout != "" {
-		if d, err := time.ParseDuration(msg.Timeout); err == nil {
+	if msg.Timeout != nil {
+		if d := msg.Timeout.AsDuration(); d > 0 {
 			timeout = d
 		}
 	}
@@ -81,8 +82,8 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 	log.Printf("[%s] Started transaction session %s (timeout: %s)", reqID, txID, timeout)
 
 	return connect.NewResponse(&dbv1.BeginTransactionResponse{
-		TransactionId:   txID,
-		ExpiresAtUnixMs: expiry.UnixMilli(),
+		TransactionId: txID,
+		ExpiresAt:     timestamppb.New(expiry),
 	}), nil
 }
 

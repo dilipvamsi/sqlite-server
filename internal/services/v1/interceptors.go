@@ -23,6 +23,12 @@ func NewAuthInterceptor(store *auth.MetaStore) *AuthInterceptor {
 // WrapUnary implements connect.Interceptor
 func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		// Allow Login RPC to proceed without auth header
+		// We manually validate credentials in the Login handler
+		if req.Spec().Procedure == "/db.v1.AdminService/Login" {
+			return next(ctx, req)
+		}
+
 		// Extract Authorization header
 		authHeader := req.Header().Get("Authorization")
 		if authHeader == "" {

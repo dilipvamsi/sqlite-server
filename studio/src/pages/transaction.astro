@@ -1,0 +1,863 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Transaction Console">
+    <header class="header-nav">
+        <div class="logo">
+            <!-- Modified Back Link: Intercepted by JS -->
+            <a href="/studio/" class="back-link" id="global-back-link">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path d="M19 12H5M12 19l-7-7 7-7"></path></svg
+                >
+            </a>
+            <span
+                >Transaction: <strong id="db-name-display">Loading...</strong
+                ></span
+            >
+        </div>
+        <div class="user-menu">
+            <button id="logout-btn" class="btn btn-ghost btn-sm">Logout</button>
+        </div>
+    </header>
+
+    <main class="console-layout" id="main-layout">
+        <!-- LEFT PANE: Can be History List OR Notebook Cards -->
+        <div class="cards-pane">
+            <div class="pane-header">
+                <div id="pane-title-area">
+                    <h3 id="pane-title">Transactions</h3>
+                </div>
+                <!-- Toggle Buttons -->
+                <button id="new-tx-btn" class="btn btn-sm btn-primary"
+                    >+ New Tx</button
+                >
+                <button
+                    id="add-card-btn"
+                    class="btn btn-sm btn-secondary"
+                    style="display: none;">+ Add Step</button
+                >
+            </div>
+
+            <!-- VIEW 1: History List -->
+            <div id="history-container" class="history-container">
+                <!-- History Items Injected Here -->
+            </div>
+
+            <!-- VIEW 2: Notebook (Hidden initially) -->
+            <div
+                id="notebook-wrapper"
+                style="display: none; height: 100%; overflow: hidden; flex-direction: column;"
+            >
+                <div id="tx-status-banner" class="tx-status-banner">
+                    <div class="tx-banner-left">
+                        <button
+                            id="back-btn"
+                            class="btn btn-sm btn-ghost"
+                            title="Back to History">&larr; Back</button
+                        >
+                        <span>ID: <code id="tx-id-display"></code></span>
+                        <span id="tx-indicator" class="tx-badge"
+                            >IN TRANSACTION</span
+                        >
+                    </div>
+                    <div class="tx-banner-right" id="tx-controls">
+                        <button
+                            id="commit-btn"
+                            class="btn btn-sm"
+                            style="background: var(--success-color); color: white;"
+                            >Commit</button
+                        >
+                        <button
+                            id="rollback-btn"
+                            class="btn btn-sm"
+                            style="background: var(--danger-color); color: white;"
+                            >Rollback</button
+                        >
+                    </div>
+                </div>
+
+                <div id="notebook-container" class="notebook-container">
+                    <!-- Cards injected here -->
+                </div>
+            </div>
+        </div>
+
+        <div id="resizer" class="resizer" style="display: none;"></div>
+
+        <div class="results-pane" style="display: none;">
+            <div id="active-result-container" class="active-result-container">
+                <div class="empty-state">
+                    Select a transaction or query step to see results.
+                </div>
+            </div>
+        </div>
+    </main>
+</Layout>
+
+<script>
+    import { getClient, getAuthHeaders, setActiveTransaction, clearActiveTransaction, performLogout } from "../lib/client";
+    import { DatabaseService } from "../gen/db/v1/db_service_pb";
+    import { NotebookManager } from "../lib/notebook";
+    import {
+        TransactionHistoryManager,
+        type TransactionEntry,
+    } from "../lib/history";
+    import { fromJson } from "@bufbuild/protobuf";
+    import { ListValueSchema, StructSchema } from "@bufbuild/protobuf/wkt";
+    import localforage from "localforage";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const dbName = urlParams.get("db");
+
+    if (!dbName) {
+        window.location.href = "/studio/";
+    }
+
+    const dbNameDisplay = document.getElementById("db-name-display");
+    if (dbNameDisplay) dbNameDisplay.textContent = dbName || "";
+
+    // Managers
+    const historyManager = new TransactionHistoryManager(dbName!);
+    let notebook: NotebookManager | null = null;
+    let currentTxId: string | null = null;
+    let currentTxStatus: "active" | "committed" | "rolled_back" = "active";
+
+    // UI Elements
+    const historyContainer = document.getElementById("history-container")!;
+    const notebookWrapper = document.getElementById("notebook-wrapper")!;
+    const newTxBtn = document.getElementById("new-tx-btn")!;
+    const addCardBtn = document.getElementById("add-card-btn")!;
+    const backBtn = document.getElementById("back-btn")!;
+    const globalBackLink = document.getElementById("global-back-link")!;
+    const txIdDisplay = document.getElementById("tx-id-display")!;
+    const paneTitle = document.getElementById("pane-title")!;
+
+    const txControls = document.getElementById("tx-controls")!;
+    const commitBtn = document.getElementById("commit-btn")!;
+    const rollbackBtn = document.getElementById("rollback-btn")!;
+    const txIndicator = document.getElementById("tx-indicator")!;
+
+    const container = document.getElementById("notebook-container");
+    const resultContainer = document.getElementById("active-result-container");
+
+    // --- Initialization ---
+
+    async function init() {
+        if (container && resultContainer) {
+            notebook = new NotebookManager(
+                dbName!,
+                "transaction",
+                container,
+                resultContainer,
+                async (sql, paramsInput) => {
+                    // Check if active
+                    if (currentTxStatus !== "active") {
+                        throw new Error(
+                            `Transaction is ${currentTxStatus}. Cannot execute queries.`,
+                        );
+                    }
+
+                    const client = getClient(DatabaseService);
+                    const headers = getAuthHeaders() as HeadersInit;
+
+                    // Parse params
+                    const parsedParams = parseParams(paramsInput);
+                    const parameters: any = {};
+                    if (parsedParams?.positional) {
+                        parameters.positional = fromJson(
+                            ListValueSchema,
+                            parsedParams.positional,
+                        );
+                    }
+                    if (parsedParams?.named) {
+                        parameters.named = fromJson(
+                            StructSchema,
+                            parsedParams.named,
+                        );
+                    }
+
+                    // Execute
+                    const res = await client.transactionQuery(
+                        {
+                            transactionId: currentTxId!,
+                            sql: sql,
+                            parameters: parameters,
+                        },
+                        { headers },
+                    );
+
+                    return res;
+                },
+            );
+        }
+
+        // Initial Layout State (History Mode)
+        showHistory();
+    }
+
+    // --- Navigation Logic ---
+
+    async function showHistory() {
+        currentTxId = null;
+        notebookWrapper.style.display = "none";
+        historyContainer.style.display = "flex";
+
+        // Hide Results Pane + Resizer for History View
+        const resultsPane = document.querySelector(
+            ".results-pane",
+        ) as HTMLElement;
+        const resizer = document.getElementById("resizer") as HTMLElement;
+        const layout = document.getElementById("main-layout") as HTMLElement;
+
+        if (resultsPane) resultsPane.style.display = "none";
+        if (resizer) resizer.style.display = "none";
+
+        // Use CSS class for layout
+        if (layout) {
+            layout.classList.remove("mode-notebook");
+            layout.classList.add("mode-history");
+            layout.style.gridTemplateColumns = ""; // Clear inline style
+        }
+
+        newTxBtn.style.display = "inline-flex";
+        addCardBtn.style.display = "none";
+        paneTitle.textContent = "Transactions";
+
+        await renderHistoryList();
+    }
+
+    async function showNotebook(
+        txId: string,
+        status: "active" | "committed" | "rolled_back",
+    ) {
+        currentTxId = txId;
+        currentTxStatus = status;
+
+        historyContainer.style.display = "none";
+        notebookWrapper.style.display = "flex";
+
+        // Show Results Pane + Resizer
+        const resultsPane = document.querySelector(
+            ".results-pane",
+        ) as HTMLElement;
+        const resizer = document.getElementById("resizer") as HTMLElement;
+        const layout = document.getElementById("main-layout") as HTMLElement;
+
+        // Restore layout preference
+        const savedWidth = localStorage.getItem("studio-pane-width") || "350";
+        document.documentElement.style.setProperty(
+            "--left-pane-width",
+            `${savedWidth}px`,
+        );
+
+        if (resultsPane) resultsPane.style.display = "flex";
+        if (resizer) resizer.style.display = "flex";
+
+        // Use CSS class for layout (it uses --left-pane-width variable)
+        if (layout) {
+            layout.classList.remove("mode-history");
+            layout.classList.add("mode-notebook");
+            layout.style.gridTemplateColumns = ""; // Clear inline style, let CSS handle it
+        }
+
+        newTxBtn.style.display = "none";
+
+        // Only show Add Card if active
+        addCardBtn.style.display = status === "active" ? "inline-flex" : "none";
+
+        paneTitle.textContent = "Details";
+        txIdDisplay.textContent = txId;
+
+        // Transaction Controls (in details pane)
+        if (status === "active") {
+            txControls.style.display = "flex";
+            txIndicator.textContent = "IN TRANSACTION";
+            txIndicator.className = "tx-badge";
+        } else {
+            txControls.style.display = "none";
+            txIndicator.textContent =
+                status === "committed" ? "COMMITTED" : "ROLLED BACK";
+            txIndicator.className =
+                status === "committed" ? "tx-badge success" : "tx-badge danger";
+        }
+
+        // Load Context & Set Read-Only
+        if (notebook) {
+            notebook.setReadOnly(status !== "active");
+            await notebook.setTransactionContext(txId);
+        }
+    }
+
+    // --- History Rendering ---
+
+    async function renderHistoryList() {
+        const history = await historyManager.getHistory();
+        historyContainer.innerHTML = "";
+
+        if (history.length === 0) {
+            historyContainer.innerHTML =
+                '<div class="empty-state">No transactions found. Start a new one!</div>';
+            return;
+        }
+
+        history.forEach((entry) => {
+            const el = document.createElement("div");
+            el.className = "history-item";
+            const date = new Date(entry.timestamp).toLocaleString();
+
+            let statusClass = "active";
+            if (entry.status === "committed") statusClass = "success";
+            if (entry.status === "rolled_back") statusClass = "danger";
+
+            el.innerHTML = `
+                <div class="row-top">
+                    <span class="tx-id" title="${entry.id}">${entry.id.substring(0, 8)}...</span>
+                    <span class="badge ${statusClass}">${entry.status}</span>
+                </div>
+                <div class="row-bottom">
+                    <span class="timestamp">${date}</span>
+                    ${entry.status !== "active" ? `<button class="btn-icon delete-tx-btn" data-id="${entry.id}" title="Delete Transaction">🗑️</button>` : ""}
+                </div>
+             `;
+
+            // Handle click on history item (view transaction)
+            el.addEventListener("click", (e) => {
+                // Don't open if clicking delete button
+                if (!(e.target as HTMLElement).closest(".delete-tx-btn")) {
+                    showNotebook(entry.id, entry.status);
+                }
+            });
+
+            // Handle delete button
+            const deleteBtn = el.querySelector(".delete-tx-btn");
+            if (deleteBtn) {
+                deleteBtn.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    if (
+                        confirm(
+                            "Delete this transaction? This cannot be undone.",
+                        )
+                    ) {
+                        await historyManager.deleteTransaction(entry.id);
+                        await renderHistoryList();
+                    }
+                });
+            }
+
+            historyContainer.appendChild(el);
+        });
+    }
+
+    // --- Event Listeners ---
+
+    // Intercept Global Back Link
+    if (globalBackLink) {
+        globalBackLink.addEventListener("click", (e) => {
+            // If we are in notebook view (has currentTxId), go to history instead
+            if (currentTxId) {
+                e.preventDefault();
+                showHistory();
+            }
+            // Otherwise allow default (go to /studio/)
+        });
+    }
+
+    newTxBtn.addEventListener("click", async () => {
+        try {
+            const client = getClient(DatabaseService);
+            const headers = getAuthHeaders() as HeadersInit;
+            const resp = await client.beginTransaction(
+                {
+                    database: dbName!,
+                    timeout: { seconds: BigInt(60) },
+                },
+                { headers },
+            );
+
+            await historyManager.addTransaction(resp.transactionId);
+            setActiveTransaction(resp.transactionId, dbName!);
+            await showNotebook(resp.transactionId, "active");
+            notebook?.addCard(true); // Auto-add card
+        } catch (e: any) {
+            alert("Failed to begin transaction: " + e.message);
+        }
+    });
+
+    backBtn.addEventListener("click", () => {
+        showHistory();
+    });
+
+    addCardBtn.addEventListener("click", () => notebook?.addCard());
+
+    commitBtn.addEventListener("click", async () => {
+        if (!currentTxId) return;
+        try {
+            const client = getClient(DatabaseService);
+            const headers = getAuthHeaders() as HeadersInit;
+            await client.commitTransaction(
+                { transactionId: currentTxId },
+                { headers },
+            );
+
+            await historyManager.updateStatus(currentTxId, "committed");
+            clearActiveTransaction();
+            currentTxStatus = "committed";
+
+            // CLEANUP empty cards before freezing
+            await notebook?.cleanupEmptyCards();
+
+            // Update UI reflectively without leaving view
+            showNotebook(currentTxId, "committed");
+            alert("Transaction Committed");
+        } catch (e: any) {
+            alert("Failed to commit: " + e.message);
+        }
+    });
+
+    rollbackBtn.addEventListener("click", async () => {
+        if (!currentTxId) return;
+        try {
+            const client = getClient(DatabaseService);
+            const headers = getAuthHeaders() as HeadersInit;
+            await client.rollbackTransaction(
+                { transactionId: currentTxId },
+                { headers },
+            );
+
+            await historyManager.updateStatus(currentTxId, "rolled_back");
+            clearActiveTransaction();
+            currentTxStatus = "rolled_back";
+
+            // CLEANUP empty cards before freezing
+            await notebook?.cleanupEmptyCards();
+
+            showNotebook(currentTxId, "rolled_back");
+            alert("Transaction Rolled Back");
+        } catch (e: any) {
+            alert("Failed to rollback: " + e.message);
+            // Assume rolled back?
+            await historyManager.updateStatus(currentTxId, "rolled_back");
+            clearActiveTransaction();
+
+            // CLEANUP empty cards before freezing
+            await notebook?.cleanupEmptyCards();
+            showNotebook(currentTxId, "rolled_back");
+        }
+    });
+
+    // Logout functionality
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", async () => {
+            if (!confirm("Are you sure you want to logout? Any active transaction will be rolled back.")) {
+                return;
+            }
+            await performLogout();
+        });
+    }
+
+    // --- Resizer Logic (Robust) ---
+    const resizer = document.getElementById("resizer");
+    // Set initial width
+    const savedWidth = localStorage.getItem("studio-pane-width");
+    if (savedWidth) {
+        document.documentElement.style.setProperty(
+            "--left-pane-width",
+            `${savedWidth}px`,
+        );
+    }
+
+    let isResizing = false;
+
+    // Attach to element (only mousedown)
+    if (resizer) {
+        resizer.addEventListener("mousedown", (e) => {
+            isResizing = true;
+            document.body.style.cursor = "col-resize";
+            resizer.classList.add("active");
+            e.preventDefault();
+        });
+    }
+
+    // Attach to GLOBAL document
+    document.addEventListener("mousemove", (e) => {
+        if (!isResizing) return;
+
+        // Ensure layout allows resizing (check if resizer is visible)
+        if (resizer && getComputedStyle(resizer).display === "none") {
+            isResizing = false;
+            return;
+        }
+
+        e.preventDefault();
+        const newWidth = e.clientX;
+        if (newWidth > 200 && newWidth < window.innerWidth - 100) {
+            document.documentElement.style.setProperty(
+                "--left-pane-width",
+                `${newWidth}px`,
+            );
+        }
+    });
+
+    document.addEventListener("mouseup", (e) => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = "default";
+            if (resizer) resizer.classList.remove("active");
+
+            const currentWidth = getComputedStyle(
+                document.documentElement,
+            ).getPropertyValue("--left-pane-width");
+            localStorage.setItem(
+                "studio-pane-width",
+                parseFloat(currentWidth).toString(),
+            );
+        }
+    });
+
+    // Helper
+    function parseParams(
+        input: string,
+    ): { positional?: any[]; named?: Record<string, any> } | null {
+        if (!input.trim()) return {};
+        try {
+            const parsed = JSON.parse(input);
+            if (Array.isArray(parsed)) return { positional: parsed };
+            if (typeof parsed === "object" && parsed !== null) {
+                const keys = Object.keys(parsed);
+                const possibleKeys = new Set(["positional", "named"]);
+                const isWrapper =
+                    keys.length > 0 && keys.every((k) => possibleKeys.has(k));
+                if (isWrapper) {
+                    return {
+                        positional: parsed.positional,
+                        named: parsed.named,
+                    };
+                }
+                return { named: parsed };
+            }
+            throw new Error("Parameters must be a JSON Array or Object");
+        } catch (e: any) {
+            throw new Error("Invalid JSON parameters: " + e.message);
+        }
+    }
+
+    // Start
+    init();
+</script>
+
+<style is:global>
+    :root {
+        --card-bg: var(--bg-secondary);
+        --card-border: var(--border-color);
+        --left-pane-width: 350px;
+    }
+
+    .console-layout {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        height: calc(100vh - 60px);
+        display: grid;
+        overflow: hidden;
+    }
+
+    .console-layout.mode-history {
+        grid-template-columns: 1fr;
+    }
+
+    .console-layout.mode-notebook {
+        grid-template-columns: var(--left-pane-width, 350px) 10px 1fr;
+    }
+
+    /* Resizer is only visible in notebook mode */
+    .resizer {
+        display: none;
+        width: 10px; /* Wider hit area */
+        background: transparent;
+        cursor: col-resize;
+        transition: background 0.2s;
+        z-index: 999;
+        user-select: none;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .mode-notebook .resizer {
+        display: flex;
+    }
+
+    /* Visible line inside resizer */
+    .resizer::after {
+        content: "";
+        width: 4px;
+        height: 100%;
+        background: var(--border-color);
+        transition: background 0.2s;
+    }
+
+    .resizer:hover::after,
+    .resizer.active::after {
+        background: var(--accent-color);
+    }
+
+    .tx-status-banner {
+        background: var(--bg-secondary);
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .tx-banner-left {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tx-banner-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .cards-pane {
+        border-right: none;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-secondary);
+        overflow: hidden;
+    }
+
+    .pane-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--bg-primary);
+        min-height: 56px;
+    }
+
+    .history-container {
+        padding: 1rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .history-item {
+        background: var(--bg-primary);
+        padding: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .history-item:hover {
+        border-color: var(--accent-color);
+    }
+
+    .history-item .row-top {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+    }
+    .history-item .tx-id {
+        font-family: var(--mono-font);
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .history-item .row-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .history-item .timestamp {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.25rem;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+        font-size: 1rem;
+    }
+    .btn-icon:hover {
+        opacity: 1;
+    }
+    .delete-tx-btn {
+        color: var(--danger-color);
+    }
+
+    .notebook-container {
+        padding: 1rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-height: 100%;
+        flex: 1;
+    }
+
+    .active-result-container {
+        padding: 0;
+        overflow: auto;
+        height: 100%;
+    }
+
+    /* Common Styles Reuse */
+    .notebook-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        position: relative;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .notebook-card.active {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    }
+    .card-inputs {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .notebook-card textarea {
+        width: 100%;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 0.5rem;
+        border-radius: 4px;
+        font-family: var(--mono-font);
+        resize: vertical;
+        font-size: 0.9rem;
+    }
+    .card-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+    .result-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+    }
+    .badge {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+    .badge.active {
+        color: var(--accent-color);
+        background: rgba(59, 130, 246, 0.1);
+    }
+    .badge.success {
+        color: var(--success-color);
+        background: rgba(16, 185, 129, 0.1);
+    }
+    .badge.danger {
+        color: var(--danger-color);
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .tx-badge {
+        background: var(--accent-color);
+        color: white;
+        font-size: 0.7rem;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        margin-left: 1rem;
+    }
+    .tx-badge.success {
+        background: var(--success-color);
+    }
+    .tx-badge.danger {
+        background: var(--danger-color);
+    }
+
+    .empty-state {
+        color: var(--text-secondary);
+        padding: 2rem;
+        text-align: center;
+    }
+
+    /* Table & Result Styles */
+    .table-wrapper {
+        width: 100%;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        font-family: var(--mono-font);
+    }
+    th {
+        text-align: left;
+        border-bottom: 2px solid var(--border-color);
+        padding: 0.75rem 1rem;
+        white-space: nowrap;
+        background: var(--bg-secondary);
+        position: sticky;
+        top: 0;
+    }
+    td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+    tr:hover td {
+        background: var(--bg-secondary);
+    }
+    .dml-success {
+        padding: 2rem;
+        display: flex;
+        gap: 3rem;
+    }
+    .stat {
+        display: flex;
+        flex-direction: column;
+    }
+    .stat .label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+    .stat .value {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+</style>

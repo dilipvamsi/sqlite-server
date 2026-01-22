@@ -46,3 +46,17 @@ plugins:
     out: clients/js/src/protos
     opt:
       - grpc_js
+
+  # ==========================================
+  # STUDIO (TypeScript / Connect-ES)
+  # ==========================================
+  - remote: buf.build/bufbuild/es:v2.11.0
+    out: studio/src/gen
+    opt:
+      - target=ts
+    include_imports: true
+  - remote: buf.build/connectrpc/es:v1.6.1
+    out: studio/src/gen
+    opt:
+      - target=ts
+    include_imports: true

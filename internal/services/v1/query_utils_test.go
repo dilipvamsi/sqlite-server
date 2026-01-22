@@ -11,6 +11,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -369,7 +370,7 @@ func TestResolveColumnTypes_Coverage(t *testing.T) {
 		Requests: []*dbv1.TransactionRequest{
 			{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
 			{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: setupSql}}},
-			{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+			{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 		},
 	}))
 	require.NoError(t, err)

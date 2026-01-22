@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	dbv1 "sqlite-server/internal/protos/db/v1"
@@ -165,7 +166,7 @@ func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Dat
 						Sql:        "UPDATE accounts SET balance = balance + ? WHERE id = ?;",
 						Parameters: &dbv1.Parameters{Positional: listValue(amount, toID)},
 					}}},
-					{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+					{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 				},
 			})
 			req.Header().Set("Authorization", authHeader)

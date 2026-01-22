@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
@@ -11,6 +12,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func setupAdminTestServer(t *testing.T) (*AdminServer, *auth.MetaStore) {
@@ -21,7 +23,7 @@ func setupAdminTestServer(t *testing.T) (*AdminServer, *auth.MetaStore) {
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 
-	return NewAdminServer(store), store
+	return NewAdminServer(store, nil), store
 }
 
 func adminContext(role string) context.Context {
@@ -149,7 +151,7 @@ func TestAdminServer_CreateApiKey(t *testing.T) {
 		req := connect.NewRequest(&dbv1.CreateApiKeyRequest{
 			UserId:    userID,
 			Name:      "Expiring Key",
-			ExpiresAt: "2030-12-31T23:59:59Z",
+			ExpiresAt: timestamppb.New(time.Date(2030, 12, 31, 23, 59, 59, 0, time.UTC)),
 		})
 
 		resp, err := server.CreateApiKey(ctx, req)

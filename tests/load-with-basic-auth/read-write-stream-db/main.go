@@ -21,6 +21,7 @@ import (
 
 	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	dbv1 "sqlite-server/internal/protos/db/v1"
@@ -246,7 +247,7 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 		return err
 	}
 
-	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}}); err != nil {
+	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}}); err != nil {
 		return err
 	}
 	if _, err := stream.Receive(); err != nil {

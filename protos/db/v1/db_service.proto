@@ -32,6 +32,10 @@ package db.v1;
 import "buf/validate/validate.proto";
 // Standard types for dynamic values (JSON-like structure).
 import "google/protobuf/struct.proto";
+// Well Known Types for standardize time and empty messages
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "sqlite-server/internal/protos/db/v1;dbv1";
 
@@ -305,6 +309,17 @@ service AdminService {
   rpc ListApiKeys(ListApiKeysRequest) returns (ListApiKeysResponse);
 
   /**
+   * Lists all available databases.
+   */
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  /**
+   * Authenticates a user and returns a session API key.
+   * Requires Basic Auth for the initial request.
+   */
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  /**
    * Revokes (deletes) a specific API key immediately.
    */
   rpc RevokeApiKey(RevokeApiKeyRequest) returns (RevokeApiKeyResponse);
@@ -366,7 +381,7 @@ message CreateUserRequest {
  */
 message CreateUserResponse {
   int64 user_id = 1;
-  string created_at = 2; // ISO8601
+  google.protobuf.Timestamp created_at = 2;
 }
 
 /**
@@ -409,7 +424,7 @@ message UpdatePasswordResponse { bool success = 1; }
 message CreateApiKeyRequest {
   int64 user_id = 1 [ (buf.validate.field).int64.gt = 0 ];
   string name = 2 [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
-  string expires_at = 3; // ISO8601, optional
+  google.protobuf.Timestamp expires_at = 3;
 }
 
 /**
@@ -436,9 +451,50 @@ message ListApiKeysResponse {
     int64 id = 1;
     string name = 2;
     string prefix = 3; // First 8 chars
-    string created_at = 4;
+    google.protobuf.Timestamp created_at = 4;
   }
   repeated ApiKeySummary keys = 1;
+}
+
+/**
+ * Request to list all available databases.
+ */
+message ListDatabasesRequest {}
+
+/**
+ * Response containing a list of database names.
+ */
+message ListDatabasesResponse { repeated string databases = 1; }
+
+/**
+ * Request to authenticate and create a session.
+ */
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+  // Optional duration for the session. Defaults to 7 days if unspecified.
+  google.protobuf.Duration session_duration = 3;
+}
+
+/**
+ * Response containing the session API key and user info.
+ */
+message LoginResponse {
+  // The generated API key for the session.
+  string api_key = 1;
+  // When this key expires.
+  google.protobuf.Timestamp expires_at = 2;
+  // Information about the authenticated user.
+  User user = 3;
+}
+
+/**
+ * Basic user information.
+ */
+message User {
+  int64 id = 1;
+  string username = 2;
+  string role = 3;
 }
 
 /**
@@ -563,10 +619,7 @@ message BeginTransactionRequest {
   // How long the server should keep this transaction alive without activity
   // before auto-rolling back. (e.g., "30s", "1m").
   // If unspecified, defaults to server configuration (usually 30s).
-  // Validates common duration formats, allowing empty string (unspecified).
-  string timeout = 2 [ (buf.validate.field).string = {
-    pattern : "^$|^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
-  } ];
+  google.protobuf.Duration timeout = 2;
 
   // The locking mode to use (DEFERRED, IMMEDIATE, EXCLUSIVE).
   TransactionMode mode = 3 [ (buf.validate.field).enum.defined_only = true ];
@@ -582,7 +635,7 @@ message BeginTransactionResponse {
 
   // When this transaction will expire (Unix MS) if no further commands are
   // sent. Clients can use this to anticipate timeouts.
-  int64 expires_at_unix_ms = 2;
+  google.protobuf.Timestamp expires_at = 2;
 }
 
 /**
@@ -661,8 +714,8 @@ message TransactionRequest {
     SavepointRequest savepoint = 4;
 
     // Finalizes the transaction
-    CommitRequest commit = 8;
-    RollbackRequest rollback = 9;
+    google.protobuf.Empty commit = 8;
+    google.protobuf.Empty rollback = 9;
   }
 }
 
@@ -721,19 +774,6 @@ message SavepointRequest {
   // The operation to perform on this savepoint.
   SavepointAction action = 2 [ (buf.validate.field).enum.defined_only = true ];
 }
-
-/**
- * Signals that the transaction should be committed to disk.
- * If this fails, the server will automatically rollback.
- * This typically marks the end of the request stream.
- */
-message CommitRequest {}
-
-/**
- * Signals that the transaction should be aborted and all changes discarded.
- * This typically marks the end of the request stream.
- */
-message RollbackRequest {}
 
 /**
  * A container for a sequence of transaction steps to be executed atomically via

@@ -1,0 +1,193 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Dashboard">
+  <header class="header-nav">
+    <div class="logo">SQLite Studio</div>
+    <div class="user-menu">
+      <button id="logout-btn" class="btn btn-ghost">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="dashboard-header">
+      <h1>Databases</h1>
+      <p class="subtitle">Select a database to start running queries.</p>
+    </div>
+
+    <div id="db-list" class="db-grid">
+      <!-- Loaded Client-Side -->
+      <div class="loading">Loading databases...</div>
+    </div>
+
+    <div id="error-alert" class="error-alert" style="display: none;"></div>
+  </main>
+</Layout>
+
+<script>
+  import { getClient, getAuthHeaders, AUTH_KEY, performLogout } from "../lib/client";
+  import { AdminService } from "../gen/db/v1/db_service_pb";
+
+  const dbList = document.getElementById("db-list");
+  const errorAlert = document.getElementById("error-alert");
+  const logoutBtn = document.getElementById("logout-btn");
+
+  // Logout Handler
+  logoutBtn?.addEventListener("click", async () => {
+    await performLogout();
+  });
+
+  // Load Databases
+  async function loadDatabases() {
+    if (!localStorage.getItem(AUTH_KEY)) {
+      window.location.href = "/studio/login";
+      return;
+    }
+
+    try {
+      const client = getClient(AdminService);
+      const headers = getAuthHeaders();
+
+      const response = await client.listDatabases({}, { headers });
+
+      if (dbList) {
+        if (response.databases.length === 0) {
+          dbList.innerHTML =
+            '<div class="empty-state">No databases found.</div>';
+          return;
+        }
+
+        dbList.innerHTML = response.databases
+          .map(
+            (db) => `
+          <div class="card db-card">
+            <div class="db-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h3"/><path d="M21 6h-3"/><path d="M12 3v18"/><path d="M3 18h18"/><path d="M3 12h18"/><path d="M3 6v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2z"/></svg>
+            </div>
+            <div class="db-info">
+              <h3>${db}</h3>
+              <div class="db-actions">
+                 <a href="/studio/console?db=${db}" class="btn btn-sm btn-secondary">Query</a>
+                 <a href="/studio/transaction?db=${db}" class="btn btn-sm btn-secondary">Transaction</a>
+              </div>
+            </div>
+          </div>
+        `,
+          )
+          .join("");
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (errorAlert) {
+        errorAlert.style.display = "block";
+        errorAlert.textContent =
+          "Failed to load databases: " + (err.message || "Unknown error");
+      }
+
+      // If unauthorized, redirect to login
+      if (err.code === 16 || err.message?.includes("unauthenticated")) {
+        // CodeUnauthenticated
+        await performLogout();
+      }
+    }
+  }
+
+  loadDatabases();
+</script>
+
+<style>
+  .logo {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-right: auto;
+  }
+
+  .dashboard-header {
+    margin: 3rem 0 2rem 0;
+  }
+
+  h1 {
+    font-size: 2rem;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .db-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .db-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.2s;
+    border-left: 4px solid var(--accent-color);
+  }
+
+  .db-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-hover);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+  }
+
+  .db-icon {
+    color: var(--accent-color);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 0.75rem;
+    border-radius: 8px;
+    height: fit-content;
+  }
+
+  .db-info {
+    flex: 1;
+  }
+
+  .db-info h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.2rem;
+    color: var(--text-primary);
+  }
+
+  .db-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .badge {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .loading,
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px dashed var(--border-color);
+  }
+
+  .error-alert {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+    border-radius: 6px;
+  }
+</style>

@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestBiDiTransaction_Extended(t *testing.T) {
@@ -52,7 +53,7 @@ func TestBiDiTransaction_Extended(t *testing.T) {
 
 	// 5. Commit
 	require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Commit{
-		Commit: &dbv1.CommitRequest{},
+		Commit: &emptypb.Empty{},
 	}}))
 	res, _ = stream.Receive()
 
@@ -68,7 +69,7 @@ func TestBiDiTransaction_EdgeCases(t *testing.T) {
 
 	t.Run("Commit without Begin", func(t *testing.T) {
 		stream := client.Transaction(ctx)
-		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}})
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}})
 		_, err := stream.Receive()
 		assert.Error(t, err)
 	})
@@ -186,7 +187,7 @@ func TestBiDiTransaction_Coverage(t *testing.T) {
 		errorCmds := []*dbv1.TransactionRequest{
 			{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
 			{Command: &dbv1.TransactionRequest_QueryStream{QueryStream: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
-			{Command: &dbv1.TransactionRequest_Commit{Commit: &dbv1.CommitRequest{}}},
+			{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 		}
 
 		for _, cmd := range errorCmds {
@@ -198,7 +199,7 @@ func TestBiDiTransaction_Coverage(t *testing.T) {
 
 		// Verify Rollback is Idempotent (Success even if nil tx)
 		stream := client.Transaction(ctx)
-		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &dbv1.RollbackRequest{}}})
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}})
 		res, err := stream.Receive()
 		require.NoError(t, err)
 		assert.True(t, res.GetRollback().Success)
@@ -254,7 +255,7 @@ func TestBiDiTransaction_Internals(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, res.GetBegin().Success)
 
-		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &dbv1.RollbackRequest{}}})
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}})
 		stream.Receive()
 	})
 

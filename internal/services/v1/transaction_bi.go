@@ -268,39 +268,6 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			}
 			continue
 
-		// --- COMMIT COMMAND ---
-		case *dbv1.TransactionRequest_Commit:
-			if tx == nil {
-				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
-			}
-
-			// Attempt to persist changes to disk
-			if err := tx.Commit(); err != nil {
-				tx = nil // Mark nil so defer doesn't try to rollback
-				log.Printf("[%s] Commit failed (disk I/O or constraint): %v", traceID, err)
-				return connect.NewError(connect.CodeInternal, err)
-			}
-
-			tx = nil // Successfully committed
-			log.Printf("[%s] Transaction committed successfully", traceID)
-
-			_ = stream.Send(&dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_Commit{Commit: &dbv1.CommitResponse{Success: true}},
-			})
-			return nil // End of workflow
-
-		// --- ROLLBACK COMMAND ---
-		case *dbv1.TransactionRequest_Rollback:
-			if tx != nil {
-				_ = tx.Rollback()
-				tx = nil
-			}
-			log.Printf("[%s] Client requested rollback", traceID)
-			_ = stream.Send(&dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_Rollback{Rollback: &dbv1.RollbackResponse{Success: true}},
-			})
-			return nil // End of workflow
-
 			// Inside Transaction event loop switch...
 		case *dbv1.TransactionRequest_Savepoint:
 			if tx == nil {
@@ -329,6 +296,45 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 					},
 				},
 			})
+
+		// --- COMMIT COMMAND ---
+		// Replaces: case *dbv1.TransactionRequest_Commit:
+		case *dbv1.TransactionRequest_Commit:
+			if tx == nil {
+				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
+			}
+
+			// Attempt to persist changes to disk
+			if err := tx.Commit(); err != nil {
+				tx = nil // Mark nil so defer doesn't try to rollback
+				log.Printf("[%s] Commit failed (disk I/O or constraint): %v", traceID, err)
+				return connect.NewError(connect.CodeInternal, err)
+			}
+
+			tx = nil // Successfully committed
+			log.Printf("[%s] Transaction committed successfully", traceID)
+
+			_ = stream.Send(&dbv1.TransactionResponse{
+				Response: &dbv1.TransactionResponse_Commit{Commit: &dbv1.CommitResponse{Success: true}},
+			})
+			return nil // End of workflow
+
+		// --- ROLLBACK COMMAND ---
+		// Replaces: case *dbv1.TransactionRequest_Rollback:
+		case *dbv1.TransactionRequest_Rollback:
+			if tx != nil {
+				_ = tx.Rollback()
+				tx = nil
+			}
+			log.Printf("[%s] Client requested rollback", traceID)
+			_ = stream.Send(&dbv1.TransactionResponse{
+				Response: &dbv1.TransactionResponse_Rollback{Rollback: &dbv1.RollbackResponse{Success: true}},
+			})
+			return nil // End of workflow
+
+		default:
+			log.Printf("[%s] Unknown command type", traceID)
+			return connect.NewError(connect.CodeInvalidArgument, errors.New("unknown command"))
 		}
 	}
 }

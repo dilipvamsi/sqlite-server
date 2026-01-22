@@ -18,6 +18,7 @@ import (
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 	servicesv1 "sqlite-server/internal/services/v1"
 	"sqlite-server/internal/sqldrivers"
+	"sqlite-server/internal/studio"
 )
 
 // ===================================================================================
@@ -90,10 +91,13 @@ func main() {
 
 	// Register AdminService (only if auth is enabled)
 	if authEnabled && authStore != nil {
-		adminServer := servicesv1.NewAdminServer(authStore)
+		adminServer := servicesv1.NewAdminServer(authStore, configs)
 		adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
 		mux.Handle(adminPath, adminHandler)
 	}
+
+	// 3a. Studio UI
+	mux.Handle("/studio/", studio.NewHandler("/studio/"))
 
 	srv := &http.Server{
 		Addr: ":50051",

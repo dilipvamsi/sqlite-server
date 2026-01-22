@@ -9,6 +9,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // TestRollbackTransaction covers the Unary Rollback RPC
@@ -109,7 +110,7 @@ func TestBeginTransaction_Coverage(t *testing.T) {
 		// Valid timeout string
 		res, err := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{
 			Database: "test",
-			Timeout:  "50ms",
+			Timeout:  durationpb.New(50 * time.Millisecond),
 		}))
 		require.NoError(t, err)
 
