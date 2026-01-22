@@ -185,16 +185,26 @@ export interface Interceptor {
   onError?: (err: Error) => void;
 }
 
+export interface BasicAuthConfig {
+  type: 'basic';
+  username: string;
+  password: string;
+}
+
+export interface BearerAuthConfig {
+  type: 'bearer';
+  token: string;
+}
+
+export type AuthConfig = BasicAuthConfig | BearerAuthConfig;
+
 export interface ClientConfig {
   dateHandling?: 'date' | 'string' | 'number';
   retry?: RetryConfig;
   interceptors?: Interceptor[];
-  /**
-   * Maximum integer of rows to buffer in memory during streaming (iterate/queryStream).
-   * Higher values reduce connection hold time but increase memory usage.
-   * Default: 100.
-   */
-  maxStreamBuffer?: number;
+  auth?: AuthConfig;
+  credentials?: grpc.ChannelCredentials;
+
 }
 
 /**
@@ -260,9 +270,9 @@ export class DatabaseClient {
    * Creates a new client bound to a specific database.
    * @param address - gRPC server address (e.g. "localhost:50051")
    * @param databaseName - The logical database name in config.json
-   * @param credentials - gRPC credentials
+   * @param config - Configuration options (including auth and credentials)
    */
-  constructor(address: string, databaseName: string, credentials?: any, config?: ClientConfig);
+  constructor(address: string, databaseName: string, config?: ClientConfig);
 
   /** Closes the underlying gRPC channel. */
   close(): void;

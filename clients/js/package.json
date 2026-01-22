@@ -7,7 +7,9 @@
   "type": "commonjs",
   "main": "src/index.js",
   "scripts": {
-    "test": "node --expose-gc node_modules/.bin/jest --detectOpenHandles",
+    "test-noauth": "node --expose-gc node_modules/.bin/jest --detectOpenHandles tests/client.test.js",
+    "test-auth": "node --expose-gc node_modules/.bin/jest --detectOpenHandles tests/client.apikey.test.js",
+    "test-basic": "node --expose-gc node_modules/.bin/jest --detectOpenHandles tests/client.basic.test.js",
     "lint": "eslint ."
   },
   "dependencies": {

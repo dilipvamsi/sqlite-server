@@ -65,38 +65,84 @@ func IsReadOnly(sql string) bool {
 
 // convertParameters transforms the Proto `Parameters` message into a format
 // compatible with the Go `database/sql` driver.
-//
-// LOGIC:
-//
-//	Applies Hints: Uses `applyHint` to convert generic types (string) to specific types (bytes).
-func convertParameters(params *dbv1.Parameters) ([]any, error) {
-
-	// log.Printf("params: %s", params)
-	// log.Printf("Received Hints: %v", params.PositionalHints)
+// It uses Regex to map Positional/Named arguments to their correct order in the SQL.
+func convertParameters(sqlQuery string, params *dbv1.Parameters) ([]any, error) {
 	if params == nil {
 		return nil, nil
 	}
 
 	var converted []any
 
-	// 1. Process Positional
+	// 1. Prepare Data Sources
+	var positional []any
 	if params.Positional != nil {
-		rawList := params.Positional.AsSlice()
-		hints := params.PositionalHints
-		for i, val := range rawList {
-			hint, hasHint := hints[int32(i)]
-			converted = append(converted, applyHint(val, hint, hasHint))
+		positional = params.Positional.AsSlice()
+	}
+	var named map[string]any
+	if params.Named != nil {
+		named = params.Named.AsMap()
+	}
+
+	// 2. Scan SQL to Interleave Parameters correctly
+	// Matches ? or :name, @name, $name
+	paramRegex := regexp.MustCompile(`(\?)|([:@$]\w+)`)
+	matches := paramRegex.FindAllString(sqlQuery, -1)
+
+	posIndex := 0
+	namedUsed := make(map[string]bool)
+
+	for _, match := range matches {
+		if match == "?" {
+			// Consume next positional parameter
+			if posIndex < len(positional) {
+				val := positional[posIndex]
+				hint, hasHint := params.PositionalHints[int32(posIndex)]
+				converted = append(converted, applyHint(val, hint, hasHint))
+				posIndex++
+			}
+		} else {
+			// Named parameter (e.g. :country)
+			// Look for it in the map using exact key or cleaned key
+			key := match
+			cleanKey := strings.TrimLeft(key, ":@$")
+
+			var val any
+			var foundKey string
+			var found bool
+
+			if v, ok := named[key]; ok {
+				val = v
+				foundKey = key
+				found = true
+			} else if v, ok := named[cleanKey]; ok {
+				val = v
+				foundKey = cleanKey
+				found = true
+			}
+
+			if found && !namedUsed[foundKey] {
+				hint, hasHint := params.NamedHints[foundKey]
+				finalVal := applyHint(val, hint, hasHint)
+				converted = append(converted, sql.Named(cleanKey, finalVal))
+				namedUsed[foundKey] = true
+			}
 		}
 	}
 
-	// 2. Process Named
-	if params.Named != nil {
-		rawMap := params.Named.AsMap()
-		hints := params.NamedHints
-		for key, val := range rawMap {
-			hint, hasHint := hints[key]
-			// Clean prefix (:, @, $) and wrap in sql.Named
+	// 3. Append Leftover Positional Parameters
+	// (Essential if Regex failed to find placeholders e.g. due to complexity)
+	for i := posIndex; i < len(positional); i++ {
+		val := positional[i]
+		hint, hasHint := params.PositionalHints[int32(i)]
+		converted = append(converted, applyHint(val, hint, hasHint))
+	}
+
+	// 4. Append Leftover Named Parameters
+	for key, val := range named {
+		// Use simple cleaned key check. Note: `namedUsed` stores the key from the map.
+		if !namedUsed[key] {
 			cleanKey := strings.TrimLeft(key, ":@$")
+			hint, hasHint := params.NamedHints[key]
 			finalVal := applyHint(val, hint, hasHint)
 			converted = append(converted, sql.Named(cleanKey, finalVal))
 		}
@@ -252,15 +298,15 @@ func putbackBuffer(buf *scanBuffer) {
 //  2. Determine Query Type (Select vs DML).
 //  3. If DML: Execute, return rows affected, exit.
 //  4. If SELECT:
-//    a. Fetch Schema.
-//    b. Send Header.
-//    c. Iterate Rows (buffering up to `chunkSize`).
-//    d. Flush Batches.
-//    e. Send Complete w/ Stats.
+//     a. Fetch Schema.
+//     b. Send Header.
+//     c. Iterate Rows (buffering up to `chunkSize`).
+//     d. Flush Batches.
+//     e. Send Complete w/ Stats.
 func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.Parameters, writer StreamWriter) error {
 	startTime := time.Now()
 
-	params, err := convertParameters(paramsMsg)
+	params, err := convertParameters(sqlQuery, paramsMsg)
 	if err != nil {
 		return fmt.Errorf("parameter error: %w", err)
 	}
@@ -345,14 +391,14 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 // Used by the unary `Query` RPC.
 //
 // MEMORY WARNING:
-// 
+//
 // This function allocates memory proportional to the result set size.
 // It is intended for small, precise lookups only.
 func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.Parameters) (*dbv1.QueryResult, error) {
 	startTime := time.Now()
 	// log.Printf("sql: %s", sqlQuery)
 
-	params, err := convertParameters(paramsMsg)
+	params, err := convertParameters(sqlQuery, paramsMsg)
 	if err != nil {
 		return nil, fmt.Errorf("parameter error: %w", err)
 	}

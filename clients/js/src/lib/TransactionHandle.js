@@ -4,6 +4,7 @@
  */
 
 const db_service_pb = require("../protos/db/v1/db_service_pb");
+const google_protobuf_empty_pb = require("google-protobuf/google/protobuf/empty_pb");
 const { TransactionMode, SavepointAction } = require("./constants");
 const {
   toProtoParams,
@@ -11,6 +12,7 @@ const {
   createRowIterator,
   createBatchIterator,
   mapQueryResult,
+  getAuthMetadata,
 } = require("./utils");
 const AsyncQueue = require("./AsyncQueue");
 
@@ -143,7 +145,8 @@ class TransactionHandle {
   async begin() {
     return new Promise((resolve, reject) => {
       // 1. Open the Bi-Directional Stream
-      this.stream = this.client.transaction();
+      const metadata = getAuthMetadata(this.config.auth);
+      this.stream = this.client.transaction(metadata);
 
       // Keep the registry state updated with the active stream
       this._state.stream = this.stream;
@@ -351,13 +354,13 @@ class TransactionHandle {
    */
   async commit() {
     if (this._state.isFinalized) return;
-    // this._markFinalized();
+    if (this._state.isFinalized) return;
     if (this.activeQueue || this.pendingResolver)
       throw new Error("Transaction is busy");
     return new Promise((resolve, reject) => {
       this.pendingResolver = { resolve, reject, type: "COMMIT" };
       const req = new db_service_pb.TransactionRequest();
-      req.setCommit(new db_service_pb.CommitRequest());
+      req.setCommit(new google_protobuf_empty_pb.Empty());
       this.stream.write(req);
     });
   }
@@ -369,12 +372,12 @@ class TransactionHandle {
    */
   async rollback() {
     if (this._state.isFinalized) return { success: true };
-    // this._markFinalized();
+    if (this._state.isFinalized) return { success: true };
     if (!this.stream) return { success: true };
     return new Promise((resolve, reject) => {
       this.pendingResolver = { resolve, reject, type: "ROLLBACK" };
       const req = new db_service_pb.TransactionRequest();
-      req.setRollback(new db_service_pb.RollbackRequest());
+      req.setRollback(new google_protobuf_empty_pb.Empty());
       this.stream.write(req);
     });
   }
@@ -490,7 +493,6 @@ class TransactionHandle {
 
   /** @private */
   _onError(err) {
-    // this._markFinalized();
     if (this.activeQueue) this.activeQueue.fail(err);
     if (this.pendingResolver) this.pendingResolver.reject(err);
     this._cleanup();

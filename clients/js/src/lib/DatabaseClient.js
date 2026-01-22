@@ -11,11 +11,13 @@ const {
   createRowIterator,
   createBatchIterator,
   mapQueryResult,
+  getAuthMetadata,
 } = require("./utils");
 
 // Import the generated static stubs
 const db_service_pb = require("../protos/db/v1/db_service_pb");
 const db_service_grpc_pb = require("../protos/db/v1/db_service_grpc_pb");
+const google_protobuf_empty_pb = require("google-protobuf/google/protobuf/empty_pb");
 
 
 class DatabaseClient {
@@ -33,9 +35,31 @@ class DatabaseClient {
   constructor(
     address,
     databaseName,
-    credentials = grpc.credentials.createInsecure(),
-    config = {},
+    configOrCredentials = {},
+    maybeConfig = {},
   ) {
+    let credentials = grpc.credentials.createInsecure();
+    let config = {};
+
+    // Argument Shifting Logic for Backward Compatibility & Cleaner API
+    // Check if 3rd argument is likely a Configuration Object or Credentials
+    // gRPC credentials are internal opaque objects, usually not plain JSON.
+    // If 3rd arg has 'auth' or 'retry' keys, it's definitely config.
+    // If 4th arg is provided, then 3rd is explicitly credentials.
+
+    if (configOrCredentials instanceof grpc.ChannelCredentials) {
+      // Legacy Signature: (addr, db, creds, config)
+      credentials = configOrCredentials;
+      config = maybeConfig;
+    } else {
+      // New Signature: (addr, db, config)
+      // Check if the user passed credentials inside config
+      config = configOrCredentials;
+      if (config.credentials) {
+        credentials = config.credentials;
+      }
+    }
+
     this.client = new db_service_grpc_pb.DatabaseServiceClient(
       address,
       credentials,
@@ -45,6 +69,7 @@ class DatabaseClient {
       dateHandling: 'date',
       retry: { maxRetries: 3, baseDelayMs: 100 },
       interceptors: [],
+      auth: null,
       ...config,
     };
   }
@@ -119,10 +144,11 @@ class DatabaseClient {
     // We would need to re-create the stream on error which is complex for a generator.
     // For now, only unary calls get auto-retry.
 
-    const stream = this.client.queryStream(req);
+    const metadata = getAuthMetadata(this.config.auth);
+    const stream = this.client.queryStream(req, metadata);
     const iterator = stream[Symbol.asyncIterator]();
 
-    // ... rest of stream init ...
+
     // Note: We need to pass dateHandling to fromProtoList calls in iterate/queryStream methods too.
     // But _initStream returns the raw iterator.
     // The transformation happens in iterate() / queryStream().
@@ -280,7 +306,8 @@ class DatabaseClient {
       req.setParameters(toProtoParams(positional, named, hints));
 
       return new Promise((resolve, reject) => {
-        this.client.query(req, (err, response) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.client.query(req, metadata, (err, response) => {
           if (err) return reject(err);
           // Use helper
           const result = mapQueryResult(response, this.config.dateHandling);
@@ -291,7 +318,7 @@ class DatabaseClient {
     });
   }
 
-  // _mapQueryResult removed (logic moved to utils.js)
+
 
   /**
    * Executes a list of queries in a single atomic transaction using the ExecuteTransaction RPC.
@@ -341,7 +368,7 @@ class DatabaseClient {
 
       // 3. Commit
       const txCommit = new db_service_pb.TransactionRequest();
-      txCommit.setCommit(new db_service_pb.CommitRequest());
+      txCommit.setCommit(new google_protobuf_empty_pb.Empty());
       requests.push(txCommit);
 
       // 4. Execute RPC
@@ -349,7 +376,8 @@ class DatabaseClient {
       execReq.setRequestsList(requests);
 
       return new Promise((resolve, reject) => {
-        this.client.executeTransaction(execReq, (err, response) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.client.executeTransaction(execReq, metadata, (err, response) => {
           if (err) return reject(err);
 
           try {

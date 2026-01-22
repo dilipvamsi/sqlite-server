@@ -7,7 +7,36 @@ const {
   Struct,
   ListValue,
 } = require("google-protobuf/google/protobuf/struct_pb");
+const grpc = require("@grpc/grpc-js");
 const db_service_pb = require("../protos/db/v1/db_service_pb");
+
+/**
+ * Generates gRPC Metadata for authentication.
+ *
+ * @param {object} [authConfig] - Auth configuration.
+ * @param {string} [authConfig.type] - 'basic' or 'bearer'.
+ * @param {string} [authConfig.username] - For basic auth.
+ * @param {string} [authConfig.password] - For basic auth.
+ * @param {string} [authConfig.token] - For bearer auth.
+ * @returns {import('@grpc/grpc-js').Metadata}
+ */
+function getAuthMetadata(authConfig) {
+  const metadata = new grpc.Metadata();
+  if (!authConfig) return metadata;
+
+  if (authConfig.type === 'basic') {
+    if (authConfig.username && authConfig.password) {
+      const creds = `${authConfig.username}:${authConfig.password}`;
+      const base64Creds = Buffer.from(creds).toString('base64');
+      metadata.add('Authorization', `Basic ${base64Creds}`);
+    }
+  } else if (authConfig.type === 'bearer') {
+    if (authConfig.token) {
+      metadata.add('Authorization', `Bearer ${authConfig.token}`);
+    }
+  }
+  return metadata;
+}
 
 /**
  * Converts JS data into the static Protobuf Parameters message.
@@ -391,4 +420,5 @@ module.exports = {
   createRowIterator,
   createBatchIterator,
   mapQueryResult,
+  getAuthMetadata,
 };

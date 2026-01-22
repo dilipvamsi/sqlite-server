@@ -16,6 +16,35 @@ const { toObject } = require('./lib/utils');
 const SQL = require('sql-template-strings');
 
 /**
+ * @typedef {object} BasicAuthConfig
+ * @property {'basic'} type - Authentication type.
+ * @property {string} username - Basic auth username.
+ * @property {string} password - Basic auth password.
+ */
+
+/**
+ * @typedef {object} BearerAuthConfig
+ * @property {'bearer'} type - Authentication type.
+ * @property {string} token - Bearer token.
+ */
+
+/**
+ * @typedef {BasicAuthConfig | BearerAuthConfig} AuthConfig
+ */
+
+/**
+ * @typedef {object} ClientConfig
+ * @property {'date'|'string'|'number'} [dateHandling]
+ * @property {object} [retry]
+ * @property {number} [retry.maxRetries]
+ * @property {number} [retry.baseDelayMs]
+ * @property {Array<object>} [interceptors]
+ * @property {AuthConfig} [auth]
+ * @property {object} [credentials] - gRPC ChannelCredentials (default: insecure).
+
+ */
+
+/**
  * @module sqlite-client
  */
 module.exports = {

@@ -87,7 +87,7 @@ func TestParameterConversion(t *testing.T) {
 		NamedHints: map[string]dbv1.ColumnType{":id": dbv1.ColumnType_COLUMN_TYPE_INTEGER},
 	}
 
-	res, err := convertParameters(params)
+	res, err := convertParameters("", params)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(123), res[0])
 	// Named params are usually last or specific in sql package, check existence

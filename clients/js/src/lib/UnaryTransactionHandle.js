@@ -5,6 +5,7 @@ const {
     createRowIterator,
     createBatchIterator,
     mapQueryResult,
+    getAuthMetadata,
 } = require("./utils");
 
 /**
@@ -41,7 +42,8 @@ class UnaryTransactionHandle {
         req.setMode(this.mode);
 
         return new Promise((resolve, reject) => {
-            this.client.beginTransaction(req, (err, res) => {
+            const metadata = getAuthMetadata(this.config.auth);
+            this.client.beginTransaction(req, metadata, (err, res) => {
                 if (err) return reject(err);
                 this.transactionId = res.getTransactionId();
                 resolve();
@@ -59,7 +61,8 @@ class UnaryTransactionHandle {
         req.setTransactionId(this.transactionId);
 
         return new Promise((resolve, reject) => {
-            this.client.commitTransaction(req, (err, res) => {
+            const metadata = getAuthMetadata(this.config.auth);
+            this.client.commitTransaction(req, metadata, (err, res) => {
                 this.isFinalized = true;
                 if (err) return reject(err);
                 resolve({ success: res.getSuccess() });
@@ -81,7 +84,8 @@ class UnaryTransactionHandle {
         req.setTransactionId(this.transactionId);
 
         return new Promise((resolve, reject) => {
-            this.client.rollbackTransaction(req, (err, res) => {
+            const metadata = getAuthMetadata(this.config.auth);
+            this.client.rollbackTransaction(req, metadata, (err, res) => {
                 this.isFinalized = true;
                 if (err) {
                     // Ignore "NOT_FOUND" which means it's already gone
@@ -114,7 +118,8 @@ class UnaryTransactionHandle {
         req.setSavepoint(savepointReq);
 
         return new Promise((resolve, reject) => {
-            this.client.transactionSavepoint(req, (err, res) => {
+            const metadata = getAuthMetadata(this.config.auth);
+            this.client.transactionSavepoint(req, metadata, (err, res) => {
                 if (err) return reject(err);
                 resolve({
                     success: res.getSuccess(),
@@ -144,7 +149,8 @@ class UnaryTransactionHandle {
         req.setParameters(toProtoParams(positional, named, hints));
 
         return new Promise((resolve, reject) => {
-            this.client.transactionQuery(req, (err, result) => {
+            const metadata = getAuthMetadata(this.config.auth);
+            this.client.transactionQuery(req, metadata, (err, result) => {
                 if (err) return reject(err);
 
                 // Use helper
@@ -213,7 +219,8 @@ class UnaryTransactionHandle {
         req.setSql(sql);
         req.setParameters(toProtoParams(positional, named, hints));
 
-        const stream = this.client.transactionQueryStream(req);
+        const metadata = getAuthMetadata(this.config.auth);
+        const stream = this.client.transactionQueryStream(req, metadata);
         const iterator = stream[Symbol.asyncIterator]();
 
         // Peel header
