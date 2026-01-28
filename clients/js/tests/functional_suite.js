@@ -80,6 +80,40 @@ function runFunctionalTests(createClientFn) {
             }
             expect(count).toBe(10);
         });
+
+        test("Stateless Iteration: Very Large Result Set (>500)", async () => {
+            // Ensure data exists
+            await client.query("CREATE TABLE IF NOT EXISTS large_users (id INTEGER)");
+            await client.query("DELETE FROM large_users");
+
+            // Insert 600 rows
+            const totalRows = 600;
+            // Batch insert to speed up setup
+            const batchSize = 100;
+            for (let i = 0; i < totalRows; i += batchSize) {
+                const placeholders = Array(batchSize).fill("(?)").join(",");
+                const values = [];
+                for (let j = 0; j < batchSize; j++) {
+                    values.push(i + j);
+                }
+                await client.query(`INSERT INTO large_users (id) VALUES ${placeholders}`, { positional: values });
+            }
+
+            const { rows } = await client.iterate("SELECT id FROM large_users ORDER BY id");
+
+            let count = 0;
+            let lastId = -1;
+            for await (const row of rows) {
+                const id = row[0];
+                if (id !== lastId + 1) {
+                    throw new Error(`Sequence mismatch at index ${count}: expected ${lastId + 1}, got ${id}`);
+                }
+                lastId = id;
+                count++;
+            }
+            expect(count).toBe(totalRows);
+        });
+
     });
 
     describe("Parameter Binding", () => {

@@ -1,0 +1,19 @@
+{
+    "name": "sqlite-client-fetch",
+    "version": "0.1.0",
+    "description": "Zero-dependency fetch client for sqlite-server",
+    "main": "src/index.js",
+    "type": "commonjs",
+    "scripts": {
+        "test": "node --test tests/client.test.js",
+        "test-noauth": "node --test tests/client.test.js",
+        "test-auth": "node --test tests/client.apikey.test.js",
+        "test-basic": "node --test tests/client.basic.test.js",
+        "lint": "eslint ."
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.39.2",
+        "eslint": "^9.39.2",
+        "globals": "^17.2.0"
+    }
+}
