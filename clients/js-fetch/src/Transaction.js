@@ -1,14 +1,14 @@
 /**
  * @file src/Transaction.js
  */
-const { SavepointAction } = require('./constants');
+const { SavepointAction, RPC } = require('./constants');
 const { resolveArgs, toParams, hydrateRow } = require('./utils');
 
 class Transaction {
     /**
-     * @param {import('./Client')} client 
-     * @param {string} txId 
-     * @param {object} config 
+     * @param {import('./Client')} client
+     * @param {string} txId
+     * @param {object} config
      */
     constructor(client, txId, config) {
         this.client = client;
@@ -31,7 +31,7 @@ class Transaction {
             parameters: toParams(positional, named, hints)
         };
 
-        const res = await this.client._fetch('db.v1.DatabaseService/TransactionQuery', body);
+        const res = await this.client._fetch(RPC.TRANSACTION_QUERY, body);
 
         // Check for not found (expired tx)
         if (!res.ok) {
@@ -71,14 +71,14 @@ class Transaction {
 
     async commit() {
         if (this.isFinalized) return;
-        await this.client._fetch('db.v1.DatabaseService/CommitTransaction', { transactionId: this.txId });
+        await this.client._fetch(RPC.COMMIT_TRANSACTION, { transactionId: this.txId });
         this.isFinalized = true;
     }
 
     async rollback() {
         if (this.isFinalized) return;
         try {
-            await this.client._fetch('db.v1.DatabaseService/RollbackTransaction', { transactionId: this.txId });
+            await this.client._fetch(RPC.ROLLBACK_TRANSACTION, { transactionId: this.txId });
         } catch (e) {
             console.warn("Rollback failed:", e.message);
         }
@@ -93,7 +93,7 @@ class Transaction {
             savepoint: { name, action }
         };
 
-        const res = await this.client._fetch('db.v1.DatabaseService/TransactionSavepoint', body); // eslint-disable-line no-unused-vars
+        const res = await this.client._fetch(RPC.TRANSACTION_SAVEPOINT, body); // eslint-disable-line no-unused-vars
         // Returns empty success message
         return { success: true };
     }
@@ -110,7 +110,7 @@ class Transaction {
         };
 
         // TransactionQueryStream
-        const streamGen = this.client._streamRequest('db.v1.DatabaseService/TransactionQueryStream', body, onMetadata);
+        const streamGen = this.client._streamRequest(RPC.TRANSACTION_QUERY_STREAM, body, onMetadata);
         return {
             rows: streamGen
         };

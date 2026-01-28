@@ -7,7 +7,8 @@ const {
     hydrateRow
 } = require('./utils');
 const {
-    TransactionMode
+    TransactionMode,
+    RPC
 } = require('./constants');
 const Transaction = require('./Transaction');
 
@@ -79,12 +80,12 @@ class DatabaseClient {
      * Note: Connect streaming Protocol is a bit complex (Envelope: Default flag + size + message).
      * HOWEVER, for "Stream Query", if we use the unary endpoint, we get one big JSON.
      * If we use the Stream endpoint, we get a stream of messages.
-     * 
+     *
      * Simplification: Since implementation_plan mentioned using 'Server-Sent Events' or 'Chunked JSON',
      * but Connect default is a specific binary-framed JSON stream.
-     * 
+     *
      * To keep dependencies ZERO, we will try to parse the Connect JSON Stream format manually.
-     * Format: 
+     * Format:
      *   1 byte flags (0x00 = data, 0x02 = end)
      *   4 bytes big-endian length
      *   <length> bytes JSON payload
@@ -176,7 +177,7 @@ class DatabaseClient {
             parameters: toParams(positional, named, hints)
         };
 
-        const res = await this._fetch('db.v1.DatabaseService/Query', body);
+        const res = await this._fetch(RPC.QUERY, body);
         const json = await res.json();
 
         if (json.select) {
@@ -212,7 +213,7 @@ class DatabaseClient {
             parameters: toParams(positional, named, hints)
         };
 
-        const streamGen = this._streamRequest('db.v1.DatabaseService/QueryStream', body, onMetadata);
+        const streamGen = this._streamRequest(RPC.QUERY_STREAM, body, onMetadata);
         return {
             rows: streamGen
         };
@@ -250,7 +251,7 @@ class DatabaseClient {
             // timeout can be added
         };
 
-        const res = await this._fetch('db.v1.DatabaseService/BeginTransaction', body);
+        const res = await this._fetch(RPC.BEGIN_TRANSACTION, body);
         const json = await res.json();
 
         return new Transaction(this, json.transactionId, this.config);
@@ -277,7 +278,7 @@ class DatabaseClient {
         requests.push({ commit: {} });
 
         const body = { requests };
-        const res = await this._fetch('db.v1.DatabaseService/ExecuteTransaction', body);
+        const res = await this._fetch(RPC.EXECUTE_TRANSACTION, body);
         const json = await res.json();
 
         const results = [];

@@ -84,9 +84,22 @@ const SavepointAction = {
     SAVEPOINT_ACTION_ROLLBACK: 3,
 };
 
+const RPC = {
+    BEGIN_TRANSACTION: 'db.v1.DatabaseService/BeginTransaction',
+    EXECUTE_TRANSACTION: 'db.v1.DatabaseService/ExecuteTransaction',
+    COMMIT_TRANSACTION: 'db.v1.DatabaseService/CommitTransaction',
+    ROLLBACK_TRANSACTION: 'db.v1.DatabaseService/RollbackTransaction',
+    TRANSACTION_SAVEPOINT: 'db.v1.DatabaseService/TransactionSavepoint',
+    QUERY: 'db.v1.DatabaseService/Query',
+    QUERY_STREAM: 'db.v1.DatabaseService/QueryStream',
+    TRANSACTION_QUERY: 'db.v1.DatabaseService/TransactionQuery',
+    TRANSACTION_QUERY_STREAM: 'db.v1.DatabaseService/TransactionQueryStream',
+};
+
 module.exports = {
     SqliteCode,
     TransactionMode,
     ColumnType,
     SavepointAction,
+    RPC,
 };

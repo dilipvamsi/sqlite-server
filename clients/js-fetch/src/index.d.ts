@@ -201,63 +201,6 @@ export interface ClientConfig {
     // No gRPC credentials in fetch client
 }
 
-/**
- * Manages a Unary (ID-Based) Transaction.
- * All operations use a transaction ID and are stateless relative to the connection.
- * Supports streaming results via the TransactionQueryStream RPC.
- */
-export class UnaryTransactionHandle {
-    /**
-     * Executes a query and buffers the result in memory.
-     * Use this for DML or small SELECTs.
-     */
-    query(statement: SQLStatement, hints?: QueryHints): Promise<BufferedResult>;
-    query(
-        sql: string,
-        params?: MixedParams,
-        hints?: QueryHints,
-    ): Promise<BufferedResult>;
-
-    /**
-     * Executes a query and yields rows one by one.
-     * Efficient for reading medium-large datasets.
-     */
-    iterate(statement: SQLStatement, hints?: QueryHints): Promise<IterateResult>;
-    iterate(
-        sql: string,
-        params?: MixedParams,
-        hints?: QueryHints,
-    ): Promise<IterateResult>;
-
-    /**
-     * Executes a query and yields batches of rows.
-     * Best for ETL or very large datasets.
-     * @param batchSize - Client-side re-batching size (default 500).
-     */
-    queryStream(
-        statement: SQLStatement,
-        hints?: QueryHints,
-        batchSize?: number,
-    ): Promise<BatchStreamResult>;
-    queryStream(
-        sql: string,
-        params?: MixedParams,
-        hints?: QueryHints,
-        batchSize?: number,
-    ): Promise<BatchStreamResult>;
-
-    /** Manages a SQLite Savepoint (Nested Transaction). */
-    savepoint(
-        name: string,
-        action: SavepointAction,
-    ): Promise<{ success: boolean; name: string; action: SavepointAction }>;
-
-    /** Commits the transaction. */
-    commit(): Promise<{ success: boolean }>;
-
-    /** Rolls back the transaction. */
-    rollback(): Promise<{ success: boolean }>;
-}
 
 export class DatabaseClient {
     /**
@@ -306,10 +249,10 @@ export class DatabaseClient {
         mode?: TransactionMode,
     ): Promise<BufferedResult[]>;
 
-    beginTransaction(mode?: TransactionMode): Promise<TransactionHandle | UnaryTransactionHandle>;
+    beginTransaction(mode?: TransactionMode): Promise<TransactionHandle>;
 
     transaction(
-        fn: (tx: TransactionHandle | UnaryTransactionHandle, ...args: any[]) => Promise<any>,
+        fn: (tx: TransactionHandle, ...args: any[]) => Promise<any>,
         mode?: TransactionMode,
         ...args: any[]
     ): Promise<any>;
