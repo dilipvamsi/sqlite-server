@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"sqlite-server/internal/sqldrivers"
+
+	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
 const (
@@ -18,17 +20,17 @@ func main() {
 	// Parse the command-line arguments.
 	flag.Parse()
 
-	var config sqldrivers.DBConfig
+	var config *dbv1.DatabaseConfig
 	if *enableCipher {
-		config = sqldrivers.DBConfig{
+		config = &dbv1.DatabaseConfig{
 			Name:        "loadtest-mixed-cipher",
-			DBPath:      "./data-test/loadtest-mixed-cipher.db",
+			DbPath:      "./data-test/loadtest-mixed-cipher.db",
 			IsEncrypted: true,
 		}
 	} else {
-		config = sqldrivers.DBConfig{
+		config = &dbv1.DatabaseConfig{
 			Name:   "loadtest",
-			DBPath: "./data-test/loadtest-mixed.db",
+			DbPath: "./data-test/loadtest-mixed.db",
 		}
 	}
 
@@ -37,11 +39,11 @@ func main() {
 		log.Fatalf("Failed to create data dir: %v", err)
 	}
 
-	_ = os.Remove(config.DBPath)
-	_ = os.Remove(config.DBPath + "-wal")
-	_ = os.Remove(config.DBPath + "-shm")
+	_ = os.Remove(config.DbPath)
+	_ = os.Remove(config.DbPath + "-wal")
+	_ = os.Remove(config.DbPath + "-shm")
 
-	log.Printf("Creating test database: %s", config.DBPath)
+	log.Printf("Creating test database: %s", config.DbPath)
 	db, err := sqldrivers.NewSqliteDb(config)
 	if err != nil {
 		log.Fatalf("Fatal: failed to open db: %v", err)

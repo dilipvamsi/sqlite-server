@@ -23,7 +23,7 @@ export const AUTH_KEY = "sqlite-server-auth"; // Stores API Key
 export const AUTH_KEY_ID = "sqlite-server-key-id"; // Stores Session Key ID
 export const AUTH_USER = "sqlite-server-user"; // Stores username
 
-export function getAuthHeaders() {
+export function getAuthHeaders(): Record<string, string> {
     const apiKey = localStorage.getItem(AUTH_KEY);
     if (!apiKey) return {};
 
@@ -69,7 +69,7 @@ export async function performLogout() {
 
     // 1. Rollback Active Transaction
     const activeTx = getActiveTransaction();
-    const headers = getAuthHeaders() as HeadersInit;
+    const headers = getAuthHeaders();
 
     if (activeTx) {
         try {

@@ -270,9 +270,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		require.NoError(t, err)
 		f.Close()
 
-		req := connect.NewRequest(&dbv1.MountDatabaseRequest{
-			Name: "mounted_db",
-			Path: externalPath,
+		req := connect.NewRequest(&dbv1.DatabaseConfig{
+			Name:   "mounted_db",
+			DbPath: externalPath,
 		})
 		resp, err := server.MountDatabase(ctx, req)
 		require.NoError(t, err)
@@ -341,9 +341,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		f.Close()
 
 		// Mount it
-		mReq := connect.NewRequest(&dbv1.MountDatabaseRequest{
-			Name: "protected",
-			Path: externalPath,
+		mReq := connect.NewRequest(&dbv1.DatabaseConfig{
+			Name:   "protected",
+			DbPath: externalPath,
 		})
 		_, err := server.MountDatabase(ctx, mReq)
 		require.NoError(t, err)
@@ -382,9 +382,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 	})
 
 	t.Run("MountDatabase fails if file does not exist", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.MountDatabaseRequest{
-			Name: "missing_db",
-			Path: "/path/to/nonexistent/file.db",
+		req := connect.NewRequest(&dbv1.DatabaseConfig{
+			Name:   "missing_db",
+			DbPath: "/path/to/nonexistent/file.db",
 		})
 		_, err := server.MountDatabase(ctx, req)
 		require.Error(t, err)
@@ -416,7 +416,7 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		_, err := server.CreateDatabase(nonAdminCtx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: "fail"}))
 		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 
-		_, err = server.MountDatabase(nonAdminCtx, connect.NewRequest(&dbv1.MountDatabaseRequest{Name: "fail", Path: "x"}))
+		_, err = server.MountDatabase(nonAdminCtx, connect.NewRequest(&dbv1.DatabaseConfig{Name: "fail", DbPath: "x"}))
 		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 
 		_, err = server.UnMountDatabase(nonAdminCtx, connect.NewRequest(&dbv1.UnMountDatabaseRequest{Name: "fail"}))
@@ -435,9 +435,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		// Write garbage
 		os.WriteFile(badPath, []byte("NOT A SQLITE FILE"), 0644)
 
-		req := connect.NewRequest(&dbv1.MountDatabaseRequest{
-			Name: "corrupt_db",
-			Path: badPath,
+		req := connect.NewRequest(&dbv1.DatabaseConfig{
+			Name:   "corrupt_db",
+			DbPath: badPath,
 		})
 		_, err := server.MountDatabase(ctx, req)
 		require.Error(t, err)

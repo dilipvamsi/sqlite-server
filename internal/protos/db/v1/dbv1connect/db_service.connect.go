@@ -688,10 +688,8 @@ type AdminServiceClient interface {
 	// Creates a new managed database.
 	// The database file is created in the server's managed directory.
 	CreateDatabase(context.Context, *connect.Request[v1.CreateDatabaseRequest]) (*connect.Response[v1.CreateDatabaseResponse], error)
-	// *
-	// Mounts an existing database file from the filesystem.
-	// This database is marked as "unmanaged" (cannot be deleted via API).
-	MountDatabase(context.Context, *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error)
+	// buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+	MountDatabase(context.Context, *connect.Request[v1.DatabaseConfig]) (*connect.Response[v1.MountDatabaseResponse], error)
 	// *
 	// Unmounts a database, removing it from the active server.
 	// The file is NOT deleted.
@@ -774,7 +772,7 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("CreateDatabase")),
 			connect.WithClientOptions(opts...),
 		),
-		mountDatabase: connect.NewClient[v1.MountDatabaseRequest, v1.MountDatabaseResponse](
+		mountDatabase: connect.NewClient[v1.DatabaseConfig, v1.MountDatabaseResponse](
 			httpClient,
 			baseURL+AdminServiceMountDatabaseProcedure,
 			connect.WithSchema(adminServiceMethods.ByName("MountDatabase")),
@@ -807,7 +805,7 @@ type adminServiceClient struct {
 	logout          *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
 	revokeApiKey    *connect.Client[v1.RevokeApiKeyRequest, v1.RevokeApiKeyResponse]
 	createDatabase  *connect.Client[v1.CreateDatabaseRequest, v1.CreateDatabaseResponse]
-	mountDatabase   *connect.Client[v1.MountDatabaseRequest, v1.MountDatabaseResponse]
+	mountDatabase   *connect.Client[v1.DatabaseConfig, v1.MountDatabaseResponse]
 	unMountDatabase *connect.Client[v1.UnMountDatabaseRequest, v1.UnMountDatabaseResponse]
 	deleteDatabase  *connect.Client[v1.DeleteDatabaseRequest, v1.DeleteDatabaseResponse]
 }
@@ -863,7 +861,7 @@ func (c *adminServiceClient) CreateDatabase(ctx context.Context, req *connect.Re
 }
 
 // MountDatabase calls db.v1.AdminService.MountDatabase.
-func (c *adminServiceClient) MountDatabase(ctx context.Context, req *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error) {
+func (c *adminServiceClient) MountDatabase(ctx context.Context, req *connect.Request[v1.DatabaseConfig]) (*connect.Response[v1.MountDatabaseResponse], error) {
 	return c.mountDatabase.CallUnary(ctx, req)
 }
 
@@ -916,10 +914,8 @@ type AdminServiceHandler interface {
 	// Creates a new managed database.
 	// The database file is created in the server's managed directory.
 	CreateDatabase(context.Context, *connect.Request[v1.CreateDatabaseRequest]) (*connect.Response[v1.CreateDatabaseResponse], error)
-	// *
-	// Mounts an existing database file from the filesystem.
-	// This database is marked as "unmanaged" (cannot be deleted via API).
-	MountDatabase(context.Context, *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error)
+	// buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+	MountDatabase(context.Context, *connect.Request[v1.DatabaseConfig]) (*connect.Response[v1.MountDatabaseResponse], error)
 	// *
 	// Unmounts a database, removing it from the active server.
 	// The file is NOT deleted.
@@ -1093,7 +1089,7 @@ func (UnimplementedAdminServiceHandler) CreateDatabase(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.CreateDatabase is not implemented"))
 }
 
-func (UnimplementedAdminServiceHandler) MountDatabase(context.Context, *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error) {
+func (UnimplementedAdminServiceHandler) MountDatabase(context.Context, *connect.Request[v1.DatabaseConfig]) (*connect.Response[v1.MountDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.MountDatabase is not implemented"))
 }
 

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sqlite-server/internal/sqldrivers"
 
+	dbv1 "sqlite-server/internal/protos/db/v1"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -17,17 +19,17 @@ func main() {
 	// Parse the command-line arguments.
 	flag.Parse()
 
-	var config sqldrivers.DBConfig
+	var config *dbv1.DatabaseConfig
 	if *enableCipher {
-		config = sqldrivers.DBConfig{
+		config = &dbv1.DatabaseConfig{
 			Name:        "loadtest-cipher",
-			DBPath:      "./data-test/loadtest-cipher.db",
+			DbPath:      "./data-test/loadtest-cipher.db",
 			IsEncrypted: true,
 		}
 	} else {
-		config = sqldrivers.DBConfig{
+		config = &dbv1.DatabaseConfig{
 			Name:   "loadtest",
-			DBPath: "./data-test/loadtest.db",
+			DbPath: "./data-test/loadtest.db",
 		}
 	}
 
@@ -37,17 +39,17 @@ func main() {
 	}
 
 	// cwd, _ := os.Getwd()
-	absPath, _ := filepath.Abs(config.DBPath)
+	absPath, _ := filepath.Abs(config.DbPath)
 	// log.Printf("Absolute DB path: %s", absPath)
 
 	// Update config to use absolute path to avoid potential relative path issues with sqlite/CGO
-	config.DBPath = absPath
+	config.DbPath = absPath
 
-	_ = os.Remove(config.DBPath)
-	_ = os.Remove(config.DBPath + "-wal")
-	_ = os.Remove(config.DBPath + "-shm")
+	_ = os.Remove(config.DbPath)
+	_ = os.Remove(config.DbPath + "-wal")
+	_ = os.Remove(config.DbPath + "-shm")
 
-	log.Printf("Creating test database: %s", config.DBPath)
+	log.Printf("Creating test database: %s", config.DbPath)
 	db, err := sqldrivers.NewSqliteDb(config)
 	if err != nil {
 		log.Fatalf("Fatal: failed to open db: %v", err)

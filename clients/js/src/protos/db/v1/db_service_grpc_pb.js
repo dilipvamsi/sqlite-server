@@ -124,6 +124,17 @@ function deserialize_db_v1_CreateUserResponse(buffer_arg) {
   return db_v1_db_service_pb.CreateUserResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_DatabaseConfig(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DatabaseConfig)) {
+    throw new Error('Expected argument of type db.v1.DatabaseConfig');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DatabaseConfig(buffer_arg) {
+  return db_v1_db_service_pb.DatabaseConfig.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_DeleteDatabaseRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.DeleteDatabaseRequest)) {
     throw new Error('Expected argument of type db.v1.DeleteDatabaseRequest');
@@ -276,17 +287,6 @@ function serialize_db_v1_LogoutResponse(arg) {
 
 function deserialize_db_v1_LogoutResponse(buffer_arg) {
   return db_v1_db_service_pb.LogoutResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_db_v1_MountDatabaseRequest(arg) {
-  if (!(arg instanceof db_v1_db_service_pb.MountDatabaseRequest)) {
-    throw new Error('Expected argument of type db.v1.MountDatabaseRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_db_v1_MountDatabaseRequest(buffer_arg) {
-  return db_v1_db_service_pb.MountDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_MountDatabaseResponse(arg) {
@@ -920,14 +920,16 @@ createDatabase: {
   // *
 // Mounts an existing database file from the filesystem.
 // This database is marked as "unmanaged" (cannot be deleted via API).
+//
+// buf:lint:ignore RPC_REQUEST_STANDARD_NAME
 mountDatabase: {
     path: '/db.v1.AdminService/MountDatabase',
     requestStream: false,
     responseStream: false,
-    requestType: db_v1_db_service_pb.MountDatabaseRequest,
+    requestType: db_v1_db_service_pb.DatabaseConfig,
     responseType: db_v1_db_service_pb.MountDatabaseResponse,
-    requestSerialize: serialize_db_v1_MountDatabaseRequest,
-    requestDeserialize: deserialize_db_v1_MountDatabaseRequest,
+    requestSerialize: serialize_db_v1_DatabaseConfig,
+    requestDeserialize: deserialize_db_v1_DatabaseConfig,
     responseSerialize: serialize_db_v1_MountDatabaseResponse,
     responseDeserialize: deserialize_db_v1_MountDatabaseResponse,
   },

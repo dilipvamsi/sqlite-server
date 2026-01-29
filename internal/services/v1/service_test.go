@@ -22,7 +22,6 @@ import (
 
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
-	"sqlite-server/internal/sqldrivers"
 )
 
 // --- Helper Setup ---
@@ -308,8 +307,8 @@ func TestExecuteTransactionAtomic(t *testing.T) {
 // TestNewDbServer_Constructor covers NewDbServer and loading logic
 func TestNewDbServer_Constructor(t *testing.T) {
 	// 1. Valid Config
-	configs := []sqldrivers.DBConfig{
-		{Name: "mem1", DBPath: ":memory:", MaxOpenConns: 1},
+	configs := []*dbv1.DatabaseConfig{
+		{Name: "mem1", DbPath: ":memory:", MaxOpenConns: 1},
 	}
 	server := NewDbServer(configs)
 	assert.NotNil(t, server)

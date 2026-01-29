@@ -13,9 +13,8 @@ import (
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 
-	"sqlite-server/internal/sqldrivers"
-
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -185,6 +184,7 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 
 // CreateDatabase creates a new managed database
 func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[dbv1.CreateDatabaseRequest]) (*connect.Response[dbv1.CreateDatabaseResponse], error) {
+	// Verify Admin Role
 	if err := AuthorizeAdmin(ctx); err != nil {
 		return nil, err
 	}
@@ -192,21 +192,36 @@ func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[d
 	name := req.Msg.Name
 	dbPath := filepath.Join("databases", name+".db")
 
+	// Build DatabaseConfig from inline request fields
+	config := &dbv1.DatabaseConfig{
+		Name:              name,
+		DbPath:            dbPath,
+		IsEncrypted:       req.Msg.IsEncrypted,
+		Key:               req.Msg.Key,
+		ReadOnly:          false, // Can't create a read-only database
+		Extensions:        req.Msg.Extensions,
+		Pragmas:           req.Msg.Pragmas,
+		MaxOpenConns:      req.Msg.MaxOpenConns,
+		MaxIdleConns:      req.Msg.MaxIdleConns,
+		ConnMaxLifetimeMs: req.Msg.ConnMaxLifetimeMs,
+	}
+
 	// Ensure directory exists
 	if err := os.MkdirAll("databases", 0755); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create directory: %w", err))
 	}
 
 	// 1. Persist config
-	if err := s.store.UpsertDatabaseConfig(ctx, name, dbPath, true, "{}"); err != nil {
+	// We store the full config as JSON
+	jsonBytes, err := protojson.Marshal(config)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
+	}
+	if err := s.store.UpsertDatabaseConfig(ctx, name, dbPath, true, string(jsonBytes)); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	// 2. Mount database
-	config := sqldrivers.DBConfig{
-		Name:   name,
-		DBPath: dbPath,
-	}
 	if err := s.dbServer.MountDatabase(config); err != nil {
 		// Rollback persistent config? For now just return error
 		_ = s.store.RemoveDatabaseConfig(ctx, name)
@@ -223,13 +238,14 @@ func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[d
 }
 
 // MountDatabase mounts an existing unmanaged database
-func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[dbv1.MountDatabaseRequest]) (*connect.Response[dbv1.MountDatabaseResponse], error) {
+func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[dbv1.DatabaseConfig]) (*connect.Response[dbv1.MountDatabaseResponse], error) {
 	if err := AuthorizeAdmin(ctx); err != nil {
 		return nil, err
 	}
 
-	name := req.Msg.Name
-	path := req.Msg.Path
+	config := req.Msg
+	name := config.Name
+	path := config.DbPath
 
 	// Verify file existence
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -237,16 +253,15 @@ func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[db
 	}
 
 	// 1. Persist config (is_managed=false)
-	if err := s.store.UpsertDatabaseConfig(ctx, name, path, false, "{}"); err != nil {
+	jsonBytes, err := protojson.Marshal(config)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
+	}
+	if err := s.store.UpsertDatabaseConfig(ctx, name, path, false, string(jsonBytes)); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	// 2. Mount database
-	config := sqldrivers.DBConfig{
-		Name:     name,
-		DBPath:   path,
-		ReadOnly: req.Msg.ReadOnly,
-	}
 	if err := s.dbServer.MountDatabase(config); err != nil {
 		_ = s.store.RemoveDatabaseConfig(ctx, name)
 		return nil, connect.NewError(connect.CodeInternal, err)

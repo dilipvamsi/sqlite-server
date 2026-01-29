@@ -50,6 +50,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	dbv1 "sqlite-server/internal/protos/db/v1"
 	"sqlite-server/internal/sqldrivers"
 )
 
@@ -74,7 +75,8 @@ const reaperInterval = 5 * time.Second
 //  3. Pings the database to verify file permissions and validity.
 //  4. "Fail-Fast": If ANY database fails to load, the application crashes intentionally (`log.Fatalf`).
 //     It is better to crash at startup than to run in a partially broken state.
-func NewDbServer(configs []sqldrivers.DBConfig) *DbServer {
+//     It is better to crash at startup than to run in a partially broken state.
+func NewDbServer(configs []*dbv1.DatabaseConfig) *DbServer {
 	dbPools := make(map[string]*sql.DB)
 
 	for _, config := range configs {
@@ -109,7 +111,7 @@ func NewDbServer(configs []sqldrivers.DBConfig) *DbServer {
 }
 
 // MountDatabase adds a new database to the server at runtime.
-func (s *DbServer) MountDatabase(config sqldrivers.DBConfig) error {
+func (s *DbServer) MountDatabase(config *dbv1.DatabaseConfig) error {
 	s.dbMu.Lock()
 	defer s.dbMu.Unlock()
 

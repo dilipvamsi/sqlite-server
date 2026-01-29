@@ -17,43 +17,283 @@ import Layout from "../layouts/Layout.astro";
         <p class="subtitle">Select a database to start running queries.</p>
       </div>
       <div class="header-actions">
-        <button id="btn-create-db" class="btn btn-primary">Create Database</button>
-        <button id="btn-mount-db" class="btn btn-secondary">Mount Database</button>
+        <button id="btn-create-db" class="btn btn-primary"
+          >Create Database</button
+        >
+        <button id="btn-mount-db" class="btn btn-secondary"
+          >Mount Database</button
+        >
       </div>
     </div>
 
     <!-- Modals -->
-    <dialog id="modal-create-db" class="modal">
+    <dialog id="modal-create-db" class="modal modal-wide">
       <div class="modal-content">
         <h2>Create Database</h2>
         <form id="form-create-db">
-          <div class="form-group">
-            <label for="create-name">Database Name</label>
-            <input type="text" id="create-name" name="name" required pattern="[a-zA-Z0-9_-]{3,64}" placeholder="my_new_db">
-            <small>3-64 characters, alphanumeric + underscores/dashes.</small>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="create-name">Database Name *</label>
+              <input
+                type="text"
+                id="create-name"
+                name="name"
+                required
+                pattern="[a-zA-Z0-9_-]{3,64}"
+                placeholder="my_new_db"
+              />
+              <small>3-64 characters, alphanumeric + underscores/dashes.</small>
+            </div>
           </div>
+
+          <details class="advanced-options">
+            <summary>Advanced Options</summary>
+
+            <div class="form-section">
+              <h4>Encryption</h4>
+              <div class="form-row">
+                <div class="form-group form-group-checkbox">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      id="create-encrypted"
+                      name="isEncrypted"
+                    />
+                    <span>Enable Encryption (SQLCipher)</span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-row" id="create-key-row" style="display: none;">
+                <div class="form-group">
+                  <label for="create-key">Encryption Key</label>
+                  <input
+                    type="password"
+                    id="create-key"
+                    name="key"
+                    placeholder="Enter encryption key"
+                  />
+                  <small>Leave empty to use the server's default key.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>Connection Pool</h4>
+              <div class="form-row form-row-3">
+                <div class="form-group">
+                  <label for="create-max-open">Max Open Conns</label>
+                  <input
+                    type="number"
+                    id="create-max-open"
+                    name="maxOpenConns"
+                    min="0"
+                    placeholder="0 = unlimited"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="create-max-idle">Max Idle Conns</label>
+                  <input
+                    type="number"
+                    id="create-max-idle"
+                    name="maxIdleConns"
+                    min="0"
+                    placeholder="0 = default"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="create-lifetime">Conn Max Lifetime (ms)</label>
+                  <input
+                    type="number"
+                    id="create-lifetime"
+                    name="connMaxLifetimeMs"
+                    min="0"
+                    placeholder="0 = no limit"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>SQLite Extensions</h4>
+              <div class="form-group">
+                <label for="create-extensions">Extension Paths</label>
+                <textarea
+                  id="create-extensions"
+                  name="extensions"
+                  rows="2"
+                  placeholder="/path/to/extension.so (one per line)"></textarea>
+                <small
+                  >Full paths to shared library extensions, one per line.</small
+                >
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>PRAGMA Settings</h4>
+              <div class="form-group">
+                <label for="create-pragmas">Pragmas</label>
+                <textarea
+                  id="create-pragmas"
+                  name="pragmas"
+                  rows="3"
+                  placeholder="journal_mode=wal
+busy_timeout=5000"></textarea>
+                <small>Key=value pairs, one per line.</small>
+              </div>
+            </div>
+          </details>
+
           <div class="modal-actions">
-            <button type="button" class="btn btn-ghost btn-close-modal">Cancel</button>
+            <button type="button" class="btn btn-ghost btn-close-modal"
+              >Cancel</button
+            >
             <button type="submit" class="btn btn-primary">Create</button>
           </div>
         </form>
       </div>
     </dialog>
 
-    <dialog id="modal-mount-db" class="modal">
+    <dialog id="modal-mount-db" class="modal modal-wide">
       <div class="modal-content">
         <h2>Mount Database</h2>
         <form id="form-mount-db">
-          <div class="form-group">
-            <label for="mount-name">Display Name</label>
-            <input type="text" id="mount-name" name="name" required pattern="[a-zA-Z0-9_-]{3,64}" placeholder="my_external_db">
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label for="mount-name">Display Name *</label>
+              <input
+                type="text"
+                id="mount-name"
+                name="name"
+                required
+                pattern="[a-zA-Z0-9_-]{3,64}"
+                placeholder="my_external_db"
+              />
+              <small>3-64 characters, alphanumeric + underscores/dashes.</small>
+            </div>
+            <div class="form-group">
+              <label for="mount-path">Database File Path *</label>
+              <input
+                type="text"
+                id="mount-path"
+                name="dbPath"
+                required
+                placeholder="/var/lib/sqlite/data.db"
+              />
+              <small>Absolute path to the existing SQLite file.</small>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="mount-path">Absolute File Path</label>
-            <input type="text" id="mount-path" name="path" required placeholder="/var/lib/sqlite/data.db">
+
+          <div class="form-row">
+            <div class="form-group form-group-checkbox">
+              <label class="checkbox-label">
+                <input type="checkbox" id="mount-readonly" name="readOnly" />
+                <span>Read-Only Mode</span>
+              </label>
+              <small>Open the database in read-only mode.</small>
+            </div>
           </div>
+
+          <details class="advanced-options">
+            <summary>Advanced Options</summary>
+
+            <div class="form-section">
+              <h4>Encryption</h4>
+              <div class="form-row">
+                <div class="form-group form-group-checkbox">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      id="mount-encrypted"
+                      name="isEncrypted"
+                    />
+                    <span>Database is Encrypted (SQLCipher)</span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-row" id="mount-key-row" style="display: none;">
+                <div class="form-group">
+                  <label for="mount-key">Encryption Key</label>
+                  <input
+                    type="password"
+                    id="mount-key"
+                    name="key"
+                    placeholder="Enter encryption key"
+                  />
+                  <small>Required for encrypted databases.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>Connection Pool</h4>
+              <div class="form-row form-row-3">
+                <div class="form-group">
+                  <label for="mount-max-open">Max Open Conns</label>
+                  <input
+                    type="number"
+                    id="mount-max-open"
+                    name="maxOpenConns"
+                    min="0"
+                    placeholder="0 = unlimited"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="mount-max-idle">Max Idle Conns</label>
+                  <input
+                    type="number"
+                    id="mount-max-idle"
+                    name="maxIdleConns"
+                    min="0"
+                    placeholder="0 = default"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="mount-lifetime">Conn Max Lifetime (ms)</label>
+                  <input
+                    type="number"
+                    id="mount-lifetime"
+                    name="connMaxLifetimeMs"
+                    min="0"
+                    placeholder="0 = no limit"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>SQLite Extensions</h4>
+              <div class="form-group">
+                <label for="mount-extensions">Extension Paths</label>
+                <textarea
+                  id="mount-extensions"
+                  name="extensions"
+                  rows="2"
+                  placeholder="/path/to/extension.so (one per line)"></textarea>
+                <small
+                  >Full paths to shared library extensions, one per line.</small
+                >
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>PRAGMA Settings</h4>
+              <div class="form-group">
+                <label for="mount-pragmas">Pragmas</label>
+                <textarea
+                  id="mount-pragmas"
+                  name="pragmas"
+                  rows="3"
+                  placeholder="journal_mode=wal
+busy_timeout=5000"></textarea>
+                <small>Key=value pairs, one per line.</small>
+              </div>
+            </div>
+          </details>
+
           <div class="modal-actions">
-            <button type="button" class="btn btn-ghost btn-close-modal">Cancel</button>
+            <button type="button" class="btn btn-ghost btn-close-modal"
+              >Cancel</button
+            >
             <button type="submit" class="btn btn-primary">Mount</button>
           </div>
         </form>
@@ -70,18 +310,80 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { getClient, getAuthHeaders, AUTH_KEY, performLogout } from "../lib/client";
+  import {
+    getClient,
+    getAuthHeaders,
+    AUTH_KEY,
+    performLogout,
+  } from "../lib/client";
   import { AdminService } from "../gen/db/v1/db_service_pb";
-  
+
   const dbList = document.getElementById("db-list");
   const errorAlert = document.getElementById("error-alert");
   const logoutBtn = document.getElementById("logout-btn");
-  
+
   // Modals
-  const modalCreate = document.getElementById("modal-create-db") as HTMLDialogElement;
-  const modalMount = document.getElementById("modal-mount-db") as HTMLDialogElement;
-  const formCreate = document.getElementById("form-create-db") as HTMLFormElement;
+  const modalCreate = document.getElementById(
+    "modal-create-db",
+  ) as HTMLDialogElement;
+  const modalMount = document.getElementById(
+    "modal-mount-db",
+  ) as HTMLDialogElement;
+  const formCreate = document.getElementById(
+    "form-create-db",
+  ) as HTMLFormElement;
   const formMount = document.getElementById("form-mount-db") as HTMLFormElement;
+
+  // Encryption checkbox toggles
+  const createEncryptedCheckbox = document.getElementById(
+    "create-encrypted",
+  ) as HTMLInputElement;
+  const createKeyRow = document.getElementById("create-key-row");
+  const mountEncryptedCheckbox = document.getElementById(
+    "mount-encrypted",
+  ) as HTMLInputElement;
+  const mountKeyRow = document.getElementById("mount-key-row");
+
+  createEncryptedCheckbox?.addEventListener("change", () => {
+    if (createKeyRow) {
+      createKeyRow.style.display = createEncryptedCheckbox.checked
+        ? "block"
+        : "none";
+    }
+  });
+
+  mountEncryptedCheckbox?.addEventListener("change", () => {
+    if (mountKeyRow) {
+      mountKeyRow.style.display = mountEncryptedCheckbox.checked
+        ? "block"
+        : "none";
+    }
+  });
+
+  // Helper: Parse extensions textarea (one path per line)
+  function parseExtensions(value: string): string[] {
+    return value
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+
+  // Helper: Parse pragmas textarea (key=value per line)
+  function parsePragmas(value: string): { [key: string]: string } {
+    const result: { [key: string]: string } = {};
+    value.split("\n").forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed) {
+        const idx = trimmed.indexOf("=");
+        if (idx > 0) {
+          const key = trimmed.slice(0, idx).trim();
+          const val = trimmed.slice(idx + 1).trim();
+          if (key) result[key] = val;
+        }
+      }
+    });
+    return result;
+  }
 
   // Logout Handler
   logoutBtn?.addEventListener("click", async () => {
@@ -89,10 +391,14 @@ import Layout from "../layouts/Layout.astro";
   });
 
   // Modal Handlers
-  document.getElementById("btn-create-db")?.addEventListener("click", () => modalCreate?.showModal());
-  document.getElementById("btn-mount-db")?.addEventListener("click", () => modalMount?.showModal());
-  
-  document.querySelectorAll(".btn-close-modal").forEach(btn => {
+  document
+    .getElementById("btn-create-db")
+    ?.addEventListener("click", () => modalCreate?.showModal());
+  document
+    .getElementById("btn-mount-db")
+    ?.addEventListener("click", () => modalMount?.showModal());
+
+  document.querySelectorAll(".btn-close-modal").forEach((btn) => {
     btn.addEventListener("click", () => {
       modalCreate?.close();
       modalMount?.close();
@@ -103,13 +409,26 @@ import Layout from "../layouts/Layout.astro";
   formCreate?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(formCreate);
-    const name = formData.get("name") as string;
-    
+
+    // Build CreateDatabaseRequest with inline fields (no db_path - server determines it)
+    const request = {
+      name: formData.get("name") as string,
+      isEncrypted: formData.get("isEncrypted") === "on",
+      key: (formData.get("key") as string) || "",
+      extensions: parseExtensions((formData.get("extensions") as string) || ""),
+      pragmas: parsePragmas((formData.get("pragmas") as string) || ""),
+      maxOpenConns: parseInt(formData.get("maxOpenConns") as string) || 0,
+      maxIdleConns: parseInt(formData.get("maxIdleConns") as string) || 0,
+      connMaxLifetimeMs:
+        parseInt(formData.get("connMaxLifetimeMs") as string) || 0,
+    };
+
     try {
       const client = getClient(AdminService);
       const headers = getAuthHeaders();
-      await client.createDatabase({ name }, { headers });
+      await client.createDatabase(request, { headers });
       formCreate.reset();
+      if (createKeyRow) createKeyRow.style.display = "none";
       modalCreate.close();
       await loadDatabases();
     } catch (err: any) {
@@ -120,14 +439,28 @@ import Layout from "../layouts/Layout.astro";
   formMount?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(formMount);
-    const name = formData.get("name") as string;
-    const path = formData.get("path") as string;
-    
+
+    // Build DatabaseConfig directly (MountDatabase takes DatabaseConfig as request)
+    const config = {
+      name: formData.get("name") as string,
+      dbPath: formData.get("dbPath") as string,
+      isEncrypted: formData.get("isEncrypted") === "on",
+      key: (formData.get("key") as string) || "",
+      readOnly: formData.get("readOnly") === "on",
+      extensions: parseExtensions((formData.get("extensions") as string) || ""),
+      pragmas: parsePragmas((formData.get("pragmas") as string) || ""),
+      maxOpenConns: parseInt(formData.get("maxOpenConns") as string) || 0,
+      maxIdleConns: parseInt(formData.get("maxIdleConns") as string) || 0,
+      connMaxLifetimeMs:
+        parseInt(formData.get("connMaxLifetimeMs") as string) || 0,
+    };
+
     try {
       const client = getClient(AdminService);
       const headers = getAuthHeaders();
-      await client.mountDatabase({ name, path }, { headers });
+      await client.mountDatabase(config, { headers });
       formMount.reset();
+      if (mountKeyRow) mountKeyRow.style.display = "none";
       modalMount.close();
       await loadDatabases();
     } catch (err: any) {
@@ -160,10 +493,10 @@ import Layout from "../layouts/Layout.astro";
             const isManaged = db.isManaged;
             const badgeClass = isManaged ? "badge-managed" : "badge-mounted";
             const badgeText = isManaged ? "Managed" : "Mounted";
-            
+
             // Delete button for managed, Unmount for mounted
             // We use data attributes to handle clicks via delegation
-            const actionBtn = isManaged 
+            const actionBtn = isManaged
               ? `<button class="btn btn-sm btn-danger btn-delete-db" data-name="${db.name}">Delete</button>`
               : `<button class="btn btn-sm btn-warning btn-unmount-db" data-name="${db.name}">Unmount</button>`;
 
@@ -186,31 +519,39 @@ import Layout from "../layouts/Layout.astro";
               </div>
             </div>
           </div>
-        `})
+        `;
+          })
           .join("");
-          
+
         // Re-attach listeners for Delete/Unmount
-        document.querySelectorAll(".btn-delete-db").forEach(btn => {
+        document.querySelectorAll(".btn-delete-db").forEach((btn) => {
           btn.addEventListener("click", (e) => {
             const name = (e.target as HTMLElement).getAttribute("data-name");
-            if (name && confirm(`Are you sure you want to PERMANENTLY DELETE database '${name}'? This cannot be undone.`)) {
-               deleteDatabase(name);
+            if (
+              name &&
+              confirm(
+                `Are you sure you want to PERMANENTLY DELETE database '${name}'? This cannot be undone.`,
+              )
+            ) {
+              deleteDatabase(name);
             }
           });
         });
 
-        document.querySelectorAll(".btn-unmount-db").forEach(btn => {
+        document.querySelectorAll(".btn-unmount-db").forEach((btn) => {
           btn.addEventListener("click", (e) => {
-             const name = (e.target as HTMLElement).getAttribute("data-name");
-             if (name && confirm(`Unmount database '${name}'?`)) {
-                unmountDatabase(name);
-             }
+            const name = (e.target as HTMLElement).getAttribute("data-name");
+            if (name && confirm(`Unmount database '${name}'?`)) {
+              unmountDatabase(name);
+            }
           });
         });
       }
     } catch (err: any) {
       console.error(err);
-      showError("Failed to load databases: " + (err.message || "Unknown error"));
+      showError(
+        "Failed to load databases: " + (err.message || "Unknown error"),
+      );
 
       // If unauthorized, redirect to login
       if (err.code === 16 || err.message?.includes("unauthenticated")) {
@@ -232,20 +573,22 @@ import Layout from "../layouts/Layout.astro";
 
   async function unmountDatabase(name: string) {
     try {
-       const client = getClient(AdminService);
-       const headers = getAuthHeaders();
-       await client.unMountDatabase({ name }, { headers });
-       await loadDatabases();
+      const client = getClient(AdminService);
+      const headers = getAuthHeaders();
+      await client.unMountDatabase({ name }, { headers });
+      await loadDatabases();
     } catch (err: any) {
       showError(`Failed to unmount '${name}': ${err.message}`);
-    } 
+    }
   }
 
   function showError(msg: string) {
     if (errorAlert) {
       errorAlert.style.display = "block";
       errorAlert.textContent = msg;
-      setTimeout(() => { errorAlert.style.display = 'none'; }, 5000);
+      setTimeout(() => {
+        errorAlert.style.display = "none";
+      }, 5000);
     }
   }
 
@@ -265,7 +608,7 @@ import Layout from "../layouts/Layout.astro";
     justify-content: space-between;
     align-items: flex-end;
   }
-  
+
   .header-actions {
     display: flex;
     gap: 1rem;
@@ -330,7 +673,7 @@ import Layout from "../layouts/Layout.astro";
     font-size: 1.2rem;
     color: var(--text-primary);
   }
-  
+
   .db-path {
     font-family: monospace;
     font-size: 0.85rem;
@@ -351,29 +694,29 @@ import Layout from "../layouts/Layout.astro";
   }
 
   .badge {
-     font-size: 0.7rem;
-     padding: 0.2rem 0.5rem;
-     border-radius: 999px;
-     font-weight: 600;
-     text-transform: uppercase;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
   }
-  
+
   .badge-managed {
     background: rgba(16, 185, 129, 0.1);
     color: #10b981;
   }
-  
+
   .badge-mounted {
     background: rgba(245, 158, 11, 0.1);
     color: #f59e0b;
   }
-  
+
   .btn-danger {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
     border: 1px solid transparent;
   }
-  
+
   .btn-danger:hover {
     background: #ef4444;
     color: white;
@@ -384,7 +727,7 @@ import Layout from "../layouts/Layout.astro";
     color: #f59e0b;
     border: 1px solid transparent;
   }
-  
+
   .btn-warning:hover {
     background: #f59e0b;
     color: white;
@@ -422,7 +765,9 @@ import Layout from "../layouts/Layout.astro";
     border: none;
     border-radius: 12px;
     background: var(--bg-primary);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
     max-width: 500px;
     width: 90%;
   }
@@ -462,7 +807,7 @@ import Layout from "../layouts/Layout.astro";
     color: var(--text-primary);
     font-family: inherit;
   }
-  
+
   .form-group small {
     display: block;
     margin-top: 0.5rem;
@@ -475,5 +820,122 @@ import Layout from "../layouts/Layout.astro";
     justify-content: flex-end;
     gap: 1rem;
     margin-top: 2rem;
+  }
+
+  /* Wide modal for detailed forms */
+  .modal-wide {
+    max-width: 650px;
+  }
+
+  /* Form row layouts */
+  .form-row {
+    margin-bottom: 1rem;
+  }
+
+  .form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .form-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+  }
+
+  /* Form sections */
+  .form-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .form-section h4 {
+    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Checkbox styling */
+  .form-group-checkbox {
+    margin-bottom: 0.5rem;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: normal;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  /* Textarea styling */
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: monospace;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 60px;
+  }
+
+  /* Advanced options accordion */
+  .advanced-options {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+  }
+
+  .advanced-options summary {
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-secondary);
+    user-select: none;
+    transition: color 0.2s;
+  }
+
+  .advanced-options summary:hover {
+    color: var(--text-primary);
+  }
+
+  .advanced-options[open] summary {
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+  }
+
+  .advanced-options > div,
+  .advanced-options .form-section {
+    padding: 0 1rem;
+  }
+
+  .advanced-options .form-section:last-child {
+    padding-bottom: 1rem;
+  }
+
+  /* Responsive form adjustments */
+  @media (max-width: 600px) {
+    .form-row-2,
+    .form-row-3 {
+      grid-template-columns: 1fr;
+    }
+
+    .modal-wide {
+      max-width: 95%;
+    }
   }
 </style>

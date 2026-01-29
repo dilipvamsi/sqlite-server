@@ -29,7 +29,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseRequest, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
+import { BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -378,15 +378,13 @@ export const AdminService = {
       kind: MethodKind.Unary,
     },
     /**
-     * *
-     * Mounts an existing database file from the filesystem.
-     * This database is marked as "unmanaged" (cannot be deleted via API).
+     * buf:lint:ignore RPC_REQUEST_STANDARD_NAME
      *
      * @generated from rpc db.v1.AdminService.MountDatabase
      */
     mountDatabase: {
       name: "MountDatabase",
-      I: MountDatabaseRequest,
+      I: DatabaseConfig,
       O: MountDatabaseResponse,
       kind: MethodKind.Unary,
     },

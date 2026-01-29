@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
 func TestLoadJsonDBConfigs(t *testing.T) {
@@ -46,7 +48,7 @@ func TestLoadJsonDBConfigs(t *testing.T) {
 
 func TestNewSqliteDb(t *testing.T) {
 	// 1. Standard Memory DB
-	cfg := DBConfig{Name: "mem", DBPath: ":memory:", MaxOpenConns: 1, Pragmas: map[string]string{"synchronous": "OFF"}}
+	cfg := &dbv1.DatabaseConfig{Name: "mem", DbPath: ":memory:", MaxOpenConns: 1, Pragmas: map[string]string{"synchronous": "OFF"}}
 	db, err := NewSqliteDb(cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, db)
@@ -54,19 +56,19 @@ func TestNewSqliteDb(t *testing.T) {
 
 	// 2. Encrypted (Simulation - go-sqlite3 std doesn't support it, but we test the URL generation logic)
 	// Note: If you don't have the encryption build tag, this behaves like standard sqlite, which is fine for coverage of the Go code.
-	cfgEnc := DBConfig{Name: "enc", DBPath: ":memory:", IsEncrypted: true, Key: "secret"}
+	cfgEnc := &dbv1.DatabaseConfig{Name: "enc", DbPath: ":memory:", IsEncrypted: true, Key: "secret"}
 	dbEnc, err := NewSqliteDb(cfgEnc)
 	require.NoError(t, err)
 	dbEnc.Close()
 
 	// 3. Read Only
-	cfgRO := DBConfig{Name: "ro", DBPath: ":memory:", ReadOnly: true}
+	cfgRO := &dbv1.DatabaseConfig{Name: "ro", DbPath: ":memory:", ReadOnly: true}
 	dbRO, err := NewSqliteDb(cfgRO)
 	require.NoError(t, err)
 	dbRO.Close()
 
 	// 4. Extensions (Logic check, even if load fails due to missing .so)
-	cfgExt := DBConfig{Name: "ext", DBPath: ":memory:", Extensions: []string{"/tmp/dummy.so"}}
+	cfgExt := &dbv1.DatabaseConfig{Name: "ext", DbPath: ":memory:", Extensions: []string{"/tmp/dummy.so"}}
 	// This might fail to open if the extension doesn't exist, which hits the error path
 	_, _ = NewSqliteDb(cfgExt)
 }

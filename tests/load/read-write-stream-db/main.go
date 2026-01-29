@@ -282,17 +282,17 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 
 // verifyDataIntegrity connects directly to the DB and checks if the total balance is correct.
 func verifyDataIntegrity() {
-	var config sqldrivers.DBConfig
+	var config *dbv1.DatabaseConfig
 	if *enableCipher {
-		config = sqldrivers.DBConfig{
+		config = &dbv1.DatabaseConfig{
 			Name:        dbName,
-			DBPath:      dbPath,
+			DbPath:      dbPath,
 			IsEncrypted: true,
 		}
 	} else {
-		config = sqldrivers.DBConfig{
+		config = &dbv1.DatabaseConfig{
 			Name:   dbName,
-			DBPath: dbPath,
+			DbPath: dbPath,
 		}
 	}
 	db, err := sqldrivers.NewSqliteDb(config)

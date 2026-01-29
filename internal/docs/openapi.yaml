@@ -348,8 +348,8 @@ paths:
     post:
       tags:
         - db.v1.AdminService
-      summary: "*\r  Mounts an existing database file from the filesystem.\r  This database is marked as \"unmanaged\" (cannot be deleted via API)."
-      description: "*\r\n Mounts an existing database file from the filesystem.\r\n This database is marked as \"unmanaged\" (cannot be deleted via API)."
+      summary: buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+      description: buf:lint:ignore RPC_REQUEST_STANDARD_NAME
       operationId: db.v1.AdminService.MountDatabase
       parameters:
         - name: Connect-Protocol-Version
@@ -365,7 +365,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.MountDatabaseRequest'
+              $ref: '#/components/schemas/db.v1.DatabaseConfig'
         required: true
       responses:
         default:
@@ -1047,8 +1047,55 @@ components:
           type: string
           title: name
           pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: Name of the new database. Must be unique.
+          description: "Name is the logical identifier for the database.\r\n Must be alphanumeric (plus _-), 3-64 chars."
+        isEncrypted:
+          type: boolean
+          title: is_encrypted
+          description: Is Encrypted indicates if the database is encrypted via sqlcipher.
+        key:
+          type: string
+          title: key
+          description: "Key for sql cipher.\r\n If is_encrypted is true and key is empty, the default key may be used."
+        extensions:
+          type: array
+          items:
+            type: string
+          title: extensions
+          description: Extensions is a list of paths to shared library extensions to load.
+        pragmas:
+          type: object
+          title: pragmas
+          additionalProperties:
+            type: string
+            title: value
+          description: Pragmas allows passing arbitrary key-value pairs to the DSN.
+        maxOpenConns:
+          type: integer
+          title: max_open_conns
+          format: int32
+          description: MaxOpenConns limits the number of open physical connections.
+        maxIdleConns:
+          type: integer
+          title: max_idle_conns
+          format: int32
+          description: MaxIdleConns limits how many connections wait in the pool.
+        connMaxLifetimeMs:
+          type: integer
+          title: conn_max_lifetime_ms
+          format: int32
+          description: ConnMaxLifetimeMs sets how long a connection can be reused before closing.
       title: CreateDatabaseRequest
+      additionalProperties: false
+    db.v1.CreateDatabaseRequest.PragmasEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          type: string
+          title: value
+      title: PragmasEntry
       additionalProperties: false
     db.v1.CreateDatabaseResponse:
       type: object
@@ -1122,6 +1169,73 @@ components:
       title: DMLResult
       additionalProperties: false
       description: "*\r\n Represents the result of a Data Modification Language query (INSERT, UPDATE,\r\n DELETE)."
+    db.v1.DatabaseConfig:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: "Name is the logical identifier for the database.\r\n Must be alphanumeric (plus _-), 3-64 chars."
+        dbPath:
+          type: string
+          title: db_path
+          minLength: 1
+          description: DBPath is the file system path to the SQLite database file.
+        isEncrypted:
+          type: boolean
+          title: is_encrypted
+          description: Is Encrypted indicates if the database is encrypted via sqlcipher.
+        key:
+          type: string
+          title: key
+          description: "Key for sql cipher.\r\n If is_encrypted is true and key is empty, the default key may be used."
+        readOnly:
+          type: boolean
+          title: read_only
+          description: ReadOnly opens the database in read-only mode (mode=ro).
+        extensions:
+          type: array
+          items:
+            type: string
+          title: extensions
+          description: Extensions is a list of paths to shared library extensions to load.
+        pragmas:
+          type: object
+          title: pragmas
+          additionalProperties:
+            type: string
+            title: value
+          description: Pragmas allows passing arbitrary key-value pairs to the DSN.
+        maxOpenConns:
+          type: integer
+          title: max_open_conns
+          format: int32
+          description: MaxOpenConns limits the number of open physical connections.
+        maxIdleConns:
+          type: integer
+          title: max_idle_conns
+          format: int32
+          description: MaxIdleConns limits how many connections wait in the pool.
+        connMaxLifetimeMs:
+          type: integer
+          title: conn_max_lifetime_ms
+          format: int32
+          description: ConnMaxLifetimeMs sets how long a connection can be reused before closing.
+      title: DatabaseConfig
+      additionalProperties: false
+      description: "*\r\n DatabaseConfig defines the configuration for a single database.\r\n Used for both static configuration (config.json) and dynamic management."
+    db.v1.DatabaseConfig.PragmasEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          type: string
+          title: value
+      title: PragmasEntry
+      additionalProperties: false
     db.v1.DatabaseInfo:
       type: object
       properties:
@@ -1399,25 +1513,6 @@ components:
           type: boolean
           title: success
       title: LogoutResponse
-      additionalProperties: false
-    db.v1.MountDatabaseRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          title: name
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: Config name for the database.
-        path:
-          type: string
-          title: path
-          minLength: 1
-          description: Absolute path to the SQLite file.
-        readOnly:
-          type: boolean
-          title: read_only
-          description: 'Optional: Read-only mode'
-      title: MountDatabaseRequest
       additionalProperties: false
     db.v1.MountDatabaseResponse:
       type: object

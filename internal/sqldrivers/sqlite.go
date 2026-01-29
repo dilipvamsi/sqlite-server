@@ -7,11 +7,13 @@ import (
 
 	"github.com/mattn/go-sqlite3"
 	_ "github.com/mattn/go-sqlite3"
+
+	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
 // const BuildType = "std"
 
-func NewSqliteDb(config DBConfig) (*sql.DB, error) {
+func NewSqliteDb(config *dbv1.DatabaseConfig) (*sql.DB, error) {
 	// Construct the Data Source Name (DSN) with production-ready parameters.
 	// - _journal=WAL: Enables Write-Ahead Logging for vastly improved concurrency.
 	//   It allows multiple readers to operate while a single writer is active.
@@ -19,7 +21,7 @@ func NewSqliteDb(config DBConfig) (*sql.DB, error) {
 	//   database is locked by another write operation, instead of failing immediately.
 	//   This makes the server resilient to short bursts of write contention.
 	// _foreign_keys=on: Ensures that INSERT/UPDATE checks constraints immediately.
-	dsn := fmt.Sprintf("file:%s?_journal=WAL&_busy_timeout=10000&_foreign_keys=on", config.DBPath)
+	dsn := fmt.Sprintf("file:%s?_journal=WAL&_busy_timeout=10000&_foreign_keys=on", config.DbPath)
 
 	if config.IsEncrypted {
 		key := config.Key
@@ -67,10 +69,10 @@ func NewSqliteDb(config DBConfig) (*sql.DB, error) {
 
 	// Apply Pool Settings
 	if config.MaxOpenConns > 0 {
-		db.SetMaxOpenConns(config.MaxOpenConns)
+		db.SetMaxOpenConns(int(config.MaxOpenConns))
 	}
 	if config.MaxIdleConns > 0 {
-		db.SetMaxIdleConns(config.MaxIdleConns)
+		db.SetMaxIdleConns(int(config.MaxIdleConns))
 	}
 	if config.ConnMaxLifetimeMs > 0 {
 		db.SetConnMaxLifetime(time.Duration(config.ConnMaxLifetimeMs) * time.Millisecond)

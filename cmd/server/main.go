@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,10 +17,13 @@ import (
 	"sqlite-server/internal/auth"
 	"sqlite-server/internal/docs"
 	"sqlite-server/internal/landing"
+	dbv1 "sqlite-server/internal/protos/db/v1"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 	servicesv1 "sqlite-server/internal/services/v1"
 	"sqlite-server/internal/sqldrivers"
 	"sqlite-server/internal/studio"
+
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ===================================================================================
@@ -84,8 +86,8 @@ func main() {
 			db.Close() // Close check connection
 
 			// Sync to MetaStore (as mounted/unmanaged)
-			settingsBytes, _ := json.Marshal(cfg)
-			err = authStore.UpsertDatabaseConfig(context.Background(), cfg.Name, cfg.DBPath, false, string(settingsBytes))
+			settingsBytes, _ := protojson.Marshal(cfg)
+			err = authStore.UpsertDatabaseConfig(context.Background(), cfg.Name, cfg.DbPath, false, string(settingsBytes))
 			if err != nil {
 				log.Printf("Warning: failed to sync config '%s' to metadata: %v", cfg.Name, err)
 			}
@@ -102,16 +104,16 @@ func main() {
 					continue // Already loaded from strict config
 				}
 
-				var cfg sqldrivers.DBConfig
-				if err := json.Unmarshal([]byte(sc.Settings), &cfg); err != nil {
+				var cfg dbv1.DatabaseConfig
+				if err := protojson.Unmarshal([]byte(sc.Settings), &cfg); err != nil {
 					log.Printf("Warning: checking stored db '%s': invalid settings json", sc.Name)
 					continue
 				}
 				// Ensure vital fields match storage
 				cfg.Name = sc.Name
-				cfg.DBPath = sc.Path
+				cfg.DbPath = sc.Path
 
-				activeConfigs = append(activeConfigs, cfg)
+				activeConfigs = append(activeConfigs, &cfg)
 			}
 		}
 

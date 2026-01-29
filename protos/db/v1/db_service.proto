@@ -433,7 +433,8 @@ service AdminService {
    * Mounts an existing database file from the filesystem.
    * This database is marked as "unmanaged" (cannot be deleted via API).
    */
-  rpc MountDatabase(MountDatabaseRequest) returns (MountDatabaseResponse);
+  // buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+  rpc MountDatabase(DatabaseConfig) returns (MountDatabaseResponse);
 
   /**
    * Unmounts a database, removing it from the active server.
@@ -682,24 +683,37 @@ message RestoreDatabaseResponse {
 // -----------------------------------------------------------------------------
 
 message CreateDatabaseRequest {
-  // Name of the new database. Must be unique.
+  // Name is the logical identifier for the database.
+  // Must be alphanumeric (plus _-), 3-64 chars.
   string name = 1
       [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+
+  // Is Encrypted indicates if the database is encrypted via sqlcipher.
+  bool is_encrypted = 2;
+
+  // Key for sql cipher.
+  // If is_encrypted is true and key is empty, the default key may be used.
+  string key = 3;
+
+  // Extensions is a list of paths to shared library extensions to load.
+  repeated string extensions = 4;
+
+  // Pragmas allows passing arbitrary key-value pairs to the DSN.
+  map<string, string> pragmas = 5;
+
+  // MaxOpenConns limits the number of open physical connections.
+  int32 max_open_conns = 6;
+
+  // MaxIdleConns limits how many connections wait in the pool.
+  int32 max_idle_conns = 7;
+
+  // ConnMaxLifetimeMs sets how long a connection can be reused before closing.
+  int32 conn_max_lifetime_ms = 8;
 }
 
 message CreateDatabaseResponse {
   bool success = 1;
   string message = 2;
-}
-
-message MountDatabaseRequest {
-  // Config name for the database.
-  string name = 1
-      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
-  // Absolute path to the SQLite file.
-  string path = 2 [ (buf.validate.field).string.min_len = 1 ];
-  // Optional: Read-only mode
-  bool read_only = 3;
 }
 
 message MountDatabaseResponse {
@@ -1361,4 +1375,47 @@ message TypedQueryResponse {
     // Sent if an error occurs mid-stream.
     ErrorResponse error = 5;
   }
+}
+
+// -----------------------------------------------------------------------------
+// Database Configuration
+// -----------------------------------------------------------------------------
+
+/**
+ * DatabaseConfig defines the configuration for a single database.
+ * Used for both static configuration (config.json) and dynamic management.
+ */
+message DatabaseConfig {
+  // Name is the logical identifier for the database.
+  // Must be alphanumeric (plus _-), 3-64 chars.
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+
+  // DBPath is the file system path to the SQLite database file.
+  string db_path = 2 [ (buf.validate.field).string.min_len = 1 ];
+
+  // Is Encrypted indicates if the database is encrypted via sqlcipher.
+  bool is_encrypted = 3;
+
+  // Key for sql cipher.
+  // If is_encrypted is true and key is empty, the default key may be used.
+  string key = 4;
+
+  // ReadOnly opens the database in read-only mode (mode=ro).
+  bool read_only = 5;
+
+  // Extensions is a list of paths to shared library extensions to load.
+  repeated string extensions = 6;
+
+  // Pragmas allows passing arbitrary key-value pairs to the DSN.
+  map<string, string> pragmas = 7;
+
+  // MaxOpenConns limits the number of open physical connections.
+  int32 max_open_conns = 8;
+
+  // MaxIdleConns limits how many connections wait in the pool.
+  int32 max_idle_conns = 9;
+
+  // ConnMaxLifetimeMs sets how long a connection can be reused before closing.
+  int32 conn_max_lifetime_ms = 10;
 }
