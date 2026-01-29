@@ -44,6 +44,7 @@ package servicesv1
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
@@ -79,12 +80,14 @@ func NewDbServer(configs []sqldrivers.DBConfig) *DbServer {
 	for _, config := range configs {
 		db, err := sqldrivers.NewSqliteDb(config)
 		if err != nil {
-			log.Fatalf("Fatal: failed to open db '%s': %v", config.Name, err)
+			log.Printf("Error: failed to open db '%s': %v", config.Name, err)
+			continue
 		}
 
 		// Ping verifies the connection is actually usable.
 		if err := db.Ping(); err != nil {
-			log.Fatalf("Fatal: failed to connect to db '%s': %v", config.Name, err)
+			log.Printf("Error: failed to connect to db '%s': %v", config.Name, err)
+			continue
 		}
 
 		log.Printf("Successfully opened and connected to database '%s'", config.Name)
@@ -103,6 +106,62 @@ func NewDbServer(configs []sqldrivers.DBConfig) *DbServer {
 	go db.runReaper()
 
 	return db
+}
+
+// MountDatabase adds a new database to the server at runtime.
+func (s *DbServer) MountDatabase(config sqldrivers.DBConfig) error {
+	s.dbMu.Lock()
+	defer s.dbMu.Unlock()
+
+	if _, exists := s.Dbs[config.Name]; exists {
+		return fmt.Errorf("database '%s' already mounted", config.Name)
+	}
+
+	db, err := sqldrivers.NewSqliteDb(config)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Log is handled by the caller (AdminService) to distinguish between "Created" and "Mounted"
+	s.Dbs[config.Name] = db
+	return nil
+}
+
+// UnmountDatabase closes and removes a database from the server.
+func (s *DbServer) UnmountDatabase(name string) error {
+	s.dbMu.Lock()
+	defer s.dbMu.Unlock()
+
+	db, exists := s.Dbs[name]
+	if !exists {
+		return fmt.Errorf("database '%s' not found", name)
+	}
+
+	// Close the connection pool
+	if err := db.Close(); err != nil {
+		log.Printf("Warning: error closing database '%s': %v", name, err)
+	}
+
+	delete(s.Dbs, name)
+	// Log is handled by the caller
+	return nil
+}
+
+// GetDatabaseNames returns a list of all currently mounted databases.
+func (s *DbServer) GetDatabaseNames() []string {
+	s.dbMu.RLock()
+	defer s.dbMu.RUnlock()
+
+	names := make([]string, 0, len(s.Dbs))
+	for name := range s.Dbs {
+		names = append(names, name)
+	}
+	return names
 }
 
 // Stop signals the background reaper to exit, preventing goroutine leaks during shutdown.

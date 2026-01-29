@@ -7,6 +7,9 @@ coverage.out
 *db-shm
 *.db-wal
 
+# databases
+databases/
+
 # api-key
 .loadtest-api-key
 .loadtest-basic

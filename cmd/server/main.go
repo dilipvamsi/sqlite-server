@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"sqlite-server/internal/auth"
+	"sqlite-server/internal/docs"
+	"sqlite-server/internal/landing"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 	servicesv1 "sqlite-server/internal/services/v1"
 	"sqlite-server/internal/sqldrivers"
@@ -46,14 +49,14 @@ func main() {
 	}
 
 	// 2. Service Initialization
-	// NewDbServer starts the background 'Reaper' goroutine.
-	dbServer := servicesv1.NewDbServer(configs)
 
 	// Check if auth is enabled (default: true)
 	authEnabled := os.Getenv("SQLITE_SERVER_AUTH_ENABLED") != "false"
 
 	var interceptors connect.HandlerOption
 	var authStore *auth.MetaStore
+
+	activeConfigs := configs
 
 	if authEnabled {
 		// Initialize Auth MetaStore
@@ -63,6 +66,54 @@ func main() {
 			log.Fatalf("Fatal: could not initialize auth store: %v", err)
 		}
 		defer authStore.Close()
+
+		// --- CONFIG SYNC & VALIDATION ---
+		// 1. Strict Validation of config.json
+		// These definitions MUST be valid. If they fail, we panic.
+		syncedNames := make(map[string]bool)
+		for _, cfg := range configs {
+			// Validate connectivity
+			db, err := sqldrivers.NewSqliteDb(cfg)
+			if err != nil {
+				log.Fatalf("Fatal: config.json database '%s' failed to open: %v", cfg.Name, err)
+			}
+			if err := db.Ping(); err != nil {
+				db.Close()
+				log.Fatalf("Fatal: config.json database '%s' failed to connect: %v", cfg.Name, err)
+			}
+			db.Close() // Close check connection
+
+			// Sync to MetaStore (as mounted/unmanaged)
+			settingsBytes, _ := json.Marshal(cfg)
+			err = authStore.UpsertDatabaseConfig(context.Background(), cfg.Name, cfg.DBPath, false, string(settingsBytes))
+			if err != nil {
+				log.Printf("Warning: failed to sync config '%s' to metadata: %v", cfg.Name, err)
+			}
+			syncedNames[cfg.Name] = true
+		}
+
+		// 2. Load Persisted dynamic configs
+		storedConfigs, err := authStore.ListDatabaseConfigs(context.Background())
+		if err != nil {
+			log.Printf("Warning: failed to list stored configs: %v", err)
+		} else {
+			for _, sc := range storedConfigs {
+				if syncedNames[sc.Name] {
+					continue // Already loaded from strict config
+				}
+
+				var cfg sqldrivers.DBConfig
+				if err := json.Unmarshal([]byte(sc.Settings), &cfg); err != nil {
+					log.Printf("Warning: checking stored db '%s': invalid settings json", sc.Name)
+					continue
+				}
+				// Ensure vital fields match storage
+				cfg.Name = sc.Name
+				cfg.DBPath = sc.Path
+
+				activeConfigs = append(activeConfigs, cfg)
+			}
+		}
 
 		// Create Default Admin (if needed)
 		if _, err := authStore.EnsureDefaultAdmin(); err != nil {
@@ -84,6 +135,10 @@ func main() {
 		log.Println("[AUTH] Authentication DISABLED (SQLITE_SERVER_AUTH_ENABLED=false)")
 	}
 
+	// NewDbServer starts the background 'Reaper' goroutine.
+	// It will skip any dynamic configs that fail to open (graceful degradation).
+	dbServer := servicesv1.NewDbServer(activeConfigs)
+
 	// 3. HTTP Server Setup
 	path, handler := dbv1connect.NewDatabaseServiceHandler(dbServer, interceptors)
 	mux := http.NewServeMux()
@@ -91,13 +146,19 @@ func main() {
 
 	// Register AdminService (only if auth is enabled)
 	if authEnabled && authStore != nil {
-		adminServer := servicesv1.NewAdminServer(authStore, configs)
+		adminServer := servicesv1.NewAdminServer(authStore, dbServer)
 		adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
 		mux.Handle(adminPath, adminHandler)
 	}
 
 	// 3a. Studio UI
 	mux.Handle("/studio/", studio.NewHandler("/studio/"))
+
+	// 3b. API Documentation
+	mux.Handle("/docs/", docs.Handler())
+
+	// 3c. Landing Page (root)
+	mux.HandleFunc("/", landing.Handler())
 
 	srv := &http.Server{
 		Addr: ":50051",

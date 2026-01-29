@@ -36,28 +36,6 @@ var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/time
 var google_protobuf_duration_pb = require('google-protobuf/google/protobuf/duration_pb.js');
 var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb.js');
 
-function serialize_db_v1_BackupDatabaseRequest(arg) {
-  if (!(arg instanceof db_v1_db_service_pb.BackupDatabaseRequest)) {
-    throw new Error('Expected argument of type db.v1.BackupDatabaseRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_db_v1_BackupDatabaseRequest(buffer_arg) {
-  return db_v1_db_service_pb.BackupDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_db_v1_BackupDatabaseResponse(arg) {
-  if (!(arg instanceof db_v1_db_service_pb.BackupDatabaseResponse)) {
-    throw new Error('Expected argument of type db.v1.BackupDatabaseResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_db_v1_BackupDatabaseResponse(buffer_arg) {
-  return db_v1_db_service_pb.BackupDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
 function serialize_db_v1_BeginTransactionRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.BeginTransactionRequest)) {
     throw new Error('Expected argument of type db.v1.BeginTransactionRequest');
@@ -102,6 +80,28 @@ function deserialize_db_v1_CreateApiKeyResponse(buffer_arg) {
   return db_v1_db_service_pb.CreateApiKeyResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_CreateDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CreateDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.CreateDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CreateDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.CreateDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_CreateDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CreateDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.CreateDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CreateDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.CreateDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_CreateUserRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.CreateUserRequest)) {
     throw new Error('Expected argument of type db.v1.CreateUserRequest');
@@ -122,6 +122,28 @@ function serialize_db_v1_CreateUserResponse(arg) {
 
 function deserialize_db_v1_CreateUserResponse(buffer_arg) {
   return db_v1_db_service_pb.CreateUserResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_DeleteDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DeleteDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.DeleteDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DeleteDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.DeleteDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_DeleteDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DeleteDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.DeleteDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DeleteDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.DeleteDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_DeleteUserRequest(arg) {
@@ -234,6 +256,50 @@ function deserialize_db_v1_LoginResponse(buffer_arg) {
   return db_v1_db_service_pb.LoginResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_LogoutRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.LogoutRequest)) {
+    throw new Error('Expected argument of type db.v1.LogoutRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_LogoutRequest(buffer_arg) {
+  return db_v1_db_service_pb.LogoutRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_LogoutResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.LogoutResponse)) {
+    throw new Error('Expected argument of type db.v1.LogoutResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_LogoutResponse(buffer_arg) {
+  return db_v1_db_service_pb.LogoutResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_MountDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.MountDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.MountDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_MountDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.MountDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_MountDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.MountDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.MountDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_MountDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.MountDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_QueryRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.QueryRequest)) {
     throw new Error('Expected argument of type db.v1.QueryRequest');
@@ -265,28 +331,6 @@ function serialize_db_v1_QueryResult(arg) {
 
 function deserialize_db_v1_QueryResult(buffer_arg) {
   return db_v1_db_service_pb.QueryResult.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_db_v1_RestoreDatabaseRequest(arg) {
-  if (!(arg instanceof db_v1_db_service_pb.RestoreDatabaseRequest)) {
-    throw new Error('Expected argument of type db.v1.RestoreDatabaseRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_db_v1_RestoreDatabaseRequest(buffer_arg) {
-  return db_v1_db_service_pb.RestoreDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_db_v1_RestoreDatabaseResponse(arg) {
-  if (!(arg instanceof db_v1_db_service_pb.RestoreDatabaseResponse)) {
-    throw new Error('Expected argument of type db.v1.RestoreDatabaseResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_db_v1_RestoreDatabaseResponse(buffer_arg) {
-  return db_v1_db_service_pb.RestoreDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_RevokeApiKeyRequest(arg) {
@@ -386,6 +430,28 @@ function serialize_db_v1_TransactionSavepointRequest(arg) {
 
 function deserialize_db_v1_TransactionSavepointRequest(buffer_arg) {
   return db_v1_db_service_pb.TransactionSavepointRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_UnMountDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UnMountDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.UnMountDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UnMountDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.UnMountDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_UnMountDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UnMountDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.UnMountDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UnMountDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.UnMountDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_UpdatePasswordRequest(arg) {
@@ -687,6 +753,19 @@ login: {
     responseDeserialize: deserialize_db_v1_LoginResponse,
   },
   // *
+// Invalidates the current session/API key.
+logout: {
+    path: '/db.v1.AdminService/Logout',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.LogoutRequest,
+    responseType: db_v1_db_service_pb.LogoutResponse,
+    requestSerialize: serialize_db_v1_LogoutRequest,
+    requestDeserialize: deserialize_db_v1_LogoutRequest,
+    responseSerialize: serialize_db_v1_LogoutResponse,
+    responseDeserialize: deserialize_db_v1_LogoutResponse,
+  },
+  // *
 // Revokes (deletes) a specific API key immediately.
 revokeApiKey: {
     path: '/db.v1.AdminService/RevokeApiKey',
@@ -701,34 +780,79 @@ revokeApiKey: {
   },
   // --- Disaster Recovery ---
 //
+// /**
+//  * Streams a binary backup of the specified database file.
+//  * The stream delivers the file in 4MB chunks.
+//  */
+// rpc BackupDatabase(BackupDatabaseRequest)
+//     returns (stream BackupDatabaseResponse);
+//
+// /**
+//  * Restores a database from a backup stream.
+//  * This overwrites the existing database file.
+//  * Protocol: [Metadata] -> [Chunk] -> [Chunk]...
+//  */
+// rpc RestoreDatabase(stream RestoreDatabaseRequest)
+//     returns (RestoreDatabaseResponse);
+//
+// --- Dynamic Database Management ---
+//
 // *
-// Streams a binary backup of the specified database file.
-// The stream delivers the file in 4MB chunks.
-backupDatabase: {
-    path: '/db.v1.AdminService/BackupDatabase',
+// Creates a new managed database.
+// The database file is created in the server's managed directory.
+createDatabase: {
+    path: '/db.v1.AdminService/CreateDatabase',
     requestStream: false,
-    responseStream: true,
-    requestType: db_v1_db_service_pb.BackupDatabaseRequest,
-    responseType: db_v1_db_service_pb.BackupDatabaseResponse,
-    requestSerialize: serialize_db_v1_BackupDatabaseRequest,
-    requestDeserialize: deserialize_db_v1_BackupDatabaseRequest,
-    responseSerialize: serialize_db_v1_BackupDatabaseResponse,
-    responseDeserialize: deserialize_db_v1_BackupDatabaseResponse,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.CreateDatabaseRequest,
+    responseType: db_v1_db_service_pb.CreateDatabaseResponse,
+    requestSerialize: serialize_db_v1_CreateDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_CreateDatabaseRequest,
+    responseSerialize: serialize_db_v1_CreateDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_CreateDatabaseResponse,
   },
   // *
-// Restores a database from a backup stream.
-// This overwrites the existing database file.
-// Protocol: [Metadata] -> [Chunk] -> [Chunk]...
-restoreDatabase: {
-    path: '/db.v1.AdminService/RestoreDatabase',
-    requestStream: true,
+// Mounts an existing database file from the filesystem.
+// This database is marked as "unmanaged" (cannot be deleted via API).
+mountDatabase: {
+    path: '/db.v1.AdminService/MountDatabase',
+    requestStream: false,
     responseStream: false,
-    requestType: db_v1_db_service_pb.RestoreDatabaseRequest,
-    responseType: db_v1_db_service_pb.RestoreDatabaseResponse,
-    requestSerialize: serialize_db_v1_RestoreDatabaseRequest,
-    requestDeserialize: deserialize_db_v1_RestoreDatabaseRequest,
-    responseSerialize: serialize_db_v1_RestoreDatabaseResponse,
-    responseDeserialize: deserialize_db_v1_RestoreDatabaseResponse,
+    requestType: db_v1_db_service_pb.MountDatabaseRequest,
+    responseType: db_v1_db_service_pb.MountDatabaseResponse,
+    requestSerialize: serialize_db_v1_MountDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_MountDatabaseRequest,
+    responseSerialize: serialize_db_v1_MountDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_MountDatabaseResponse,
+  },
+  // *
+// Unmounts a database, removing it from the active server.
+// The file is NOT deleted.
+unMountDatabase: {
+    path: '/db.v1.AdminService/UnMountDatabase',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.UnMountDatabaseRequest,
+    responseType: db_v1_db_service_pb.UnMountDatabaseResponse,
+    requestSerialize: serialize_db_v1_UnMountDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_UnMountDatabaseRequest,
+    responseSerialize: serialize_db_v1_UnMountDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_UnMountDatabaseResponse,
+  },
+  // *
+// Deletes a database securely.
+// - Managed DBs: Deleted from disk and metadata.
+// - Mounted DBs: Returns error (protects external files).
+deleteDatabase: {
+    path: '/db.v1.AdminService/DeleteDatabase',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.DeleteDatabaseRequest,
+    responseType: db_v1_db_service_pb.DeleteDatabaseResponse,
+    requestSerialize: serialize_db_v1_DeleteDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_DeleteDatabaseRequest,
+    responseSerialize: serialize_db_v1_DeleteDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_DeleteDatabaseResponse,
   },
 };
 

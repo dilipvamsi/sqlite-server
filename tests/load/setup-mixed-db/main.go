@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"sqlite-server/internal/sqldrivers"
 	"log"
 	"os"
+	"sqlite-server/internal/sqldrivers"
 )
 
 const (
@@ -32,7 +32,14 @@ func main() {
 		}
 	}
 
-	_ = os.Remove(config.DBPath) // Remove old db file if it exists
+	// Ensure directory exists
+	if err := os.MkdirAll("data-test", 0755); err != nil {
+		log.Fatalf("Failed to create data dir: %v", err)
+	}
+
+	_ = os.Remove(config.DBPath)
+	_ = os.Remove(config.DBPath + "-wal")
+	_ = os.Remove(config.DBPath + "-shm")
 
 	log.Printf("Creating test database: %s", config.DBPath)
 	db, err := sqldrivers.NewSqliteDb(config)

@@ -335,7 +335,7 @@ func TestMetaStore_CreateApiKey(t *testing.T) {
 	t.Run("creates key successfully", func(t *testing.T) {
 		rawKey, keyID, err := store.CreateApiKey(ctx, userID, "Test Key", nil)
 		require.NoError(t, err)
-		assert.Greater(t, keyID, int64(0))
+		assert.NotEmpty(t, keyID) // UUID v7 string
 		assert.True(t, len(rawKey) > 10)
 		assert.Contains(t, rawKey, "sk_") // Prefix check
 	})
@@ -344,7 +344,7 @@ func TestMetaStore_CreateApiKey(t *testing.T) {
 		expiry := time.Now().Add(24 * time.Hour)
 		rawKey, keyID, err := store.CreateApiKey(ctx, userID, "Expiring Key", &expiry)
 		require.NoError(t, err)
-		assert.Greater(t, keyID, int64(0))
+		assert.NotEmpty(t, keyID) // UUID v7 string
 		assert.NotEmpty(t, rawKey)
 	})
 }
@@ -413,7 +413,7 @@ func TestMetaStore_RevokeApiKey(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent key", func(t *testing.T) {
-		err := store.RevokeApiKey(ctx, 99999)
+		err := store.RevokeApiKey(ctx, "00000000-0000-0000-0000-000000099999")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "api key not found")
 	})
@@ -519,4 +519,91 @@ func TestMetaStore_ValidateUser_Errors(t *testing.T) {
 	claims, err := store.ValidateUser(ctx, "user", "pass")
 	require.Error(t, err)
 	assert.Nil(t, claims)
+}
+
+// ============================================================================
+// Database Config Tests
+// ============================================================================
+
+func TestMetaStore_DatabaseConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_db_config.db")
+
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	t.Run("UpsertDatabaseConfig creates new config", func(t *testing.T) {
+		err := store.UpsertDatabaseConfig(ctx, "testdb", "/tmp/test.db", true, `{"foo":"bar"}`)
+		require.NoError(t, err)
+
+		// Verify
+		cfg, err := store.GetDatabaseConfig(ctx, "testdb")
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		assert.Equal(t, "testdb", cfg.Name)
+		assert.Equal(t, "/tmp/test.db", cfg.Path)
+		assert.True(t, cfg.IsManaged)
+		assert.Equal(t, `{"foo":"bar"}`, cfg.Settings)
+	})
+
+	t.Run("UpsertDatabaseConfig updates existing config", func(t *testing.T) {
+		err := store.UpsertDatabaseConfig(ctx, "testdb", "/tmp/updated.db", false, `{"updated":true}`)
+		require.NoError(t, err)
+
+		// Verify
+		cfg, err := store.GetDatabaseConfig(ctx, "testdb")
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		assert.Equal(t, "/tmp/updated.db", cfg.Path)
+		assert.False(t, cfg.IsManaged)
+		assert.Equal(t, `{"updated":true}`, cfg.Settings)
+	})
+
+	t.Run("GetDatabaseConfig returns nil for non-existent", func(t *testing.T) {
+		cfg, err := store.GetDatabaseConfig(ctx, "nonexistent")
+		require.NoError(t, err)
+		assert.Nil(t, cfg)
+	})
+
+	t.Run("ListDatabaseConfigs returns all configs", func(t *testing.T) {
+		// Create another one
+		err := store.UpsertDatabaseConfig(ctx, "otherdb", "/tmp/other.db", false, "{}")
+		require.NoError(t, err)
+
+		cfgs, err := store.ListDatabaseConfigs(ctx)
+		require.NoError(t, err)
+		assert.Len(t, cfgs, 2)
+
+		// Sort or map check could be done, but len is enough for basic verification
+		names := make(map[string]bool)
+		for _, c := range cfgs {
+			names[c.Name] = true
+		}
+		assert.True(t, names["testdb"])
+		assert.True(t, names["otherdb"])
+	})
+
+	t.Run("RemoveDatabaseConfig deletes config", func(t *testing.T) {
+		err := store.RemoveDatabaseConfig(ctx, "testdb")
+		require.NoError(t, err)
+
+		// Verify gone
+		cfg, err := store.GetDatabaseConfig(ctx, "testdb")
+		require.NoError(t, err)
+		assert.Nil(t, cfg)
+
+		// Verify list count
+		cfgs, err := store.ListDatabaseConfigs(ctx)
+		require.NoError(t, err)
+		assert.Len(t, cfgs, 1)
+		assert.Equal(t, "otherdb", cfgs[0].Name)
+	})
+
+	t.Run("RemoveDatabaseConfig returns no error for non-existent", func(t *testing.T) {
+		err := store.RemoveDatabaseConfig(ctx, "nonexistent")
+		require.NoError(t, err)
+	})
 }

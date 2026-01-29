@@ -19,7 +19,7 @@ type User struct {
 }
 
 type ApiKey struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"` // UUID v7
 	UserID    int64     `json:"user_id"`
 	KeyPrefix string    `json:"key_prefix"`
 	KeyHash   string    `json:"-"`

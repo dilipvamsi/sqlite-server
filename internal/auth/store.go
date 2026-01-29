@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -49,6 +50,16 @@ var schemaSQL string
 
 type MetaStore struct {
 	db *sql.DB
+}
+
+// DatabaseConfig represents a persisted database configuration
+type DatabaseConfig struct {
+	ID        int64
+	Name      string
+	Path      string
+	IsManaged bool
+	Settings  string
+	CreatedAt time.Time
 }
 
 // UserClaims represents the identity of an authenticated user
@@ -268,10 +279,21 @@ func (s *MetaStore) GetUserByUsername(ctx context.Context, username string) (*Us
 // ============================================================================
 
 // CreateApiKey generates a new API key for a user
-// Returns the raw key (only shown once) and the key ID
-func (s *MetaStore) CreateApiKey(ctx context.Context, userID int64, name string, expiresAt *time.Time) (string, int64, error) {
-	// Generate random key
-	rawKey := "sk_" + generateRandomPassword(32)
+// Returns the raw key (only shown once) and the key ID (UUID v7)
+func (s *MetaStore) CreateApiKey(ctx context.Context, userID int64, name string, expiresAt *time.Time) (string, string, error) {
+	// Generate UUID v7 for time-sortable, unique key
+	uuidV7, err := uuid.NewV7()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate UUID v7: %w", err)
+	}
+	rawKey := "sk_" + strings.ReplaceAll(uuidV7.String(), "-", "")
+
+	// Generate UUID v7 for the key ID
+	keyIDUUID, err := uuid.NewV7()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate key ID UUID v7: %w", err)
+	}
+	keyID := keyIDUUID.String()
 
 	// Store hash of key
 	hash := sha256.Sum256([]byte(rawKey))
@@ -285,15 +307,14 @@ func (s *MetaStore) CreateApiKey(ctx context.Context, userID int64, name string,
 		expiresAtStr = expiresAt.Format(time.RFC3339)
 	}
 
-	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO api_keys (user_id, key_prefix, key_hash, name, expires_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, userID, prefix, keyHash, name, expiresAtStr)
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO api_keys (id, user_id, key_prefix, key_hash, name, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, keyID, userID, prefix, keyHash, name, expiresAtStr)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to create api key: %w", err)
+		return "", "", fmt.Errorf("failed to create api key: %w", err)
 	}
 
-	keyID, _ := result.LastInsertId()
 	return rawKey, keyID, nil
 }
 
@@ -325,7 +346,7 @@ func (s *MetaStore) ListApiKeys(ctx context.Context, userID int64) ([]ApiKey, er
 }
 
 // RevokeApiKey deletes an API key
-func (s *MetaStore) RevokeApiKey(ctx context.Context, keyID int64) error {
+func (s *MetaStore) RevokeApiKey(ctx context.Context, keyID string) error {
 	result, err := s.db.ExecContext(ctx, "DELETE FROM api_keys WHERE id = ?", keyID)
 	if err != nil {
 		return fmt.Errorf("failed to revoke api key: %w", err)
@@ -333,7 +354,7 @@ func (s *MetaStore) RevokeApiKey(ctx context.Context, keyID int64) error {
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("api key not found: %d", keyID)
+		return fmt.Errorf("api key not found: %s", keyID)
 	}
 	return nil
 }
@@ -375,4 +396,73 @@ func (s *MetaStore) ValidateApiKeyImpl(ctx context.Context, token string) (*User
 		Username: username,
 		Role:     role,
 	}, nil
+}
+
+// ============================================================================
+// Database Persistence Operations
+// ============================================================================
+
+// UpsertDatabaseConfig adds or updates a database configuration.
+// If the database already exists, it updates the path and settings.
+func (s *MetaStore) UpsertDatabaseConfig(ctx context.Context, name, path string, isManaged bool, settings string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO databases (name, path, is_managed, settings)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET
+			path = excluded.path,
+			is_managed = excluded.is_managed,
+			settings = excluded.settings
+	`, name, path, isManaged, settings)
+	if err != nil {
+		return fmt.Errorf("failed to upsert database config: %w", err)
+	}
+	return nil
+}
+
+// GetDatabaseConfig retrieves a single database configuration by name.
+func (s *MetaStore) GetDatabaseConfig(ctx context.Context, name string) (*DatabaseConfig, error) {
+	var config DatabaseConfig
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, name, path, is_managed, settings, created_at
+		FROM databases WHERE name = ?
+	`, name).Scan(&config.ID, &config.Name, &config.Path, &config.IsManaged, &config.Settings, &config.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database config: %w", err)
+	}
+	return &config, nil
+}
+
+// RemoveDatabaseConfig removes a database configuration.
+func (s *MetaStore) RemoveDatabaseConfig(ctx context.Context, name string) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM databases WHERE name = ?", name)
+	if err != nil {
+		return fmt.Errorf("failed to remove database config: %w", err)
+	}
+	return nil
+}
+
+// ListDatabaseConfigs retrieves all database configurations.
+func (s *MetaStore) ListDatabaseConfigs(ctx context.Context) ([]DatabaseConfig, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, path, is_managed, settings, created_at
+		FROM databases ORDER BY name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list database configs: %w", err)
+	}
+	defer rows.Close()
+
+	var configs []DatabaseConfig
+	for rows.Next() {
+		var config DatabaseConfig
+		if err := rows.Scan(&config.ID, &config.Name, &config.Path, &config.IsManaged, &config.Settings, &config.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan database config: %w", err)
+		}
+		configs = append(configs, config)
+	}
+	return configs, nil
 }

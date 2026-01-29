@@ -12,10 +12,11 @@ import (
 // querier is an interface abstraction for executing SQL commands.
 //
 // ARCHITECTURE NOTE:
-//   Both `*sql.DB` (connection pool) and `*sql.Tx` (single transaction) implement these
-//   methods. By defining this interface, our core helper functions (like `streamQueryResults`)
-//   become decoupled from the context. They can run queries statelessly or inside a transaction
-//   without code duplication.
+//
+//	Both `*sql.DB` (connection pool) and `*sql.Tx` (single transaction) implement these
+//	methods. By defining this interface, our core helper functions (like `streamQueryResults`)
+//	become decoupled from the context. They can run queries statelessly or inside a transaction
+//	without code duplication.
 type querier interface {
 	// ExecContext executes a query without returning rows (INSERT, UPDATE, DELETE).
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
@@ -26,9 +27,9 @@ type querier interface {
 // TxSession represents a stateful transaction context held in the server's memory.
 //
 // ARCHITECTURAL NOTE:
-//   Unlike streaming where the connection *is* the session, ID-based transactions
-//   require this struct to persist the *sql.Tx handle between HTTP requests.
 //
+//	Unlike streaming where the connection *is* the session, ID-based transactions
+//	require this struct to persist the *sql.Tx handle between HTTP requests.
 type TxSession struct {
 	// The underlying SQLite transaction handle.
 	Tx *sql.Tx
@@ -55,10 +56,9 @@ type DbServer struct {
 	// Value: Thread-safe connection pool (*sql.DB).
 	//
 	// CONCURRENCY SAFETY:
-	// This map is populated ONLY during initialization (`NewDbServer`) and is treated
-	// as read-only during runtime. Therefore, it is safe for concurrent reads by
-	// multiple goroutines without a RWMutex.
-	Dbs map[string]*sql.DB
+	// Protected by dbMu (RWMutex) to allow dynamic mounting/unmounting of databases.
+	Dbs  map[string]*sql.DB
+	dbMu sync.RWMutex
 
 	// txRegistry maps a client-provided UUID to an active TxSession.
 	// CONCURRENCY: Protected by txMu (RWMutex) to allow parallel reads (queries)
@@ -73,11 +73,12 @@ type DbServer struct {
 // StreamWriter is an interface that abstracts the mechanism of sending query results.
 //
 // DESIGN PATTERN: Dependency Inversion.
-//   By coding `streamQueryResults` against this interface, we can use the same
-//   execution logic for:
-//     1. `QueryStream` (ServerStream)
-//     2. `Transaction` (BidiStream)
-//     3. Mocks (Unit Tests)
+//
+//	By coding `streamQueryResults` against this interface, we can use the same
+//	execution logic for:
+//	  1. `QueryStream` (ServerStream)
+//	  2. `Transaction` (BidiStream)
+//	  3. Mocks (Unit Tests)
 type StreamWriter interface {
 	SendHeader(*dbv1.QueryResultHeader) error
 	SendRowBatch(*dbv1.QueryResultRowBatch) error

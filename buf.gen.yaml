@@ -60,3 +60,11 @@ plugins:
     opt:
       - target=ts
     include_imports: true
+
+  # ==========================================
+  # OPENAPI SPEC GENERATION
+  # ==========================================
+  - remote: buf.build/community/sudorandom-connect-openapi:v0.22.1
+    out: internal/docs
+    opt:
+      - format=yaml

@@ -105,16 +105,19 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-    import { getClient, getAuthHeaders, setActiveTransaction, clearActiveTransaction, performLogout } from "../lib/client";
+    import {
+        getClient,
+        getAuthHeaders,
+        setActiveTransaction,
+        clearActiveTransaction,
+        performLogout,
+    } from "../lib/client";
     import { DatabaseService } from "../gen/db/v1/db_service_pb";
     import { NotebookManager } from "../lib/notebook";
-    import {
-        TransactionHistoryManager,
-        type TransactionEntry,
-    } from "../lib/history";
+    import { TransactionHistoryManager } from "../lib/history";
     import { fromJson } from "@bufbuild/protobuf";
     import { ListValueSchema, StructSchema } from "@bufbuild/protobuf/wkt";
-    import localforage from "localforage";
+    // localforage removed
 
     const urlParams = new URLSearchParams(window.location.search);
     const dbName = urlParams.get("db");
@@ -459,7 +462,11 @@ import Layout from "../layouts/Layout.astro";
     const logoutBtn = document.getElementById("logout-btn");
     if (logoutBtn) {
         logoutBtn.addEventListener("click", async () => {
-            if (!confirm("Are you sure you want to logout? Any active transaction will be rolled back.")) {
+            if (
+                !confirm(
+                    "Are you sure you want to logout? Any active transaction will be rolled back.",
+                )
+            ) {
                 return;
             }
             await performLogout();
@@ -509,7 +516,7 @@ import Layout from "../layouts/Layout.astro";
         }
     });
 
-    document.addEventListener("mouseup", (e) => {
+    document.addEventListener("mouseup", (_e) => {
         if (isResizing) {
             isResizing = false;
             document.body.style.cursor = "default";

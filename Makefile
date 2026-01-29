@@ -98,6 +98,12 @@ run-dev: ## Run directly using 'go run' (fast development)
 gen-proto: ## Generate Go code from .proto files using buf
 	@echo "Generating Protobuf code..."
 	buf generate
+	@echo "Enriching OpenAPI spec..."
+	@if [ -f internal/docs/db/v1/db_service.openapi.yaml ]; then \
+		mv internal/docs/db/v1/db_service.openapi.yaml internal/docs/openapi.yaml; \
+		rm -rf internal/docs/db; \
+		go run scripts/enrich-openapi/main.go internal/docs/openapi.yaml; \
+	fi
 
 .PHONY: proto-lint
 proto-lint: ## Run linting on .proto files

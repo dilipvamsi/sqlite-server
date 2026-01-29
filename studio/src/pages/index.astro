@@ -12,9 +12,53 @@ import Layout from "../layouts/Layout.astro";
 
   <main class="container">
     <div class="dashboard-header">
-      <h1>Databases</h1>
-      <p class="subtitle">Select a database to start running queries.</p>
+      <div>
+        <h1>Databases</h1>
+        <p class="subtitle">Select a database to start running queries.</p>
+      </div>
+      <div class="header-actions">
+        <button id="btn-create-db" class="btn btn-primary">Create Database</button>
+        <button id="btn-mount-db" class="btn btn-secondary">Mount Database</button>
+      </div>
     </div>
+
+    <!-- Modals -->
+    <dialog id="modal-create-db" class="modal">
+      <div class="modal-content">
+        <h2>Create Database</h2>
+        <form id="form-create-db">
+          <div class="form-group">
+            <label for="create-name">Database Name</label>
+            <input type="text" id="create-name" name="name" required pattern="[a-zA-Z0-9_-]{3,64}" placeholder="my_new_db">
+            <small>3-64 characters, alphanumeric + underscores/dashes.</small>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost btn-close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="modal-mount-db" class="modal">
+      <div class="modal-content">
+        <h2>Mount Database</h2>
+        <form id="form-mount-db">
+          <div class="form-group">
+            <label for="mount-name">Display Name</label>
+            <input type="text" id="mount-name" name="name" required pattern="[a-zA-Z0-9_-]{3,64}" placeholder="my_external_db">
+          </div>
+          <div class="form-group">
+            <label for="mount-path">Absolute File Path</label>
+            <input type="text" id="mount-path" name="path" required placeholder="/var/lib/sqlite/data.db">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost btn-close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Mount</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
 
     <div id="db-list" class="db-grid">
       <!-- Loaded Client-Side -->
@@ -28,14 +72,67 @@ import Layout from "../layouts/Layout.astro";
 <script>
   import { getClient, getAuthHeaders, AUTH_KEY, performLogout } from "../lib/client";
   import { AdminService } from "../gen/db/v1/db_service_pb";
-
+  
   const dbList = document.getElementById("db-list");
   const errorAlert = document.getElementById("error-alert");
   const logoutBtn = document.getElementById("logout-btn");
+  
+  // Modals
+  const modalCreate = document.getElementById("modal-create-db") as HTMLDialogElement;
+  const modalMount = document.getElementById("modal-mount-db") as HTMLDialogElement;
+  const formCreate = document.getElementById("form-create-db") as HTMLFormElement;
+  const formMount = document.getElementById("form-mount-db") as HTMLFormElement;
 
   // Logout Handler
   logoutBtn?.addEventListener("click", async () => {
     await performLogout();
+  });
+
+  // Modal Handlers
+  document.getElementById("btn-create-db")?.addEventListener("click", () => modalCreate?.showModal());
+  document.getElementById("btn-mount-db")?.addEventListener("click", () => modalMount?.showModal());
+  
+  document.querySelectorAll(".btn-close-modal").forEach(btn => {
+    btn.addEventListener("click", () => {
+      modalCreate?.close();
+      modalMount?.close();
+    });
+  });
+
+  // Form Submissions
+  formCreate?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(formCreate);
+    const name = formData.get("name") as string;
+    
+    try {
+      const client = getClient(AdminService);
+      const headers = getAuthHeaders();
+      await client.createDatabase({ name }, { headers });
+      formCreate.reset();
+      modalCreate.close();
+      await loadDatabases();
+    } catch (err: any) {
+      showError("Failed to create database: " + err.message);
+    }
+  });
+
+  formMount?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(formMount);
+    const name = formData.get("name") as string;
+    const path = formData.get("path") as string;
+    
+    try {
+      const client = getClient(AdminService);
+      const headers = getAuthHeaders();
+      await client.mountDatabase({ name, path }, { headers });
+      formMount.reset();
+      modalMount.close();
+      await loadDatabases();
+    } catch (err: any) {
+      showError("Failed to mount database: " + err.message);
+    }
   });
 
   // Load Databases
@@ -59,37 +156,96 @@ import Layout from "../layouts/Layout.astro";
         }
 
         dbList.innerHTML = response.databases
-          .map(
-            (db) => `
+          .map((db) => {
+            const isManaged = db.isManaged;
+            const badgeClass = isManaged ? "badge-managed" : "badge-mounted";
+            const badgeText = isManaged ? "Managed" : "Mounted";
+            
+            // Delete button for managed, Unmount for mounted
+            // We use data attributes to handle clicks via delegation
+            const actionBtn = isManaged 
+              ? `<button class="btn btn-sm btn-danger btn-delete-db" data-name="${db.name}">Delete</button>`
+              : `<button class="btn btn-sm btn-warning btn-unmount-db" data-name="${db.name}">Unmount</button>`;
+
+            return `
           <div class="card db-card">
             <div class="db-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h3"/><path d="M21 6h-3"/><path d="M12 3v18"/><path d="M3 18h18"/><path d="M3 12h18"/><path d="M3 6v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2z"/></svg>
             </div>
             <div class="db-info">
-              <h3>${db}</h3>
+              <div class="db-header">
+                <h3>${db.name}</h3>
+                <span class="badge ${badgeClass}">${badgeText}</span>
+              </div>
+              <p class="db-path" title="${db.path}">${db.path}</p>
+              
               <div class="db-actions">
-                 <a href="/studio/console?db=${db}" class="btn btn-sm btn-secondary">Query</a>
-                 <a href="/studio/transaction?db=${db}" class="btn btn-sm btn-secondary">Transaction</a>
+                 <a href="/studio/console?db=${db.name}" class="btn btn-sm btn-secondary">Query</a>
+                 <a href="/studio/transaction?db=${db.name}" class="btn btn-sm btn-secondary">Transaction</a>
+                 ${actionBtn}
               </div>
             </div>
           </div>
-        `,
-          )
+        `})
           .join("");
+          
+        // Re-attach listeners for Delete/Unmount
+        document.querySelectorAll(".btn-delete-db").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            const name = (e.target as HTMLElement).getAttribute("data-name");
+            if (name && confirm(`Are you sure you want to PERMANENTLY DELETE database '${name}'? This cannot be undone.`)) {
+               deleteDatabase(name);
+            }
+          });
+        });
+
+        document.querySelectorAll(".btn-unmount-db").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+             const name = (e.target as HTMLElement).getAttribute("data-name");
+             if (name && confirm(`Unmount database '${name}'?`)) {
+                unmountDatabase(name);
+             }
+          });
+        });
       }
     } catch (err: any) {
       console.error(err);
-      if (errorAlert) {
-        errorAlert.style.display = "block";
-        errorAlert.textContent =
-          "Failed to load databases: " + (err.message || "Unknown error");
-      }
+      showError("Failed to load databases: " + (err.message || "Unknown error"));
 
       // If unauthorized, redirect to login
       if (err.code === 16 || err.message?.includes("unauthenticated")) {
-        // CodeUnauthenticated
         await performLogout();
       }
+    }
+  }
+
+  async function deleteDatabase(name: string) {
+    try {
+      const client = getClient(AdminService);
+      const headers = getAuthHeaders();
+      await client.deleteDatabase({ name }, { headers });
+      await loadDatabases();
+    } catch (err: any) {
+      showError(`Failed to delete '${name}': ${err.message}`);
+    }
+  }
+
+  async function unmountDatabase(name: string) {
+    try {
+       const client = getClient(AdminService);
+       const headers = getAuthHeaders();
+       await client.unMountDatabase({ name }, { headers });
+       await loadDatabases();
+    } catch (err: any) {
+      showError(`Failed to unmount '${name}': ${err.message}`);
+    } 
+  }
+
+  function showError(msg: string) {
+    if (errorAlert) {
+      errorAlert.style.display = "block";
+      errorAlert.textContent = msg;
+      setTimeout(() => { errorAlert.style.display = 'none'; }, 5000);
     }
   }
 
@@ -105,6 +261,14 @@ import Layout from "../layouts/Layout.astro";
 
   .dashboard-header {
     margin: 3rem 0 2rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  
+  .header-actions {
+    display: flex;
+    gap: 1rem;
   }
 
   h1 {
@@ -119,7 +283,7 @@ import Layout from "../layouts/Layout.astro";
 
   .db-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 1.5rem;
   }
 
@@ -151,24 +315,79 @@ import Layout from "../layouts/Layout.astro";
 
   .db-info {
     flex: 1;
+    min-width: 0; /* allows text truncation */
+  }
+
+  .db-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
   }
 
   .db-info h3 {
-    margin: 0 0 1rem 0;
+    margin: 0;
     font-size: 1.2rem;
     color: var(--text-primary);
+  }
+  
+  .db-path {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .db-actions {
     display: flex;
     gap: 0.5rem;
+    margin-top: auto;
   }
 
   .badge {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+     font-size: 0.7rem;
+     padding: 0.2rem 0.5rem;
+     border-radius: 999px;
+     font-weight: 600;
+     text-transform: uppercase;
+  }
+  
+  .badge-managed {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+  }
+  
+  .badge-mounted {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+  }
+  
+  .btn-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid transparent;
+  }
+  
+  .btn-danger:hover {
+    background: #ef4444;
+    color: white;
+  }
+
+  .btn-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid transparent;
+  }
+  
+  .btn-warning:hover {
+    background: #f59e0b;
+    color: white;
   }
 
   .loading,
@@ -189,5 +408,72 @@ import Layout from "../layouts/Layout.astro";
     border: 1px solid var(--danger-color);
     color: var(--danger-color);
     border-radius: 6px;
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    max-width: 400px;
+    z-index: 100;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Modal Styles */
+  .modal {
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background: var(--bg-primary);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    max-width: 500px;
+    width: 90%;
+  }
+
+  .modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  .modal-content {
+    padding: 2rem;
+  }
+
+  .modal h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: inherit;
+  }
+  
+  .form-group small {
+    display: block;
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
   }
 </style>

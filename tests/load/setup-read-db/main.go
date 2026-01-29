@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sqlite-server/internal/sqldrivers"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
@@ -28,7 +31,21 @@ func main() {
 		}
 	}
 
-	_ = os.Remove(config.DBPath) // Remove old db file if it exists
+	// Ensure directory exists
+	if err := os.MkdirAll("data-test", 0755); err != nil {
+		log.Fatalf("Failed to create data dir: %v", err)
+	}
+
+	// cwd, _ := os.Getwd()
+	absPath, _ := filepath.Abs(config.DBPath)
+	// log.Printf("Absolute DB path: %s", absPath)
+
+	// Update config to use absolute path to avoid potential relative path issues with sqlite/CGO
+	config.DBPath = absPath
+
+	_ = os.Remove(config.DBPath)
+	_ = os.Remove(config.DBPath + "-wal")
+	_ = os.Remove(config.DBPath + "-shm")
 
 	log.Printf("Creating test database: %s", config.DBPath)
 	db, err := sqldrivers.NewSqliteDb(config)

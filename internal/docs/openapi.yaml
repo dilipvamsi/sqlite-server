@@ -1,0 +1,2195 @@
+openapi: 3.1.0
+info:
+  title: SQLite Server API
+  description: |
+    Production-ready gRPC/HTTP bridge for SQLite databases.
+    
+    ## Authentication
+    Most endpoints require authentication via Bearer token (API Key) or Basic Auth.
+    
+    **To authenticate:**
+    1. Use the /db.v1.AdminService/Login endpoint with username/password
+    2. Copy the apiKey from the response
+    3. Click "Authorize" above and enter your API key
+    
+    **Format:** Bearer sk_... (include the Bearer prefix)
+  version: "1.0.0"
+  contact:
+    name: SQLite Server
+security:
+  - bearerAuth: []
+  - basicAuth: []
+paths:
+  /db.v1.AdminService/CreateApiKey:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Generates a long-lived API key for a specific user.\r  The key is only returned once in the response."
+      description: "*\r\n Generates a long-lived API key for a specific user.\r\n The key is only returned once in the response."
+      operationId: db.v1.AdminService.CreateApiKey
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.CreateApiKeyRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.CreateApiKeyResponse'
+  /db.v1.AdminService/CreateDatabase:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Creates a new managed database.\r  The database file is created in the server's managed directory."
+      description: "*\r\n Creates a new managed database.\r\n The database file is created in the server's managed directory."
+      operationId: db.v1.AdminService.CreateDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.CreateDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.CreateDatabaseResponse'
+  /db.v1.AdminService/CreateUser:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Creates a new user with specific role-based access.\r  Requires admin privileges."
+      description: "*\r\n Creates a new user with specific role-based access.\r\n Requires admin privileges."
+      operationId: db.v1.AdminService.CreateUser
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.CreateUserRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.CreateUserResponse'
+  /db.v1.AdminService/DeleteDatabase:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Deletes a database securely.\r  - Managed DBs: Deleted from disk and metadata.\r  - Mounted DBs: Returns error (protects external files)."
+      description: "*\r\n Deletes a database securely.\r\n - Managed DBs: Deleted from disk and metadata.\r\n - Mounted DBs: Returns error (protects external files)."
+      operationId: db.v1.AdminService.DeleteDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.DeleteDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.DeleteDatabaseResponse'
+  /db.v1.AdminService/DeleteUser:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Permanently removes a user from the system.\r  Existing connections for this user may be terminated."
+      description: "*\r\n Permanently removes a user from the system.\r\n Existing connections for this user may be terminated."
+      operationId: db.v1.AdminService.DeleteUser
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.DeleteUserRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.DeleteUserResponse'
+  /db.v1.AdminService/ListApiKeys:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Retrieves all active API keys for a specific user.\r  Returns metadata (name, prefix) but not the full key secrets."
+      description: "*\r\n Retrieves all active API keys for a specific user.\r\n Returns metadata (name, prefix) but not the full key secrets."
+      operationId: db.v1.AdminService.ListApiKeys
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.ListApiKeysRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ListApiKeysResponse'
+  /db.v1.AdminService/ListDatabases:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Lists all available databases."
+      description: "*\r\n Lists all available databases."
+      operationId: db.v1.AdminService.ListDatabases
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.ListDatabasesRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ListDatabasesResponse'
+  /db.v1.AdminService/Login:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Authenticates a user and returns a session API key.\r  Requires Basic Auth for the initial request."
+      description: "*\r\n Authenticates a user and returns a session API key.\r\n Requires Basic Auth for the initial request."
+      operationId: db.v1.AdminService.Login
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.LoginRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.LoginResponse'
+  /db.v1.AdminService/Logout:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Invalidates the current session/API key."
+      description: "*\r\n Invalidates the current session/API key."
+      operationId: db.v1.AdminService.Logout
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.LogoutRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.LogoutResponse'
+  /db.v1.AdminService/MountDatabase:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Mounts an existing database file from the filesystem.\r  This database is marked as \"unmanaged\" (cannot be deleted via API)."
+      description: "*\r\n Mounts an existing database file from the filesystem.\r\n This database is marked as \"unmanaged\" (cannot be deleted via API)."
+      operationId: db.v1.AdminService.MountDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.MountDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.MountDatabaseResponse'
+  /db.v1.AdminService/RevokeApiKey:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Revokes (deletes) a specific API key immediately."
+      description: "*\r\n Revokes (deletes) a specific API key immediately."
+      operationId: db.v1.AdminService.RevokeApiKey
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.RevokeApiKeyRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.RevokeApiKeyResponse'
+  /db.v1.AdminService/UnMountDatabase:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Unmounts a database, removing it from the active server.\r  The file is NOT deleted."
+      description: "*\r\n Unmounts a database, removing it from the active server.\r\n The file is NOT deleted."
+      operationId: db.v1.AdminService.UnMountDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.UnMountDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.UnMountDatabaseResponse'
+  /db.v1.AdminService/UpdatePassword:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Rotates the password for a specific user.\r  The new password takes effect immediately for new connections."
+      description: "*\r\n Rotates the password for a specific user.\r\n The new password takes effect immediately for new connections."
+      operationId: db.v1.AdminService.UpdatePassword
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.UpdatePasswordRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.UpdatePasswordResponse'
+  /db.v1.DatabaseService/BeginTransaction:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Starts a new transaction context on the server and returns a\r  'transaction_id'. The server holds the connection open in memory until\r  Commit, Rollback, or Timeout."
+      description: "*\r\n Starts a new transaction context on the server and returns a\r\n 'transaction_id'. The server holds the connection open in memory until\r\n Commit, Rollback, or Timeout."
+      operationId: db.v1.DatabaseService.BeginTransaction
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.BeginTransactionRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.BeginTransactionResponse'
+  /db.v1.DatabaseService/CommitTransaction:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Commits the transaction associated with the ID and releases server\r  resources."
+      description: "*\r\n Commits the transaction associated with the ID and releases server\r\n resources."
+      operationId: db.v1.DatabaseService.CommitTransaction
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.TransactionControlRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.TransactionControlResponse'
+  /db.v1.DatabaseService/ExecuteTransaction:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Executes a predefined script of commands atomically.\r  Useful for migrations or testing where interactivity is not required."
+      description: "*\r\n Executes a predefined script of commands atomically.\r\n Useful for migrations or testing where interactivity is not required."
+      operationId: db.v1.DatabaseService.ExecuteTransaction
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.ExecuteTransactionRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ExecuteTransactionResponse'
+  /db.v1.DatabaseService/Query:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Executes a single stateless query and returns the entire result.\r  Best for point-lookups (SELECT ... WHERE id=?).\r \r  WARNING: The server enforces a hard limit on row count (e.g., 1000) for\r  this RPC. For larger datasets, use `QueryStream`."
+      description: "*\r\n Executes a single stateless query and returns the entire result.\r\n Best for point-lookups (SELECT ... WHERE id=?).\r\n\r\n WARNING: The server enforces a hard limit on row count (e.g., 1000) for\r\n this RPC. For larger datasets, use `QueryStream`."
+      operationId: db.v1.DatabaseService.Query
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.QueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.QueryResult'
+  /db.v1.DatabaseService/QueryStream: {}
+  /db.v1.DatabaseService/RollbackTransaction:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Rolls back the transaction associated with the ID and releases server\r  resources."
+      description: "*\r\n Rolls back the transaction associated with the ID and releases server\r\n resources."
+      operationId: db.v1.DatabaseService.RollbackTransaction
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.TransactionControlRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.TransactionControlResponse'
+  /db.v1.DatabaseService/Transaction: {}
+  /db.v1.DatabaseService/TransactionQuery:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Executes a query inside the context of an existing 'transaction_id'.\r  If the ID is invalid or timed out, returns NOT_FOUND."
+      description: "*\r\n Executes a query inside the context of an existing 'transaction_id'.\r\n If the ID is invalid or timed out, returns NOT_FOUND."
+      operationId: db.v1.DatabaseService.TransactionQuery
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.TransactionQueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.QueryResult'
+  /db.v1.DatabaseService/TransactionQueryStream: {}
+  /db.v1.DatabaseService/TransactionSavepoint:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Manages a savepoint (nested transaction) within an existing transaction ID.\r  If the ID is invalid or timed out, returns NOT_FOUND."
+      description: "*\r\n Manages a savepoint (nested transaction) within an existing transaction ID.\r\n If the ID is invalid or timed out, returns NOT_FOUND."
+      operationId: db.v1.DatabaseService.TransactionSavepoint
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.TransactionSavepointRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.SavepointResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: "API Key obtained from Login endpoint (format: sk_...)"
+    basicAuth:
+      type: http
+      scheme: basic
+      description: "Username and password for initial authentication"
+  schemas:
+    connect-protocol-version:
+      type: number
+      title: Connect-Protocol-Version
+      enum:
+        - 1
+      description: Define the version of the Connect protocol
+      const: 1
+    connect-timeout-header:
+      type: number
+      title: Connect-Timeout-Ms
+      description: Define the timeout, in ms
+    connect.error:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - not_found
+          enum:
+            - canceled
+            - unknown
+            - invalid_argument
+            - deadline_exceeded
+            - not_found
+            - already_exists
+            - permission_denied
+            - resource_exhausted
+            - failed_precondition
+            - aborted
+            - out_of_range
+            - unimplemented
+            - internal
+            - unavailable
+            - data_loss
+            - unauthenticated
+          description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+        message:
+          type: string
+          description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/connect.error_details.Any'
+          description: A list of messages that carry the error details. There is no limit on the number of messages.
+      title: Connect Error
+      additionalProperties: true
+      description: 'Error type returned by Connect: https://connectrpc.com/docs/go/errors/#http-representation'
+    connect.error_details.Any:
+      type: object
+      properties:
+        type:
+          type: string
+          description: 'A URL that acts as a globally unique identifier for the type of the serialized message. For example: `type.googleapis.com/google.rpc.ErrorInfo`. This is used to determine the schema of the data in the `value` field and is the discriminator for the `debug` field.'
+        value:
+          type: string
+          format: binary
+          description: The Protobuf message, serialized as bytes and base64-encoded. The specific message type is identified by the `type` field.
+        debug:
+          oneOf:
+            - type: object
+              title: Any
+              additionalProperties: true
+              description: Detailed error information.
+          discriminator:
+            propertyName: type
+          title: Debug
+          description: Deserialized error detail payload. The 'type' field indicates the schema. This field is for easier debugging and should not be relied upon for application logic.
+      additionalProperties: true
+      description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message, with an additional debug field for ConnectRPC error details.
+    db.v1.BackupDatabaseRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^$|^[a-zA-Z0-9_-]{3,64}$
+          description: "Optional: database name to backup (if multiple DBs supported).\r\n Regex allows empty string OR valid database name."
+      title: BackupDatabaseRequest
+      additionalProperties: false
+      description: "*\r\n Request to initiate a database backup."
+    db.v1.BackupDatabaseResponse:
+      type: object
+      properties:
+        chunk:
+          type: string
+          title: chunk
+          maxLength: 4194304
+          format: byte
+          description: |
+            4MB limit for safety chunks
+            bytes.const = []
+      title: BackupDatabaseResponse
+      additionalProperties: false
+      description: "*\r\n A chunk of binary data from the backup stream."
+    db.v1.BeginRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: "Database name. Must match the standard naming pattern.\r\n This locks the connection to this specific database for the duration of the\r\n stream."
+        mode:
+          title: mode
+          description: "The locking mode. Defaults to DEFERRED if unspecified.\r\n Use IMMEDIATE or EXCLUSIVE for write-heavy transactions to avoid\r\n busy-loops."
+          $ref: '#/components/schemas/db.v1.TransactionMode'
+      title: BeginRequest
+      additionalProperties: false
+      description: "*\r\n Initiates a new transaction context in the stream.\r\n This MUST be the first message sent."
+    db.v1.BeginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        transactionId:
+          type: string
+          title: transaction_id
+          format: uuid
+          description: "Optional internal transaction identifier (useful for debugging).\r\n Trace Id for the whole transaction"
+      title: BeginResponse
+      additionalProperties: false
+      description: '* Response indicating a transaction successfully started.'
+    db.v1.BeginTransactionRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: Database name to lock.
+        timeout:
+          title: timeout
+          description: "How long the server should keep this transaction alive without activity\r\n before auto-rolling back. (e.g., \"30s\", \"1m\").\r\n If unspecified, defaults to server configuration (usually 30s)."
+          $ref: '#/components/schemas/google.protobuf.Duration'
+        mode:
+          title: mode
+          description: The locking mode to use (DEFERRED, IMMEDIATE, EXCLUSIVE).
+          $ref: '#/components/schemas/db.v1.TransactionMode'
+      title: BeginTransactionRequest
+      additionalProperties: false
+      description: "*\r\n Request to start a new ID-based transaction session."
+    db.v1.BeginTransactionResponse:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          title: transaction_id
+          description: "The unique session token the client MUST send in subsequent\r\n 'TransactionQuery' calls."
+        expiresAt:
+          title: expires_at
+          description: "When this transaction will expire (Unix MS) if no further commands are\r\n sent. Clients can use this to anticipate timeouts."
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+      title: BeginTransactionResponse
+      additionalProperties: false
+      description: "*\r\n Response containing the transaction session token."
+    db.v1.ColumnType:
+      type: string
+      title: ColumnType
+      enum:
+        - COLUMN_TYPE_UNSPECIFIED
+        - COLUMN_TYPE_NULL
+        - COLUMN_TYPE_INTEGER
+        - COLUMN_TYPE_FLOAT
+        - COLUMN_TYPE_TEXT
+        - COLUMN_TYPE_BLOB
+        - COLUMN_TYPE_BOOLEAN
+        - COLUMN_TYPE_DATE
+        - COLUMN_TYPE_JSON
+      description: "*\r\n ColumnType defines the resolved data type of a column or parameter.\r\n These hints allow the system to restore precision lost by JSON encoding."
+    db.v1.CommitResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+      title: CommitResponse
+      additionalProperties: false
+      description: '* Response indicating a transaction successfully committed.'
+    db.v1.CreateApiKeyRequest:
+      type: object
+      properties:
+        userId:
+          exclusiveMinimum: 0
+          type:
+            - integer
+            - string
+          title: user_id
+          format: int64
+        name:
+          type: string
+          title: name
+          maxLength: 64
+          minLength: 1
+        expiresAt:
+          title: expires_at
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+      title: CreateApiKeyRequest
+      additionalProperties: false
+      description: "*\r\n Request to generate a new API key for a user."
+    db.v1.CreateApiKeyResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          title: api_key
+          description: The raw secret key (only shown once)
+        keyId:
+          type: string
+          title: key_id
+          description: UUID v7
+      title: CreateApiKeyResponse
+      additionalProperties: false
+      description: "*\r\n Response containing the generated API key.\r\n WARNING: The `api_key` field is only shown once here."
+    db.v1.CreateDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: Name of the new database. Must be unique.
+      title: CreateDatabaseRequest
+      additionalProperties: false
+    db.v1.CreateDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: CreateDatabaseResponse
+      additionalProperties: false
+    db.v1.CreateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_.-]+$
+        password:
+          type: string
+          title: password
+          maxLength: 128
+          minLength: 8
+          pattern: ^[^\s]+$
+          description: "Password MUST meet basic complexity requirements:\r\n 1. Length between 8 and 128 chars.\r\n 2. No whitespace allowed.\r\n 3. Must contain at least one letter and one number.\npassword_complexity // Password must contain at least one letter and one number\n"
+        role:
+          type: string
+          title: role
+          enum:
+            - admin
+            - read_write
+            - read_only
+      title: CreateUserRequest
+      additionalProperties: false
+      description: "*\r\n Request to create a new database user."
+    db.v1.CreateUserResponse:
+      type: object
+      properties:
+        userId:
+          type:
+            - integer
+            - string
+          title: user_id
+          format: int64
+        createdAt:
+          title: created_at
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+      title: CreateUserResponse
+      additionalProperties: false
+      description: "*\r\n Response containing details of the created user."
+    db.v1.DMLResult:
+      type: object
+      properties:
+        rowsAffected:
+          type:
+            - integer
+            - string
+          title: rows_affected
+          format: int64
+          description: The number of rows modified by the query.
+        lastInsertId:
+          type:
+            - integer
+            - string
+          title: last_insert_id
+          format: int64
+          description: The ROWID of the last inserted row (if applicable).
+      title: DMLResult
+      additionalProperties: false
+      description: "*\r\n Represents the result of a Data Modification Language query (INSERT, UPDATE,\r\n DELETE)."
+    db.v1.DatabaseInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+        path:
+          type: string
+          title: path
+        isManaged:
+          type: boolean
+          title: is_managed
+      title: DatabaseInfo
+      additionalProperties: false
+    db.v1.DeleteDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+      title: DeleteDatabaseRequest
+      additionalProperties: false
+    db.v1.DeleteDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: DeleteDatabaseResponse
+      additionalProperties: false
+    db.v1.DeleteUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
+      title: DeleteUserRequest
+      additionalProperties: false
+      description: "*\r\n Request to delete an existing user."
+    db.v1.DeleteUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+      title: DeleteUserResponse
+      additionalProperties: false
+      description: "*\r\n Response indicating the success of the user deletion."
+    db.v1.ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          title: message
+          description: Human-readable error message.
+        failedSql:
+          type: string
+          title: failed_sql
+          description: The SQL that caused the error (if available/safe to return).
+        sqliteErrorCode:
+          title: sqlite_error_code
+          description: "The precise SQLite error code for programmatic handling.\r\n Reference: https://www.sqlite.org/rescode.html"
+          $ref: '#/components/schemas/db.v1.SqliteCode'
+      title: ErrorResponse
+      additionalProperties: false
+      description: "*\r\n Standard error response attached to failures.\r\n This is sent as a stream message (Streaming) or Error Detail (Unary)."
+    db.v1.ExecuteTransactionRequest:
+      type: object
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.TransactionRequest'
+          title: requests
+          maxItems: 100
+          minItems: 2
+          description: "ATOMIC SCRIPT CONSTRAINTS:\r\n 1. Must contain between 2 and 100 requests (Begin + at least 1 action +\r\n Commit).\r\n 2. The first command MUST be a 'Begin' command.\r\n 3. The last command MUST be either 'Commit' or 'Rollback' to ensure no\r\n dangling locks.\ntransaction.sequence_end // The script must explicitly end with 'commit' or 'rollback'\ntransaction.sequence_start // The first command in an ExecuteTransaction script must be 'begin'\n"
+      title: ExecuteTransactionRequest
+      additionalProperties: false
+      description: "*\r\n A container for a sequence of transaction steps to be executed atomically via\r\n Unary RPC. This is meant for simple, linear scripts (like migrations) where\r\n client-side interactivity isn't needed."
+    db.v1.ExecuteTransactionResponse:
+      type: object
+      properties:
+        responses:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.TransactionResponse'
+          title: responses
+          description: "A list of responses corresponding 1-to-1 with the requests in the input\r\n script. Allows the client to verify which step succeeded or failed."
+      title: ExecuteTransactionResponse
+      additionalProperties: false
+      description: "*\r\n The response for the unary `ExecuteTransaction` RPC."
+    db.v1.ExecutionStats:
+      type: object
+      properties:
+        durationMs:
+          type: number
+          title: duration_ms
+          format: double
+          description: Total execution time in milliseconds.
+        rowsRead:
+          type:
+            - integer
+            - string
+          title: rows_read
+          format: int64
+          description: Number of rows read from the database.
+        rowsWritten:
+          type:
+            - integer
+            - string
+          title: rows_written
+          format: int64
+          description: Number of rows written/modified.
+      title: ExecutionStats
+      additionalProperties: false
+      description: "*\r\n Performance metrics for a query execution.\r\n Useful for profiling and monitoring."
+    db.v1.ListApiKeysRequest:
+      type: object
+      properties:
+        userId:
+          exclusiveMinimum: 0
+          type:
+            - integer
+            - string
+          title: user_id
+          format: int64
+      title: ListApiKeysRequest
+      additionalProperties: false
+      description: "*\r\n Request to list active API keys for a user."
+    db.v1.ListApiKeysResponse:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ListApiKeysResponse.ApiKeySummary'
+          title: keys
+      title: ListApiKeysResponse
+      additionalProperties: false
+      description: "*\r\n Response containing a list of API key summaries."
+    db.v1.ListApiKeysResponse.ApiKeySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          description: UUID v7
+        name:
+          type: string
+          title: name
+        prefix:
+          type: string
+          title: prefix
+          description: First 8 chars
+        createdAt:
+          title: created_at
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+      title: ApiKeySummary
+      additionalProperties: false
+    db.v1.ListDatabasesRequest:
+      type: object
+      title: ListDatabasesRequest
+      additionalProperties: false
+      description: "*\r\n Request to list all available databases."
+    db.v1.ListDatabasesResponse:
+      type: object
+      properties:
+        databases:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.DatabaseInfo'
+          title: databases
+      title: ListDatabasesResponse
+      additionalProperties: false
+      description: "*\r\n Response containing a list of database names."
+    db.v1.LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+        password:
+          type: string
+          title: password
+        sessionDuration:
+          title: session_duration
+          description: Optional duration for the session. Defaults to 7 days if unspecified.
+          $ref: '#/components/schemas/google.protobuf.Duration'
+      title: LoginRequest
+      additionalProperties: false
+      description: "*\r\n Request to authenticate and create a session."
+    db.v1.LoginResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          title: api_key
+          description: The generated API key for the session.
+        expiresAt:
+          title: expires_at
+          description: When this key expires.
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+        user:
+          title: user
+          description: Information about the authenticated user.
+          $ref: '#/components/schemas/db.v1.User'
+        keyId:
+          type: string
+          title: key_id
+          description: The ID of the session key (used for revocation/logout). UUID v7.
+      title: LoginResponse
+      additionalProperties: false
+      description: "*\r\n Response containing the session API key and user info."
+    db.v1.LogoutRequest:
+      type: object
+      properties:
+        keyId:
+          type: string
+          title: key_id
+          format: uuid
+          description: "The session key ID to invalidate (UUID v7).\r\n Ideally, this should match the key used for authentication,\r\n but for explicit correctness we require the ID."
+      title: LogoutRequest
+      additionalProperties: false
+    db.v1.LogoutResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+      title: LogoutResponse
+      additionalProperties: false
+    db.v1.MountDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: Config name for the database.
+        path:
+          type: string
+          title: path
+          minLength: 1
+          description: Absolute path to the SQLite file.
+        readOnly:
+          type: boolean
+          title: read_only
+          description: 'Optional: Read-only mode'
+      title: MountDatabaseRequest
+      additionalProperties: false
+    db.v1.MountDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: MountDatabaseResponse
+      additionalProperties: false
+    db.v1.Parameters:
+      type: object
+      properties:
+        positional:
+          title: positional
+          $ref: '#/components/schemas/google.protobuf.ListValue'
+        named:
+          title: named
+          $ref: '#/components/schemas/google.protobuf.Struct'
+        positionalHints:
+          type: object
+          title: positional_hints
+          maxProperties: 1000
+          additionalProperties:
+            title: value
+            $ref: '#/components/schemas/db.v1.ColumnType'
+          description: 'Key: The 0-based index of the positional parameter.'
+        namedHints:
+          type: object
+          title: named_hints
+          maxProperties: 1000
+          additionalProperties:
+            title: value
+            $ref: '#/components/schemas/db.v1.ColumnType'
+          description: 'Key: The parameter name (e.g., ":id", "@user").'
+      title: Parameters
+      additionalProperties: false
+      description: "*\r\n Encapsulates all parameter logic using a \"Sparse Hinting\" strategy.\r\n This structure avoids overhead by only requiring types for ambiguous values."
+    db.v1.Parameters.NamedHintsEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          title: value
+          $ref: '#/components/schemas/db.v1.ColumnType'
+      title: NamedHintsEntry
+      additionalProperties: false
+    db.v1.Parameters.PositionalHintsEntry:
+      type: object
+      properties:
+        key:
+          type: integer
+          title: key
+          format: int32
+        value:
+          title: value
+          $ref: '#/components/schemas/db.v1.ColumnType'
+      title: PositionalHintsEntry
+      additionalProperties: false
+    db.v1.QueryComplete:
+      type: object
+      properties:
+        stats:
+          title: stats
+          description: Final execution statistics.
+          $ref: '#/components/schemas/db.v1.ExecutionStats'
+      title: QueryComplete
+      additionalProperties: false
+      description: "*\r\n Signals the successful completion of a read query stream."
+    db.v1.QueryRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: "Database name. Must be alphanumeric (plus _-), 3-64 chars.\r\n Validated to prevent directory traversal attacks."
+        sql:
+          type: string
+          title: sql
+          maxLength: 10240
+          minLength: 1
+          description: SQL Statement. Max 10KB to prevent memory abuse.
+        type:
+          title: type
+          description: Optional hint to optimize connection routing (Read vs Write).
+          $ref: '#/components/schemas/db.v1.QueryType'
+        parameters:
+          title: parameters
+          description: Parameters definition (Positional or Named).
+          $ref: '#/components/schemas/db.v1.Parameters'
+      title: QueryRequest
+      additionalProperties: false
+      description: "*\r\n A request for the stateless `Query` and `QueryStream` RPCs."
+    db.v1.QueryResponse:
+      type: object
+      oneOf:
+        - properties:
+            batch:
+              title: batch
+              description: Sent repeatedly containing chunks of rows.
+              $ref: '#/components/schemas/db.v1.QueryResultRowBatch'
+          title: batch
+          required:
+            - batch
+        - properties:
+            complete:
+              title: complete
+              description: Sent once when the query successfully finishes.
+              $ref: '#/components/schemas/db.v1.QueryComplete'
+          title: complete
+          required:
+            - complete
+        - properties:
+            dml:
+              title: dml
+              description: Sent if the query was an INSERT/UPDATE/DELETE.
+              $ref: '#/components/schemas/db.v1.DMLResult'
+          title: dml
+          required:
+            - dml
+        - properties:
+            error:
+              title: error
+              description: Sent if an error occurs mid-stream.
+              $ref: '#/components/schemas/db.v1.ErrorResponse'
+          title: error
+          required:
+            - error
+        - properties:
+            header:
+              title: header
+              description: Sent once at the start of a result set to define columns.
+              $ref: '#/components/schemas/db.v1.QueryResultHeader'
+          title: header
+          required:
+            - header
+      title: QueryResponse
+      additionalProperties: false
+      description: "*\r\n The response envelope for streaming RPCs (`QueryStream` and `Transaction`).\r\n The stream will typically send: [Header] -> [Batch]* -> [Complete]."
+    db.v1.QueryResult:
+      type: object
+      allOf:
+        - properties:
+            stats:
+              title: stats
+              description: Performance statistics for the execution.
+              $ref: '#/components/schemas/db.v1.ExecutionStats'
+        - oneOf:
+            - properties:
+                dml:
+                  title: dml
+                  $ref: '#/components/schemas/db.v1.DMLResult'
+              title: dml
+              required:
+                - dml
+            - properties:
+                select:
+                  title: select
+                  $ref: '#/components/schemas/db.v1.SelectResult'
+              title: select
+              required:
+                - select
+      title: QueryResult
+      additionalProperties: false
+      description: "*\r\n The response for Unary RPCs (`Query`, `TransactionQuery`).\r\n This message holds the entire result set in memory."
+    db.v1.QueryResultHeader:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+          title: columns
+          description: The names of the columns.
+        columnTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ColumnType'
+          title: column_types
+          description: The resolved column types mapped from SQLite declarations.
+      title: QueryResultHeader
+      additionalProperties: false
+      description: "*\r\n Metadata about the columns in a result set (Streaming).\r\n Sent as the first message in a read stream."
+    db.v1.QueryResultRowBatch:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/google.protobuf.ListValue'
+          title: rows
+          description: A list of rows, where each row is a ListValue.
+      title: QueryResultRowBatch
+      additionalProperties: false
+      description: "*\r\n A batch of rows in a streaming response.\r\n Used to chunk large result sets to avoid memory spikes."
+    db.v1.QueryType:
+      type: string
+      title: QueryType
+      enum:
+        - QUERY_TYPE_UNSPECIFIED
+        - QUERY_TYPE_READ
+        - QUERY_TYPE_WRITE
+      description: "*\r\n QueryType hints at the intent of the query, allowing the proxy to route\r\n requests to the appropriate connection (e.g., read-only replicas vs WAL\r\n writers)."
+    db.v1.RestoreDatabaseRequest:
+      type: object
+      oneOf:
+        - properties:
+            chunk:
+              type: string
+              title: chunk
+              maxLength: 4194304
+              minLength: 1
+              format: byte
+              description: |
+                A chunk of binary data to write (sent in subsequent messages).
+                bytes.const = []
+          title: chunk
+          required:
+            - chunk
+        - properties:
+            databaseName:
+              type: string
+              title: database_name
+              pattern: ^[a-zA-Z0-9_-]{3,64}$
+              description: The name of the database to restore (sent in the first message).
+          title: database_name
+          required:
+            - databaseName
+      title: RestoreDatabaseRequest
+      additionalProperties: false
+      description: "*\r\n A message in the restore stream.\r\n The first message must contain `database_name`.\r\n Subsequent messages must contain `chunk`."
+    db.v1.RestoreDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        bytesWritten:
+          type:
+            - integer
+            - string
+          title: bytes_written
+          format: int64
+      title: RestoreDatabaseResponse
+      additionalProperties: false
+      description: "*\r\n Response indicating the final status of the restore operation."
+    db.v1.RevokeApiKeyRequest:
+      type: object
+      properties:
+        keyId:
+          type: string
+          title: key_id
+          format: uuid
+      title: RevokeApiKeyRequest
+      additionalProperties: false
+      description: "*\r\n Request to revoke (delete) a specific API key."
+    db.v1.RevokeApiKeyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+      title: RevokeApiKeyResponse
+      additionalProperties: false
+      description: "*\r\n Response indicating the success of the key revocation."
+    db.v1.RollbackResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+      title: RollbackResponse
+      additionalProperties: false
+      description: '* Response indicating a transaction successfully rolled back.'
+    db.v1.SavepointAction:
+      type: string
+      title: SavepointAction
+      enum:
+        - SAVEPOINT_ACTION_UNSPECIFIED
+        - SAVEPOINT_ACTION_CREATE
+        - SAVEPOINT_ACTION_RELEASE
+        - SAVEPOINT_ACTION_ROLLBACK
+      description: "*\r\n Defines the action to take on a Savepoint (Nested Transaction)."
+    db.v1.SavepointRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{1,64}$
+          description: The name of the savepoint. Must be alphanumeric (plus _-).
+        action:
+          title: action
+          description: The operation to perform on this savepoint.
+          $ref: '#/components/schemas/db.v1.SavepointAction'
+      title: SavepointRequest
+      additionalProperties: false
+      description: "*\r\n Request to manage a named checkpoint within an active transaction."
+    db.v1.SavepointResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: "Indicates if the SQLite savepoint command (SAVEPOINT, RELEASE, or ROLLBACK\r\n TO) was executed successfully."
+        name:
+          type: string
+          title: name
+          description: "The name of the savepoint that was targeted.\r\n Echoed back to allow the client to track multiple nested checkpoints."
+        action:
+          title: action
+          description: "The action that was performed.\r\n Echoed back to help the client correlate the response with their command."
+          $ref: '#/components/schemas/db.v1.SavepointAction'
+      title: SavepointResponse
+      additionalProperties: false
+      description: "*\r\n Response indicating the outcome of a savepoint-related command.\r\n\r\n This message is returned within the TransactionResponse envelope in\r\n response to a SavepointRequest."
+    db.v1.SelectResult:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+          title: columns
+          description: The names of the columns returned by the query.
+        columnTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ColumnType'
+          title: column_types
+          description: "The resolved column types mapped from SQLite declarations (e.g. VARCHAR ->\r\n TEXT)."
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/google.protobuf.ListValue'
+          title: rows
+          description: All rows buffered in memory.
+      title: SelectResult
+      additionalProperties: false
+      description: "*\r\n Represents the full result set of a SELECT query (used in Unary RPC)."
+    db.v1.SqliteCode:
+      type: string
+      title: SqliteCode
+      enum:
+        - SQLITE_CODE_OK
+        - SQLITE_CODE_ERROR
+        - SQLITE_CODE_INTERNAL
+        - SQLITE_CODE_PERM
+        - SQLITE_CODE_ABORT
+        - SQLITE_CODE_BUSY
+        - SQLITE_CODE_LOCKED
+        - SQLITE_CODE_NOMEM
+        - SQLITE_CODE_READONLY
+        - SQLITE_CODE_INTERRUPT
+        - SQLITE_CODE_IOERR
+        - SQLITE_CODE_CORRUPT
+        - SQLITE_CODE_NOTFOUND
+        - SQLITE_CODE_FULL
+        - SQLITE_CODE_CANTOPEN
+        - SQLITE_CODE_PROTOCOL
+        - SQLITE_CODE_EMPTY
+        - SQLITE_CODE_SCHEMA
+        - SQLITE_CODE_TOOBIG
+        - SQLITE_CODE_CONSTRAINT
+        - SQLITE_CODE_MISMATCH
+        - SQLITE_CODE_MISUSE
+        - SQLITE_CODE_NOLFS
+        - SQLITE_CODE_AUTH
+        - SQLITE_CODE_FORMAT
+        - SQLITE_CODE_RANGE
+        - SQLITE_CODE_NOTADB
+        - SQLITE_CODE_NOTICE
+        - SQLITE_CODE_WARNING
+        - SQLITE_CODE_ROW
+        - SQLITE_CODE_DONE
+      description: "*\r\n SqliteCode maps standard SQLite C result codes to a Proto Enum.\r\n Use this to handle specific DB errors programmatically.\r\n Reference: https://www.sqlite.org/rescode.html"
+    db.v1.TransactionControlRequest:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          title: transaction_id
+          maxLength: 128
+          minLength: 1
+          description: The session token to finalize.
+      title: TransactionControlRequest
+      additionalProperties: false
+      description: "*\r\n Request to Commit or Rollback a transaction session."
+    db.v1.TransactionControlResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: "True if the Commit/Rollback was successful.\r\n False usually indicates the transaction ID was not found (already\r\n expired/closed)."
+      title: TransactionControlResponse
+      additionalProperties: false
+      description: "*\r\n Response indicating success of the control operation."
+    db.v1.TransactionMode:
+      type: string
+      title: TransactionMode
+      enum:
+        - TRANSACTION_MODE_UNSPECIFIED
+        - TRANSACTION_MODE_DEFERRED
+        - TRANSACTION_MODE_IMMEDIATE
+        - TRANSACTION_MODE_EXCLUSIVE
+      description: "*\r\n TransactionMode defines the locking behavior for the start of a transaction.\r\n Choosing the right mode is crucial for SQLite to prevent \"Database Locked\"\r\n errors."
+    db.v1.TransactionQueryRequest:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          title: transaction_id
+          maxLength: 128
+          minLength: 1
+          description: "The token received from BeginTransaction.\r\n Note: No database name needed; the ID implies the database context."
+        sql:
+          type: string
+          title: sql
+          maxLength: 10240
+          minLength: 1
+          description: The SQL statement to execute.
+        parameters:
+          title: parameters
+          description: Parameters for the query.
+          $ref: '#/components/schemas/db.v1.Parameters'
+      title: TransactionQueryRequest
+      additionalProperties: false
+      description: "*\r\n Request to execute a query within an existing transaction session."
+    db.v1.TransactionRequest:
+      type: object
+      oneOf:
+        - properties:
+            begin:
+              title: begin
+              description: Starts the transaction
+              $ref: '#/components/schemas/db.v1.BeginRequest'
+          title: begin
+          required:
+            - begin
+        - properties:
+            commit:
+              title: commit
+              description: Finalizes the transaction
+              $ref: '#/components/schemas/google.protobuf.Empty'
+          title: commit
+          required:
+            - commit
+        - properties:
+            query:
+              title: query
+              description: "Executes a query and expects the result buffered in a single response.\r\n Use this for small lookups or DML (INSERT/UPDATE)."
+              $ref: '#/components/schemas/db.v1.TransactionalQueryRequest'
+          title: query
+          required:
+            - query
+        - properties:
+            queryStream:
+              title: query_stream
+              description: "Executes a query and expects the result to be streamed back in multiple\r\n TransactionResponse messages (Header -> Batch... -> Complete).\r\n Use this for large SELECTs within a transaction."
+              $ref: '#/components/schemas/db.v1.TransactionalQueryRequest'
+          title: query_stream
+          required:
+            - queryStream
+        - properties:
+            rollback:
+              title: rollback
+              $ref: '#/components/schemas/google.protobuf.Empty'
+          title: rollback
+          required:
+            - rollback
+        - properties:
+            savepoint:
+              title: savepoint
+              description: Manages a sub-transaction (Nested Transaction) using SQLite SAVEPOINTS.
+              $ref: '#/components/schemas/db.v1.SavepointRequest'
+          title: savepoint
+          required:
+            - savepoint
+      title: TransactionRequest
+      additionalProperties: false
+      description: "*\r\n The envelope message for a single command within a bidirectional stream.\r\n It uses a `oneof` to enforce that only one action is taken per message."
+    db.v1.TransactionResponse:
+      type: object
+      oneOf:
+        - properties:
+            begin:
+              title: begin
+              description: Starts the transaction
+              $ref: '#/components/schemas/db.v1.BeginResponse'
+          title: begin
+          required:
+            - begin
+        - properties:
+            commit:
+              title: commit
+              description: Finalizes the transaction
+              $ref: '#/components/schemas/db.v1.CommitResponse'
+          title: commit
+          required:
+            - commit
+        - properties:
+            error:
+              title: error
+              description: "--- System Errors ---\r\n Used for failures in Begin/Commit/Rollback or protocol violations."
+              $ref: '#/components/schemas/db.v1.ErrorResponse'
+          title: error
+          required:
+            - error
+        - properties:
+            queryResult:
+              title: query_result
+              description: "Returned exactly once in response to a 'query' request.\r\n Contains the full rows and column metadata in one message."
+              $ref: '#/components/schemas/db.v1.QueryResult'
+          title: query_result
+          required:
+            - queryResult
+        - properties:
+            rollback:
+              title: rollback
+              $ref: '#/components/schemas/db.v1.RollbackResponse'
+          title: rollback
+          required:
+            - rollback
+        - properties:
+            savepoint:
+              title: savepoint
+              description: Response for a savepoint operation.
+              $ref: '#/components/schemas/db.v1.SavepointResponse'
+          title: savepoint
+          required:
+            - savepoint
+        - properties:
+            streamResult:
+              title: stream_result
+              description: "Returned multiple times in response to a 'query_stream' request.\r\n Follows the streaming protocol (Header -> Batch... -> Complete)."
+              $ref: '#/components/schemas/db.v1.QueryResponse'
+          title: stream_result
+          required:
+            - streamResult
+      title: TransactionResponse
+      additionalProperties: false
+      description: "*\r\n The response envelope for the `Transaction` RPC.\r\n Mirrors QueryResponse but adds Transaction-specific lifecycle messages."
+    db.v1.TransactionSavepointRequest:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          title: transaction_id
+          maxLength: 128
+          minLength: 1
+          description: The token received from BeginTransaction.
+        savepoint:
+          title: savepoint
+          description: The savepoint action and name.
+          $ref: '#/components/schemas/db.v1.SavepointRequest'
+      title: TransactionSavepointRequest
+      required:
+        - savepoint
+      additionalProperties: false
+      description: "*\r\n Request to perform a savepoint operation using a transaction ID."
+    db.v1.TransactionalQueryRequest:
+      type: object
+      properties:
+        sql:
+          type: string
+          title: sql
+          maxLength: 10240
+          minLength: 1
+          description: SQL Statement. Max 10KB.
+        parameters:
+          title: parameters
+          description: Parameters definition.
+          $ref: '#/components/schemas/db.v1.Parameters'
+      title: TransactionalQueryRequest
+      additionalProperties: false
+      description: "*\r\n A query executed within an active transaction context.\r\n Unlike `QueryRequest`, this does not specify a database name as the context\r\n is already established."
+    db.v1.UnMountDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+      title: UnMountDatabaseRequest
+      additionalProperties: false
+    db.v1.UnMountDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: UnMountDatabaseResponse
+      additionalProperties: false
+    db.v1.UpdatePasswordRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
+        newPassword:
+          type: string
+          title: new_password
+          maxLength: 128
+          minLength: 8
+          pattern: ^[^\s]+$
+          description: |
+            password_complexity // Password must contain at least one letter and one number
+      title: UpdatePasswordRequest
+      additionalProperties: false
+      description: "*\r\n Request to update a user's password."
+    db.v1.UpdatePasswordResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+      title: UpdatePasswordResponse
+      additionalProperties: false
+      description: "*\r\n Response indicating the success of the password update."
+    db.v1.User:
+      type: object
+      properties:
+        id:
+          type:
+            - integer
+            - string
+          title: id
+          format: int64
+        username:
+          type: string
+          title: username
+        role:
+          type: string
+          title: role
+      title: User
+      additionalProperties: false
+      description: "*\r\n Basic user information."
+    google.protobuf.Duration:
+      type: string
+      format: duration
+      description: |-
+        A Duration represents a signed, fixed-length span of time represented
+         as a count of seconds and fractions of seconds at nanosecond
+         resolution. It is independent of any calendar and concepts like "day"
+         or "month". It is related to Timestamp in that the difference between
+         two Timestamp values is a Duration and it can be added or subtracted
+         from a Timestamp. Range is approximately +-10,000 years.
+
+         # Examples
+
+         Example 1: Compute Duration from two Timestamps in pseudo code.
+
+             Timestamp start = ...;
+             Timestamp end = ...;
+             Duration duration = ...;
+
+             duration.seconds = end.seconds - start.seconds;
+             duration.nanos = end.nanos - start.nanos;
+
+             if (duration.seconds < 0 && duration.nanos > 0) {
+               duration.seconds += 1;
+               duration.nanos -= 1000000000;
+             } else if (duration.seconds > 0 && duration.nanos < 0) {
+               duration.seconds -= 1;
+               duration.nanos += 1000000000;
+             }
+
+         Example 2: Compute Timestamp from Timestamp + Duration in pseudo code.
+
+             Timestamp start = ...;
+             Duration duration = ...;
+             Timestamp end = ...;
+
+             end.seconds = start.seconds + duration.seconds;
+             end.nanos = start.nanos + duration.nanos;
+
+             if (end.nanos < 0) {
+               end.seconds -= 1;
+               end.nanos += 1000000000;
+             } else if (end.nanos >= 1000000000) {
+               end.seconds += 1;
+               end.nanos -= 1000000000;
+             }
+
+         Example 3: Compute Duration from datetime.timedelta in Python.
+
+             td = datetime.timedelta(days=3, minutes=10)
+             duration = Duration()
+             duration.FromTimedelta(td)
+
+         # JSON Mapping
+
+         In JSON format, the Duration type is encoded as a string rather than an
+         object, where the string ends in the suffix "s" (indicating seconds) and
+         is preceded by the number of seconds, with nanoseconds expressed as
+         fractional seconds. For example, 3 seconds with 0 nanoseconds should be
+         encoded in JSON format as "3s", while 3 seconds and 1 nanosecond should
+         be expressed in JSON format as "3.000000001s", and 3 seconds and 1
+         microsecond should be expressed in JSON format as "3.000001s".
+    google.protobuf.Empty:
+      type: object
+      description: |-
+        A generic empty message that you can re-use to avoid defining duplicated
+         empty messages in your APIs. A typical example is to use it as the request
+         or the response type of an API method. For instance:
+
+             service Foo {
+               rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);
+             }
+    google.protobuf.ListValue:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/google.protobuf.Value'
+          title: values
+          description: Repeated field of dynamically typed values.
+      title: ListValue
+      additionalProperties: false
+      description: |-
+        `ListValue` is a wrapper around a repeated field of values.
+
+         The JSON representation for `ListValue` is JSON array.
+    google.protobuf.NullValue:
+      type: string
+      title: NullValue
+      enum:
+        - NULL_VALUE
+      description: |-
+        `NullValue` is a singleton enumeration to represent the null value for the
+         `Value` type union.
+
+         The JSON representation for `NullValue` is JSON `null`.
+    google.protobuf.Struct:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/google.protobuf.Value'
+      description: |-
+        `Struct` represents a structured data value, consisting of fields
+         which map to dynamically typed values. In some languages, `Struct`
+         might be supported by a native representation. For example, in
+         scripting languages like JS a struct is represented as an
+         object. The details of that representation are described together
+         with the proto support for the language.
+
+         The JSON representation for `Struct` is JSON object.
+    google.protobuf.Struct.FieldsEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          title: value
+          $ref: '#/components/schemas/google.protobuf.Value'
+      title: FieldsEntry
+      additionalProperties: false
+    google.protobuf.Timestamp:
+      type: string
+      examples:
+        - "2023-01-15T01:30:15.01Z"
+        - "2024-12-25T12:00:00Z"
+      format: date-time
+      description: |-
+        A Timestamp represents a point in time independent of any time zone or local
+         calendar, encoded as a count of seconds and fractions of seconds at
+         nanosecond resolution. The count is relative to an epoch at UTC midnight on
+         January 1, 1970, in the proleptic Gregorian calendar which extends the
+         Gregorian calendar backwards to year one.
+
+         All minutes are 60 seconds long. Leap seconds are "smeared" so that no leap
+         second table is needed for interpretation, using a [24-hour linear
+         smear](https://developers.google.com/time/smear).
+
+         The range is from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z. By
+         restricting to that range, we ensure that we can convert to and from [RFC
+         3339](https://www.ietf.org/rfc/rfc3339.txt) date strings.
+
+         # Examples
+
+         Example 1: Compute Timestamp from POSIX `time()`.
+
+             Timestamp timestamp;
+             timestamp.set_seconds(time(NULL));
+             timestamp.set_nanos(0);
+
+         Example 2: Compute Timestamp from POSIX `gettimeofday()`.
+
+             struct timeval tv;
+             gettimeofday(&tv, NULL);
+
+             Timestamp timestamp;
+             timestamp.set_seconds(tv.tv_sec);
+             timestamp.set_nanos(tv.tv_usec * 1000);
+
+         Example 3: Compute Timestamp from Win32 `GetSystemTimeAsFileTime()`.
+
+             FILETIME ft;
+             GetSystemTimeAsFileTime(&ft);
+             UINT64 ticks = (((UINT64)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+
+             // A Windows tick is 100 nanoseconds. Windows epoch 1601-01-01T00:00:00Z
+             // is 11644473600 seconds before Unix epoch 1970-01-01T00:00:00Z.
+             Timestamp timestamp;
+             timestamp.set_seconds((INT64) ((ticks / 10000000) - 11644473600LL));
+             timestamp.set_nanos((INT32) ((ticks % 10000000) * 100));
+
+         Example 4: Compute Timestamp from Java `System.currentTimeMillis()`.
+
+             long millis = System.currentTimeMillis();
+
+             Timestamp timestamp = Timestamp.newBuilder().setSeconds(millis / 1000)
+                 .setNanos((int) ((millis % 1000) * 1000000)).build();
+
+         Example 5: Compute Timestamp from Java `Instant.now()`.
+
+             Instant now = Instant.now();
+
+             Timestamp timestamp =
+                 Timestamp.newBuilder().setSeconds(now.getEpochSecond())
+                     .setNanos(now.getNano()).build();
+
+         Example 6: Compute Timestamp from current time in Python.
+
+             timestamp = Timestamp()
+             timestamp.GetCurrentTime()
+
+         # JSON Mapping
+
+         In JSON format, the Timestamp type is encoded as a string in the
+         [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) format. That is, the
+         format is "{year}-{month}-{day}T{hour}:{min}:{sec}[.{frac_sec}]Z"
+         where {year} is always expressed using four digits while {month}, {day},
+         {hour}, {min}, and {sec} are zero-padded to two digits each. The fractional
+         seconds, which can go up to 9 digits (i.e. up to 1 nanosecond resolution),
+         are optional. The "Z" suffix indicates the timezone ("UTC"); the timezone
+         is required. A proto3 JSON serializer should always use UTC (as indicated by
+         "Z") when printing the Timestamp type and a proto3 JSON parser should be
+         able to accept both UTC and other timezones (as indicated by an offset).
+
+         For example, "2017-01-15T01:30:15.01Z" encodes 15.01 seconds past
+         01:30 UTC on January 15, 2017.
+
+         In JavaScript, one can convert a Date object to this format using the
+         standard
+         [toISOString()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString)
+         method. In Python, a standard `datetime.datetime` object can be converted
+         to this format using
+         [`strftime`](https://docs.python.org/2/library/time.html#time.strftime) with
+         the time format spec '%Y-%m-%dT%H:%M:%S.%fZ'. Likewise, in Java, one can use
+         the Joda Time's [`ISODateTimeFormat.dateTime()`](
+         http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
+         ) to obtain a formatter capable of generating timestamps in this format.
+    google.protobuf.Value:
+      oneOf:
+        - type: "null"
+        - type: number
+        - type: string
+        - type: boolean
+        - type: array
+        - type: object
+          additionalProperties: true
+      description: |-
+        `Value` represents a dynamically typed value which can be either
+         null, a number, a string, a boolean, a recursive struct value, or a
+         list of values. A producer of value is expected to set one of these
+         variants. Absence of any variant indicates an error.
+
+         The JSON representation for `Value` is JSON value.
+tags:
+  - name: db.v1.DatabaseService
+    description: Database operations including queries and transactions
+  - name: db.v1.AdminService
+    description: Administrative operations for user management and system configuration

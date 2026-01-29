@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"sqlite-server/internal/auth"
@@ -19,15 +22,15 @@ import (
 // AdminServer implements the AdminService gRPC handler
 type AdminServer struct {
 	dbv1connect.UnimplementedAdminServiceHandler
-	store     *auth.MetaStore
-	dbConfigs []sqldrivers.DBConfig
+	store    *auth.MetaStore
+	dbServer *DbServer
 }
 
 // NewAdminServer creates a new AdminServer instance
-func NewAdminServer(store *auth.MetaStore, dbConfigs []sqldrivers.DBConfig) *AdminServer {
+func NewAdminServer(store *auth.MetaStore, dbServer *DbServer) *AdminServer {
 	return &AdminServer{
-		store:     store,
-		dbConfigs: dbConfigs,
+		store:    store,
+		dbServer: dbServer,
 	}
 }
 
@@ -161,13 +164,173 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 		return nil, err
 	}
 
-	var databases []string
-	for _, config := range s.dbConfigs {
-		databases = append(databases, config.Name)
+	configs, err := s.store.ListDatabaseConfigs(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	infos := make([]*dbv1.DatabaseInfo, len(configs))
+	for i, cfg := range configs {
+		infos[i] = &dbv1.DatabaseInfo{
+			Name:      cfg.Name,
+			Path:      cfg.Path,
+			IsManaged: cfg.IsManaged,
+		}
 	}
 
 	return connect.NewResponse(&dbv1.ListDatabasesResponse{
-		Databases: databases,
+		Databases: infos,
+	}), nil
+}
+
+// CreateDatabase creates a new managed database
+func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[dbv1.CreateDatabaseRequest]) (*connect.Response[dbv1.CreateDatabaseResponse], error) {
+	if err := AuthorizeAdmin(ctx); err != nil {
+		return nil, err
+	}
+
+	name := req.Msg.Name
+	dbPath := filepath.Join("databases", name+".db")
+
+	// Ensure directory exists
+	if err := os.MkdirAll("databases", 0755); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create directory: %w", err))
+	}
+
+	// 1. Persist config
+	if err := s.store.UpsertDatabaseConfig(ctx, name, dbPath, true, "{}"); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 2. Mount database
+	config := sqldrivers.DBConfig{
+		Name:   name,
+		DBPath: dbPath,
+	}
+	if err := s.dbServer.MountDatabase(config); err != nil {
+		// Rollback persistent config? For now just return error
+		_ = s.store.RemoveDatabaseConfig(ctx, name)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 3. Log success
+	log.Printf("Created database '%s' at '%s'", name, dbPath)
+
+	return connect.NewResponse(&dbv1.CreateDatabaseResponse{
+		Success: true,
+		Message: fmt.Sprintf("Database '%s' created successfully", name),
+	}), nil
+}
+
+// MountDatabase mounts an existing unmanaged database
+func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[dbv1.MountDatabaseRequest]) (*connect.Response[dbv1.MountDatabaseResponse], error) {
+	if err := AuthorizeAdmin(ctx); err != nil {
+		return nil, err
+	}
+
+	name := req.Msg.Name
+	path := req.Msg.Path
+
+	// Verify file existence
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("database file not found"))
+	}
+
+	// 1. Persist config (is_managed=false)
+	if err := s.store.UpsertDatabaseConfig(ctx, name, path, false, "{}"); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 2. Mount database
+	config := sqldrivers.DBConfig{
+		Name:     name,
+		DBPath:   path,
+		ReadOnly: req.Msg.ReadOnly,
+	}
+	if err := s.dbServer.MountDatabase(config); err != nil {
+		_ = s.store.RemoveDatabaseConfig(ctx, name)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 3. Log success
+	log.Printf("Mounted database '%s' at '%s'", name, path)
+
+	return connect.NewResponse(&dbv1.MountDatabaseResponse{
+		Success: true,
+		Message: fmt.Sprintf("Database '%s' mounted successfully", name),
+	}), nil
+}
+
+// UnMountDatabase unmounts a database but keeps the file
+func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[dbv1.UnMountDatabaseRequest]) (*connect.Response[dbv1.UnMountDatabaseResponse], error) {
+	if err := AuthorizeAdmin(ctx); err != nil {
+		return nil, err
+	}
+
+	name := req.Msg.Name
+
+	// 1. Unmount from server
+	if err := s.dbServer.UnmountDatabase(name); err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+
+	// 2. Remove from persistent storage
+	if err := s.store.RemoveDatabaseConfig(ctx, name); err != nil {
+		// Log error but success for client since unmount happened
+		fmt.Printf("Warning: failed to remove database config for '%s': %v\n", name, err)
+	}
+
+	// 3. Log success
+	log.Printf("Unmounted database '%s'", name)
+
+	return connect.NewResponse(&dbv1.UnMountDatabaseResponse{
+		Success: true,
+		Message: fmt.Sprintf("Database '%s' unmounted", name),
+	}), nil
+}
+
+// DeleteDatabase deletes a managed database permanently
+func (s *AdminServer) DeleteDatabase(ctx context.Context, req *connect.Request[dbv1.DeleteDatabaseRequest]) (*connect.Response[dbv1.DeleteDatabaseResponse], error) {
+	if err := AuthorizeAdmin(ctx); err != nil {
+		return nil, err
+	}
+
+	name := req.Msg.Name
+
+	// 1. Check if managed
+	config, err := s.store.GetDatabaseConfig(ctx, name)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if config == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("database config not found"))
+	}
+	if !config.IsManaged {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("cannot delete mounted database (unmount instead)"))
+	}
+
+	// 2. Unmount
+	if err := s.dbServer.UnmountDatabase(name); err != nil {
+		// If fails, maybe already unmounted? Continue to deletion
+		fmt.Printf("Warning: failed to unmount database '%s' during deletion: %v\n", name, err)
+	}
+
+	// 3. Remove file
+	if err := os.Remove(config.Path); err != nil && !os.IsNotExist(err) {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to delete database file: %w", err))
+	}
+
+	// 4. Remove config
+	if err := s.store.RemoveDatabaseConfig(ctx, name); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 5. Log success
+	log.Printf("Deleted database '%s' at '%s'", name, config.Path)
+
+	return connect.NewResponse(&dbv1.DeleteDatabaseResponse{
+		Success: true,
+		Message: fmt.Sprintf("Database '%s' deleted successfully", name),
 	}), nil
 }
 
@@ -196,19 +359,43 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 	expiresAt := time.Now().Add(duration)
 
 	// 4. Generate API Key
-	apiKey, _, err := s.store.CreateApiKey(ctx, user.UserID, fmt.Sprintf("studio_session_%d", time.Now().Unix()), &expiresAt)
+	apiKey, keyID, err := s.store.CreateApiKey(ctx, user.UserID, fmt.Sprintf("studio_session_%d", time.Now().Unix()), &expiresAt)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to generate session key: %w", err))
 	}
 
 	return connect.NewResponse(&dbv1.LoginResponse{
 		ApiKey:    apiKey,
+		KeyId:     keyID,
 		ExpiresAt: timestamppb.New(expiresAt),
 		User: &dbv1.User{
 			Id:       user.UserID,
 			Username: user.Username,
 			Role:     string(user.Role),
 		},
+	}), nil
+}
+
+// Logout invalidates the provided session key.
+func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[dbv1.LogoutRequest]) (*connect.Response[dbv1.LogoutResponse], error) {
+	// 1. Verify admin role (or at least valid authentication)
+	// Theoretically any user can logout their own key, but for now we reuse AuthorizeAdmin
+	// because only admins have keys anyway in this system currently.
+	if err := AuthorizeAdmin(ctx); err != nil {
+		return nil, err
+	}
+
+	// 2. Revoke the key
+	if err := s.store.RevokeApiKey(ctx, req.Msg.KeyId); err != nil {
+		// Even if not found, we return success for idempotency security
+		// But let's log it
+		log.Printf("Warning: failed to revoke key %s during logout: %v", req.Msg.KeyId, err)
+	} else {
+		log.Printf("Logged out session key %s", req.Msg.KeyId)
+	}
+
+	return connect.NewResponse(&dbv1.LogoutResponse{
+		Success: true,
 	}), nil
 }
 

@@ -29,7 +29,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BackupDatabaseRequest, BackupDatabaseResponse, BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateUserRequest, CreateUserResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, LoginRequest, LoginResponse, QueryRequest, QueryResponse, QueryResult, RestoreDatabaseRequest, RestoreDatabaseResponse, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
+import { BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseRequest, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -291,6 +291,18 @@ export const AdminService = {
     },
     /**
      * *
+     * Invalidates the current session/API key.
+     *
+     * @generated from rpc db.v1.AdminService.Logout
+     */
+    logout: {
+      name: "Logout",
+      I: LogoutRequest,
+      O: LogoutResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
      * Revokes (deletes) a specific API key immediately.
      *
      * @generated from rpc db.v1.AdminService.RevokeApiKey
@@ -303,30 +315,56 @@ export const AdminService = {
     },
     /**
      * *
-     * Streams a binary backup of the specified database file.
-     * The stream delivers the file in 4MB chunks.
+     * Creates a new managed database.
+     * The database file is created in the server's managed directory.
      *
-     * @generated from rpc db.v1.AdminService.BackupDatabase
+     * @generated from rpc db.v1.AdminService.CreateDatabase
      */
-    backupDatabase: {
-      name: "BackupDatabase",
-      I: BackupDatabaseRequest,
-      O: BackupDatabaseResponse,
-      kind: MethodKind.ServerStreaming,
+    createDatabase: {
+      name: "CreateDatabase",
+      I: CreateDatabaseRequest,
+      O: CreateDatabaseResponse,
+      kind: MethodKind.Unary,
     },
     /**
      * *
-     * Restores a database from a backup stream.
-     * This overwrites the existing database file.
-     * Protocol: [Metadata] -> [Chunk] -> [Chunk]...
+     * Mounts an existing database file from the filesystem.
+     * This database is marked as "unmanaged" (cannot be deleted via API).
      *
-     * @generated from rpc db.v1.AdminService.RestoreDatabase
+     * @generated from rpc db.v1.AdminService.MountDatabase
      */
-    restoreDatabase: {
-      name: "RestoreDatabase",
-      I: RestoreDatabaseRequest,
-      O: RestoreDatabaseResponse,
-      kind: MethodKind.ClientStreaming,
+    mountDatabase: {
+      name: "MountDatabase",
+      I: MountDatabaseRequest,
+      O: MountDatabaseResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Unmounts a database, removing it from the active server.
+     * The file is NOT deleted.
+     *
+     * @generated from rpc db.v1.AdminService.UnMountDatabase
+     */
+    unMountDatabase: {
+      name: "UnMountDatabase",
+      I: UnMountDatabaseRequest,
+      O: UnMountDatabaseResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Deletes a database securely.
+     * - Managed DBs: Deleted from disk and metadata.
+     * - Mounted DBs: Returns error (protects external files).
+     *
+     * @generated from rpc db.v1.AdminService.DeleteDatabase
+     */
+    deleteDatabase: {
+      name: "DeleteDatabase",
+      I: DeleteDatabaseRequest,
+      O: DeleteDatabaseResponse,
+      kind: MethodKind.Unary,
     },
   }
 } as const;

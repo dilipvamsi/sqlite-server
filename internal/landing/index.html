@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite Server - Production-Ready gRPC Bridge</title>
+    <meta name="description"
+        content="SQLite Server is a production-ready, high-performance gRPC bridge for SQLite databases.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --border: #2a2a35;
+            --card-bg: linear-gradient(135deg, rgba(26, 26, 37, 0.8) 0%, rgba(18, 18, 26, 0.9) 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Background gradient effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60vh;
+            background: radial-gradient(ellipse at 50% -20%, var(--accent-glow) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.8);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+            color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px var(--accent-glow);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 80px 0 60px;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 36px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Status Cards */
+        .status-section {
+            padding: 40px 0;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .status-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .status-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-card h3 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .status-card .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .status-card .value.running {
+            color: var(--success);
+        }
+
+        /* Features */
+        .features-section {
+            padding: 60px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .section-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .section-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Quick Start */
+        .quickstart-section {
+            padding: 60px 0;
+        }
+
+        .code-block {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 24px;
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .code-header span {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .code-content {
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .code-content pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .code-content .comment {
+            color: var(--text-muted);
+        }
+
+        .code-content .keyword {
+            color: var(--accent-light);
+        }
+
+        .code-content .string {
+            color: var(--success);
+        }
+
+        .code-content .endpoint {
+            color: var(--warning);
+        }
+
+        /* Endpoints */
+        .endpoints-section {
+            padding: 60px 0;
+        }
+
+        .endpoint-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .endpoint-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            transition: background 0.2s;
+        }
+
+        .endpoint-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .method {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .method.post {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .method.stream {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--accent-light);
+        }
+
+        .endpoint-path {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .endpoint-desc {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            margin-top: 60px;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .footer-copyright {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.25rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .endpoint-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">⚡</div>
+                    SQLite Server
+                </a>
+                <nav class="nav-links">
+                    <a href="#features">Features</a>
+                    <a href="#quickstart">Quick Start</a>
+                    <a href="/docs/">API Docs</a>
+                    <a href="/studio/" class="btn btn-primary">Open Studio →</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="badge">
+                    <span class="badge-dot"></span>
+                    Server Running on :50051
+                </div>
+                <h1>Production-Ready<br>gRPC Bridge for SQLite</h1>
+                <p>Expose multiple SQLite databases over a network via a strictly typed, schema-safe API with hybrid
+                    transaction support.</p>
+                <div class="hero-buttons">
+                    <a href="/studio/" class="btn btn-primary">
+                        🎨 Open Studio
+                    </a>
+                    <a href="/docs/" class="btn btn-secondary">
+                        📖 API Documentation
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="status-section">
+            <div class="container">
+                <div class="status-grid">
+                    <div class="status-card">
+                        <h3>Server Status</h3>
+                        <div class="value running">● Running</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Protocol</h3>
+                        <div class="value">HTTP/2 (h2c)</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Port</h3>
+                        <div class="value">50051</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section" id="features">
+            <div class="container">
+                <div class="section-header">
+                    <h2>Key Features</h2>
+                    <p>Enterprise-grade features for SQLite in production</p>
+                </div>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🔄</div>
+                        <h3>Hybrid Transactions</h3>
+                        <p>Streaming (bidirectional) or Unary (ID-based) transaction patterns for different client
+                            needs.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>Chunked Streaming</h3>
+                        <p>Large result sets streamed in batches ensuring O(1) memory usage regardless of table size.
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔐</div>
+                        <h3>Authentication</h3>
+                        <p>Built-in API key and Basic Auth support with role-based access control.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🛡️</div>
+                        <h3>Zombie Protection</h3>
+                        <p>Background Reaper automatically rolls back timed-out transactions.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎯</div>
+                        <h3>Sparse Hints</h3>
+                        <p>Bridge SQLite's dynamic typing with gRPC's static types using sparse hints for BLOBs and
+                            dates.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎨</div>
+                        <h3>Web Studio</h3>
+                        <p>Built-in web UI for querying, managing transactions, and administering databases.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="quickstart-section" id="quickstart">
+            <div class="container">
+                <div class="section-header">
+                    <h2>Quick Start</h2>
+                    <p>Get started with a simple query</p>
+                </div>
+                <div class="code-block">
+                    <div class="code-header">
+                        <span>curl</span>
+                    </div>
+                    <div class="code-content">
+                        <pre><span class="comment"># Simple Query</span>
+curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService/Query</span> \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -H <span class="string">"Authorization: Bearer YOUR_API_KEY"</span> \
+  -d <span class="string">'{
+    "database": "primary",
+    "sql": "SELECT * FROM users LIMIT 10"
+  }'</span>
+
+<span class="comment"># Begin Transaction</span>
+curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService/BeginTransaction</span> \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -H <span class="string">"Authorization: Bearer YOUR_API_KEY"</span> \
+  -d <span class="string">'{"database": "primary", "timeout": "30s"}'</span></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="endpoints-section" id="api">
+            <div class="container">
+                <div class="section-header">
+                    <h2>API Endpoints</h2>
+                    <p>All endpoints use Connect/gRPC protocol over HTTP/2</p>
+                </div>
+                <div class="endpoint-list">
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/Query</span>
+                        <span class="endpoint-desc">Execute a simple query</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method stream">STREAM</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/QueryStream</span>
+                        <span class="endpoint-desc">Stream large result sets</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/BeginTransaction</span>
+                        <span class="endpoint-desc">Start a new transaction</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/TransactionQuery</span>
+                        <span class="endpoint-desc">Execute query within transaction</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/CommitTransaction</span>
+                        <span class="endpoint-desc">Commit the transaction</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/RollbackTransaction</span>
+                        <span class="endpoint-desc">Rollback the transaction</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method stream">STREAM</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/InteractiveTransaction</span>
+                        <span class="endpoint-desc">Bidirectional streaming transaction</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/ExecuteTransaction</span>
+                        <span class="endpoint-desc">Execute atomic transaction script</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.AdminService/Login</span>
+                        <span class="endpoint-desc">Authenticate and get API key</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="/studio/">Studio</a>
+                    <a href="/docs/">API Docs</a>
+                    <a href="https://github.com/dilipvamsi/sqlite-server" target="_blank">GitHub</a>
+                </div>
+                <div class="footer-copyright">
+                    SQLite Server — Built with Go & ❤️
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+
+</html>

@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- API Keys Table
 CREATE TABLE IF NOT EXISTS api_keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY, -- UUID v7
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     key_prefix TEXT NOT NULL, -- First few chars for identification
     key_hash TEXT UNIQUE NOT NULL, -- sha256 hash of the full token
@@ -21,3 +21,13 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 -- Create a partial index for active keys if needed, but simple index is fine.
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+
+-- Databases Table
+CREATE TABLE IF NOT EXISTS databases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    path TEXT NOT NULL,
+    is_managed BOOLEAN DEFAULT 0, -- 1=Created by us (safe to delete), 0=Mounted (external)
+    settings TEXT, -- JSON blob for configs
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

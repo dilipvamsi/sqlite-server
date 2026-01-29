@@ -1,75 +1,95 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout title="Login">
   <div class="login-container">
     <div class="card login-card">
       <h1 class="login-title">SQLite Server Studio</h1>
-      <p class="login-subtitle">Enter your credentials to access the database server.</p>
-      
+      <p class="login-subtitle">
+        Enter your credentials to access the database server.
+      </p>
+
       <form id="login-form">
         <div class="form-group">
           <label for="username">Username</label>
-          <input type="text" id="username" name="username" placeholder="admin" required />
-        </div>
-        
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" placeholder="••••••••" required />
+          <input
+            type="text"
+            id="username"
+            name="username"
+            placeholder="admin"
+            required
+          />
         </div>
 
-        <div class="error-message" id="error-message" style="display: none;"></div>
-        
-        <button type="submit" class="btn btn-primary full-width">Connect</button>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="••••••••"
+            required
+          />
+        </div>
+
+        <div class="error-message" id="error-message" style="display: none;">
+        </div>
+
+        <button type="submit" class="btn btn-primary full-width">Connect</button
+        >
       </form>
     </div>
   </div>
 </Layout>
 
 <script>
-  import { getClient, AUTH_KEY } from '../lib/client';
-  import { AdminService } from '../gen/db/v1/db_service_pb';
+  import { getClient, AUTH_KEY, AUTH_KEY_ID } from "../lib/client";
+  import { AdminService } from "../gen/db/v1/db_service_pb";
 
-  const form = document.getElementById('login-form');
-  const errorMessage = document.getElementById('error-message');
+  const form = document.getElementById("login-form");
+  const errorMessage = document.getElementById("error-message");
 
-  form?.addEventListener('submit', async (e) => {
+  form?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!errorMessage) return;
-    
-    errorMessage.style.display = 'none';
-    errorMessage.textContent = '';
-    
+
+    errorMessage.style.display = "none";
+    errorMessage.textContent = "";
+
     const formData = new FormData(e.target as HTMLFormElement);
-    const username = formData.get('username') as string;
-    const password = formData.get('password') as string;
+    const username = formData.get("username") as string;
+    const password = formData.get("password") as string;
 
     try {
       // Use the Login RPC
       const client = getClient(AdminService);
       const response = await client.login({
         username: username,
-        password: password
+        password: password,
       });
-      
+
       // If success, save API Key to localStorage
       localStorage.setItem(AUTH_KEY, response.apiKey);
-      localStorage.setItem("sqlite-server-user", response.user?.username || username);
-      
-      window.location.href = '/studio/';
-      
+      localStorage.setItem(AUTH_KEY_ID, response.keyId);
+      localStorage.setItem(
+        "sqlite-server-user",
+        response.user?.username || username,
+      );
+
+      window.location.href = "/studio/";
     } catch (err) {
       console.error(err);
-      errorMessage.textContent = 'Authentication failed. Please check your credentials.';
-      errorMessage.style.display = 'block';
+      errorMessage.textContent =
+        "Authentication failed. Please check your credentials.";
+      errorMessage.style.display = "block";
     }
   });
 
   // Check if already logged in
   if (localStorage.getItem(AUTH_KEY)) {
-      // Optional: verify token validity? For now, just redirect.
-      window.location.href = '/studio/';
+    // Optional: verify token validity? For now, just redirect.
+    window.location.href = "/studio/";
   }
 </script>
 
@@ -79,7 +99,11 @@ import Layout from '../layouts/Layout.astro';
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    background: radial-gradient(circle at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+    background: radial-gradient(
+      circle at center,
+      var(--bg-secondary) 0%,
+      var(--bg-primary) 100%
+    );
   }
 
   .login-card {

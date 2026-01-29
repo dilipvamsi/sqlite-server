@@ -1,5 +1,5 @@
 import localforage from 'localforage';
-import { toJson, type JsonValue } from "@bufbuild/protobuf";
+import { toJson } from "@bufbuild/protobuf";
 import { ValueSchema } from "@bufbuild/protobuf/wkt";
 
 export interface NotebookCard {
@@ -380,10 +380,13 @@ export class NotebookManager {
             // Save everything
             this.saveCardResult(card);
 
-            // Transaction Mode Specific Logic
+            // Auto-create next card on success
             if (this.pageType === 'transaction') {
                 card.readOnly = true; // Lock this step
                 // Auto-create next step, BUT keep selection on current result so user can see what happened
+                this.addCard(true, false);
+            } else if (this.pageType === 'query') {
+                // Query mode: auto-add a new card for convenience, keep selection on current result
                 this.addCard(true, false);
             }
 
@@ -397,7 +400,7 @@ export class NotebookManager {
         this.renderResultPanel();
 
         // If we added a card, we need a full re-render anyway to show it
-        if (this.pageType === 'transaction' && card.status === 'success') {
+        if (card.status === 'success') {
             this.renderCards();
         }
     }
@@ -436,7 +439,6 @@ export class NotebookManager {
         if (!cardEl) return;
 
         const runBtn = cardEl.querySelector('.run-btn') as HTMLButtonElement;
-        const durationEl = cardEl.querySelector('.duration') as HTMLElement;
         const controlsEl = cardEl.querySelector('.card-actions');
 
         if (runBtn) {
@@ -459,7 +461,7 @@ export class NotebookManager {
 
 
         // Update duration if exists or append
-        let existingDuration = cardEl.querySelector('.duration');
+        const existingDuration = cardEl.querySelector('.duration');
         if (card.executionTimeMs) {
             if (existingDuration) {
                 existingDuration.textContent = `${card.executionTimeMs}ms`;
@@ -601,6 +603,7 @@ export class NotebookManager {
             if (typeof unwrapped === 'object') return JSON.stringify(unwrapped);
             return String(unwrapped);
         } catch (e) {
+            console.error(e);
             return String(val);
         }
     }

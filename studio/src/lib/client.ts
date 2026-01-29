@@ -20,6 +20,7 @@ export function getClient<T extends GenService<any>>(service: T) {
 
 // Authentication Helpers
 export const AUTH_KEY = "sqlite-server-auth"; // Stores API Key
+export const AUTH_KEY_ID = "sqlite-server-key-id"; // Stores Session Key ID
 export const AUTH_USER = "sqlite-server-user"; // Stores username
 
 export function getAuthHeaders() {
@@ -63,16 +64,16 @@ export function getActiveTransaction(): ActiveTransactionInfo | null {
 // Global Logout Utility
 export async function performLogout() {
     console.log("[DEBUG] performLogout called");
-    const { DatabaseService } = await import("../gen/db/v1/db_service_pb");
+    const { DatabaseService, AdminService } = await import("../gen/db/v1/db_service_pb");
     const localforage = (await import("localforage")).default;
 
-    // Check for active transaction and rollback
+    // 1. Rollback Active Transaction
     const activeTx = getActiveTransaction();
-    console.log("[DEBUG] Active transaction found:", activeTx);
+    const headers = getAuthHeaders() as HeadersInit;
+
     if (activeTx) {
         try {
             const client = getClient(DatabaseService);
-            const headers = getAuthHeaders() as HeadersInit;
             console.log("[DEBUG] Calling rollbackTransaction for:", activeTx.txId);
             await client.rollbackTransaction({ transactionId: activeTx.txId }, { headers });
             console.log("[DEBUG] Rolled back active transaction on logout:", activeTx.txId);
@@ -82,12 +83,44 @@ export async function performLogout() {
         clearActiveTransaction();
     }
 
-    // Clear all local data
-    await localforage.clear();
-    localStorage.removeItem(AUTH_KEY);
-    localStorage.removeItem(AUTH_USER);
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    // 2. Server-side Logout (Revoke Key)
+    const keyId = localStorage.getItem(AUTH_KEY_ID);
+    if (keyId) {
+        try {
+            const client = getClient(AdminService);
+            await client.logout({ keyId }, { headers });
+            console.log("[DEBUG] Server-side logout successful");
+        } catch (e) {
+            console.error("[DEBUG] Failed to logout from server:", e);
+        }
+    }
 
-    // Redirect to login
+    // 3. Clear all local data (Browser Data)
+    // Clear the specific localforage instance used by NotebookManager
+    const studioStore = localforage.createInstance({
+        name: 'sqlite-studio',
+        storeName: 'sqlite-studio-data'
+    });
+    await studioStore.clear();
+    console.log("[DEBUG] Cleared sqlite-studio localforage store");
+
+    // Also clear default localforage
+    await localforage.clear();
+
+    // Drop the entire IndexedDB database for complete cleanup
+    try {
+        await localforage.dropInstance({ name: 'sqlite-studio' });
+        console.log("[DEBUG] Dropped sqlite-studio IndexedDB");
+    } catch (e) {
+        console.error("[DEBUG] Failed to drop IndexedDB:", e);
+    }
+
+    localStorage.clear();
+    sessionStorage.clear();
+    document.cookie.split(";").forEach((c) => {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+
+    // 4. Redirect to login
     window.location.href = '/studio/login';
 }

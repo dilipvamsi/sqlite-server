@@ -71,7 +71,7 @@ export class TransactionHistoryManager {
         const prefix = `${this.dbName}/transaction/${id}/`;
         const keysToRemove: string[] = [];
 
-        await this.store.iterate((value, key, iterationNumber) => {
+        await this.store.iterate((value, key, _iterationNumber) => {
             if (key.startsWith(prefix)) {
                 keysToRemove.push(key);
             }

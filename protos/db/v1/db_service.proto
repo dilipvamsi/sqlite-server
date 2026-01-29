@@ -320,26 +320,58 @@ service AdminService {
   rpc Login(LoginRequest) returns (LoginResponse);
 
   /**
+   * Invalidates the current session/API key.
+   */
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  /**
    * Revokes (deletes) a specific API key immediately.
    */
   rpc RevokeApiKey(RevokeApiKeyRequest) returns (RevokeApiKeyResponse);
 
   // --- Disaster Recovery ---
 
-  /**
-   * Streams a binary backup of the specified database file.
-   * The stream delivers the file in 4MB chunks.
-   */
-  rpc BackupDatabase(BackupDatabaseRequest)
-      returns (stream BackupDatabaseResponse);
+  // /**
+  //  * Streams a binary backup of the specified database file.
+  //  * The stream delivers the file in 4MB chunks.
+  //  */
+  // rpc BackupDatabase(BackupDatabaseRequest)
+  //     returns (stream BackupDatabaseResponse);
+
+  // /**
+  //  * Restores a database from a backup stream.
+  //  * This overwrites the existing database file.
+  //  * Protocol: [Metadata] -> [Chunk] -> [Chunk]...
+  //  */
+  // rpc RestoreDatabase(stream RestoreDatabaseRequest)
+  //     returns (RestoreDatabaseResponse);
+
+  // --- Dynamic Database Management ---
 
   /**
-   * Restores a database from a backup stream.
-   * This overwrites the existing database file.
-   * Protocol: [Metadata] -> [Chunk] -> [Chunk]...
+   * Creates a new managed database.
+   * The database file is created in the server's managed directory.
    */
-  rpc RestoreDatabase(stream RestoreDatabaseRequest)
-      returns (RestoreDatabaseResponse);
+  rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+
+  /**
+   * Mounts an existing database file from the filesystem.
+   * This database is marked as "unmanaged" (cannot be deleted via API).
+   */
+  rpc MountDatabase(MountDatabaseRequest) returns (MountDatabaseResponse);
+
+  /**
+   * Unmounts a database, removing it from the active server.
+   * The file is NOT deleted.
+   */
+  rpc UnMountDatabase(UnMountDatabaseRequest) returns (UnMountDatabaseResponse);
+
+  /**
+   * Deletes a database securely.
+   * - Managed DBs: Deleted from disk and metadata.
+   * - Mounted DBs: Returns error (protects external files).
+   */
+  rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
 }
 
 // -----------------------------------------------------------------------------
@@ -433,7 +465,7 @@ message CreateApiKeyRequest {
  */
 message CreateApiKeyResponse {
   string api_key = 1; // The raw secret key (only shown once)
-  int64 key_id = 2;
+  string key_id = 2;  // UUID v7
 }
 
 /**
@@ -448,7 +480,7 @@ message ListApiKeysRequest {
  */
 message ListApiKeysResponse {
   message ApiKeySummary {
-    int64 id = 1;
+    string id = 1; // UUID v7
     string name = 2;
     string prefix = 3; // First 8 chars
     google.protobuf.Timestamp created_at = 4;
@@ -464,7 +496,13 @@ message ListDatabasesRequest {}
 /**
  * Response containing a list of database names.
  */
-message ListDatabasesResponse { repeated string databases = 1; }
+message ListDatabasesResponse { repeated DatabaseInfo databases = 1; }
+
+message DatabaseInfo {
+  string name = 1;
+  string path = 2;
+  bool is_managed = 3;
+}
 
 /**
  * Request to authenticate and create a session.
@@ -486,7 +524,18 @@ message LoginResponse {
   google.protobuf.Timestamp expires_at = 2;
   // Information about the authenticated user.
   User user = 3;
+  // The ID of the session key (used for revocation/logout). UUID v7.
+  string key_id = 4;
 }
+
+message LogoutRequest {
+  // The session key ID to invalidate (UUID v7).
+  // Ideally, this should match the key used for authentication,
+  // but for explicit correctness we require the ID.
+  string key_id = 1 [ (buf.validate.field).string.uuid = true ];
+}
+
+message LogoutResponse { bool success = 1; }
 
 /**
  * Basic user information.
@@ -501,7 +550,7 @@ message User {
  * Request to revoke (delete) a specific API key.
  */
 message RevokeApiKeyRequest {
-  int64 key_id = 1 [ (buf.validate.field).int64.gt = 0 ];
+  string key_id = 1 [ (buf.validate.field).string.uuid = true ];
 }
 
 /**
@@ -551,6 +600,56 @@ message RestoreDatabaseRequest {
 message RestoreDatabaseResponse {
   bool success = 1;
   int64 bytes_written = 2;
+}
+
+// -----------------------------------------------------------------------------
+// Dynamic Database Management Messages
+// -----------------------------------------------------------------------------
+
+message CreateDatabaseRequest {
+  // Name of the new database. Must be unique.
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+}
+
+message CreateDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message MountDatabaseRequest {
+  // Config name for the database.
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+  // Absolute path to the SQLite file.
+  string path = 2 [ (buf.validate.field).string.min_len = 1 ];
+  // Optional: Read-only mode
+  bool read_only = 3;
+}
+
+message MountDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UnMountDatabaseRequest {
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+}
+
+message UnMountDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DeleteDatabaseRequest {
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+}
+
+message DeleteDatabaseResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 /**

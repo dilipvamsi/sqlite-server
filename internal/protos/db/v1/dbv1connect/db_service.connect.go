@@ -108,15 +108,23 @@ const (
 	AdminServiceListDatabasesProcedure = "/db.v1.AdminService/ListDatabases"
 	// AdminServiceLoginProcedure is the fully-qualified name of the AdminService's Login RPC.
 	AdminServiceLoginProcedure = "/db.v1.AdminService/Login"
+	// AdminServiceLogoutProcedure is the fully-qualified name of the AdminService's Logout RPC.
+	AdminServiceLogoutProcedure = "/db.v1.AdminService/Logout"
 	// AdminServiceRevokeApiKeyProcedure is the fully-qualified name of the AdminService's RevokeApiKey
 	// RPC.
 	AdminServiceRevokeApiKeyProcedure = "/db.v1.AdminService/RevokeApiKey"
-	// AdminServiceBackupDatabaseProcedure is the fully-qualified name of the AdminService's
-	// BackupDatabase RPC.
-	AdminServiceBackupDatabaseProcedure = "/db.v1.AdminService/BackupDatabase"
-	// AdminServiceRestoreDatabaseProcedure is the fully-qualified name of the AdminService's
-	// RestoreDatabase RPC.
-	AdminServiceRestoreDatabaseProcedure = "/db.v1.AdminService/RestoreDatabase"
+	// AdminServiceCreateDatabaseProcedure is the fully-qualified name of the AdminService's
+	// CreateDatabase RPC.
+	AdminServiceCreateDatabaseProcedure = "/db.v1.AdminService/CreateDatabase"
+	// AdminServiceMountDatabaseProcedure is the fully-qualified name of the AdminService's
+	// MountDatabase RPC.
+	AdminServiceMountDatabaseProcedure = "/db.v1.AdminService/MountDatabase"
+	// AdminServiceUnMountDatabaseProcedure is the fully-qualified name of the AdminService's
+	// UnMountDatabase RPC.
+	AdminServiceUnMountDatabaseProcedure = "/db.v1.AdminService/UnMountDatabase"
+	// AdminServiceDeleteDatabaseProcedure is the fully-qualified name of the AdminService's
+	// DeleteDatabase RPC.
+	AdminServiceDeleteDatabaseProcedure = "/db.v1.AdminService/DeleteDatabase"
 )
 
 // DatabaseServiceClient is a client for the db.v1.DatabaseService service.
@@ -533,17 +541,28 @@ type AdminServiceClient interface {
 	// Requires Basic Auth for the initial request.
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	// *
+	// Invalidates the current session/API key.
+	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// *
 	// Revokes (deletes) a specific API key immediately.
 	RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error)
 	// *
-	// Streams a binary backup of the specified database file.
-	// The stream delivers the file in 4MB chunks.
-	BackupDatabase(context.Context, *connect.Request[v1.BackupDatabaseRequest]) (*connect.ServerStreamForClient[v1.BackupDatabaseResponse], error)
+	// Creates a new managed database.
+	// The database file is created in the server's managed directory.
+	CreateDatabase(context.Context, *connect.Request[v1.CreateDatabaseRequest]) (*connect.Response[v1.CreateDatabaseResponse], error)
 	// *
-	// Restores a database from a backup stream.
-	// This overwrites the existing database file.
-	// Protocol: [Metadata] -> [Chunk] -> [Chunk]...
-	RestoreDatabase(context.Context) *connect.ClientStreamForClient[v1.RestoreDatabaseRequest, v1.RestoreDatabaseResponse]
+	// Mounts an existing database file from the filesystem.
+	// This database is marked as "unmanaged" (cannot be deleted via API).
+	MountDatabase(context.Context, *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error)
+	// *
+	// Unmounts a database, removing it from the active server.
+	// The file is NOT deleted.
+	UnMountDatabase(context.Context, *connect.Request[v1.UnMountDatabaseRequest]) (*connect.Response[v1.UnMountDatabaseResponse], error)
+	// *
+	// Deletes a database securely.
+	// - Managed DBs: Deleted from disk and metadata.
+	// - Mounted DBs: Returns error (protects external files).
+	DeleteDatabase(context.Context, *connect.Request[v1.DeleteDatabaseRequest]) (*connect.Response[v1.DeleteDatabaseResponse], error)
 }
 
 // NewAdminServiceClient constructs a client for the db.v1.AdminService service. By default, it uses
@@ -599,22 +618,40 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("Login")),
 			connect.WithClientOptions(opts...),
 		),
+		logout: connect.NewClient[v1.LogoutRequest, v1.LogoutResponse](
+			httpClient,
+			baseURL+AdminServiceLogoutProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("Logout")),
+			connect.WithClientOptions(opts...),
+		),
 		revokeApiKey: connect.NewClient[v1.RevokeApiKeyRequest, v1.RevokeApiKeyResponse](
 			httpClient,
 			baseURL+AdminServiceRevokeApiKeyProcedure,
 			connect.WithSchema(adminServiceMethods.ByName("RevokeApiKey")),
 			connect.WithClientOptions(opts...),
 		),
-		backupDatabase: connect.NewClient[v1.BackupDatabaseRequest, v1.BackupDatabaseResponse](
+		createDatabase: connect.NewClient[v1.CreateDatabaseRequest, v1.CreateDatabaseResponse](
 			httpClient,
-			baseURL+AdminServiceBackupDatabaseProcedure,
-			connect.WithSchema(adminServiceMethods.ByName("BackupDatabase")),
+			baseURL+AdminServiceCreateDatabaseProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("CreateDatabase")),
 			connect.WithClientOptions(opts...),
 		),
-		restoreDatabase: connect.NewClient[v1.RestoreDatabaseRequest, v1.RestoreDatabaseResponse](
+		mountDatabase: connect.NewClient[v1.MountDatabaseRequest, v1.MountDatabaseResponse](
 			httpClient,
-			baseURL+AdminServiceRestoreDatabaseProcedure,
-			connect.WithSchema(adminServiceMethods.ByName("RestoreDatabase")),
+			baseURL+AdminServiceMountDatabaseProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("MountDatabase")),
+			connect.WithClientOptions(opts...),
+		),
+		unMountDatabase: connect.NewClient[v1.UnMountDatabaseRequest, v1.UnMountDatabaseResponse](
+			httpClient,
+			baseURL+AdminServiceUnMountDatabaseProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("UnMountDatabase")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteDatabase: connect.NewClient[v1.DeleteDatabaseRequest, v1.DeleteDatabaseResponse](
+			httpClient,
+			baseURL+AdminServiceDeleteDatabaseProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("DeleteDatabase")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -629,9 +666,12 @@ type adminServiceClient struct {
 	listApiKeys     *connect.Client[v1.ListApiKeysRequest, v1.ListApiKeysResponse]
 	listDatabases   *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
 	login           *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	logout          *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
 	revokeApiKey    *connect.Client[v1.RevokeApiKeyRequest, v1.RevokeApiKeyResponse]
-	backupDatabase  *connect.Client[v1.BackupDatabaseRequest, v1.BackupDatabaseResponse]
-	restoreDatabase *connect.Client[v1.RestoreDatabaseRequest, v1.RestoreDatabaseResponse]
+	createDatabase  *connect.Client[v1.CreateDatabaseRequest, v1.CreateDatabaseResponse]
+	mountDatabase   *connect.Client[v1.MountDatabaseRequest, v1.MountDatabaseResponse]
+	unMountDatabase *connect.Client[v1.UnMountDatabaseRequest, v1.UnMountDatabaseResponse]
+	deleteDatabase  *connect.Client[v1.DeleteDatabaseRequest, v1.DeleteDatabaseResponse]
 }
 
 // CreateUser calls db.v1.AdminService.CreateUser.
@@ -669,19 +709,34 @@ func (c *adminServiceClient) Login(ctx context.Context, req *connect.Request[v1.
 	return c.login.CallUnary(ctx, req)
 }
 
+// Logout calls db.v1.AdminService.Logout.
+func (c *adminServiceClient) Logout(ctx context.Context, req *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
+	return c.logout.CallUnary(ctx, req)
+}
+
 // RevokeApiKey calls db.v1.AdminService.RevokeApiKey.
 func (c *adminServiceClient) RevokeApiKey(ctx context.Context, req *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error) {
 	return c.revokeApiKey.CallUnary(ctx, req)
 }
 
-// BackupDatabase calls db.v1.AdminService.BackupDatabase.
-func (c *adminServiceClient) BackupDatabase(ctx context.Context, req *connect.Request[v1.BackupDatabaseRequest]) (*connect.ServerStreamForClient[v1.BackupDatabaseResponse], error) {
-	return c.backupDatabase.CallServerStream(ctx, req)
+// CreateDatabase calls db.v1.AdminService.CreateDatabase.
+func (c *adminServiceClient) CreateDatabase(ctx context.Context, req *connect.Request[v1.CreateDatabaseRequest]) (*connect.Response[v1.CreateDatabaseResponse], error) {
+	return c.createDatabase.CallUnary(ctx, req)
 }
 
-// RestoreDatabase calls db.v1.AdminService.RestoreDatabase.
-func (c *adminServiceClient) RestoreDatabase(ctx context.Context) *connect.ClientStreamForClient[v1.RestoreDatabaseRequest, v1.RestoreDatabaseResponse] {
-	return c.restoreDatabase.CallClientStream(ctx)
+// MountDatabase calls db.v1.AdminService.MountDatabase.
+func (c *adminServiceClient) MountDatabase(ctx context.Context, req *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error) {
+	return c.mountDatabase.CallUnary(ctx, req)
+}
+
+// UnMountDatabase calls db.v1.AdminService.UnMountDatabase.
+func (c *adminServiceClient) UnMountDatabase(ctx context.Context, req *connect.Request[v1.UnMountDatabaseRequest]) (*connect.Response[v1.UnMountDatabaseResponse], error) {
+	return c.unMountDatabase.CallUnary(ctx, req)
+}
+
+// DeleteDatabase calls db.v1.AdminService.DeleteDatabase.
+func (c *adminServiceClient) DeleteDatabase(ctx context.Context, req *connect.Request[v1.DeleteDatabaseRequest]) (*connect.Response[v1.DeleteDatabaseResponse], error) {
+	return c.deleteDatabase.CallUnary(ctx, req)
 }
 
 // AdminServiceHandler is an implementation of the db.v1.AdminService service.
@@ -714,17 +769,28 @@ type AdminServiceHandler interface {
 	// Requires Basic Auth for the initial request.
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	// *
+	// Invalidates the current session/API key.
+	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// *
 	// Revokes (deletes) a specific API key immediately.
 	RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error)
 	// *
-	// Streams a binary backup of the specified database file.
-	// The stream delivers the file in 4MB chunks.
-	BackupDatabase(context.Context, *connect.Request[v1.BackupDatabaseRequest], *connect.ServerStream[v1.BackupDatabaseResponse]) error
+	// Creates a new managed database.
+	// The database file is created in the server's managed directory.
+	CreateDatabase(context.Context, *connect.Request[v1.CreateDatabaseRequest]) (*connect.Response[v1.CreateDatabaseResponse], error)
 	// *
-	// Restores a database from a backup stream.
-	// This overwrites the existing database file.
-	// Protocol: [Metadata] -> [Chunk] -> [Chunk]...
-	RestoreDatabase(context.Context, *connect.ClientStream[v1.RestoreDatabaseRequest]) (*connect.Response[v1.RestoreDatabaseResponse], error)
+	// Mounts an existing database file from the filesystem.
+	// This database is marked as "unmanaged" (cannot be deleted via API).
+	MountDatabase(context.Context, *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error)
+	// *
+	// Unmounts a database, removing it from the active server.
+	// The file is NOT deleted.
+	UnMountDatabase(context.Context, *connect.Request[v1.UnMountDatabaseRequest]) (*connect.Response[v1.UnMountDatabaseResponse], error)
+	// *
+	// Deletes a database securely.
+	// - Managed DBs: Deleted from disk and metadata.
+	// - Mounted DBs: Returns error (protects external files).
+	DeleteDatabase(context.Context, *connect.Request[v1.DeleteDatabaseRequest]) (*connect.Response[v1.DeleteDatabaseResponse], error)
 }
 
 // NewAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -776,22 +842,40 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("Login")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceLogoutHandler := connect.NewUnaryHandler(
+		AdminServiceLogoutProcedure,
+		svc.Logout,
+		connect.WithSchema(adminServiceMethods.ByName("Logout")),
+		connect.WithHandlerOptions(opts...),
+	)
 	adminServiceRevokeApiKeyHandler := connect.NewUnaryHandler(
 		AdminServiceRevokeApiKeyProcedure,
 		svc.RevokeApiKey,
 		connect.WithSchema(adminServiceMethods.ByName("RevokeApiKey")),
 		connect.WithHandlerOptions(opts...),
 	)
-	adminServiceBackupDatabaseHandler := connect.NewServerStreamHandler(
-		AdminServiceBackupDatabaseProcedure,
-		svc.BackupDatabase,
-		connect.WithSchema(adminServiceMethods.ByName("BackupDatabase")),
+	adminServiceCreateDatabaseHandler := connect.NewUnaryHandler(
+		AdminServiceCreateDatabaseProcedure,
+		svc.CreateDatabase,
+		connect.WithSchema(adminServiceMethods.ByName("CreateDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
-	adminServiceRestoreDatabaseHandler := connect.NewClientStreamHandler(
-		AdminServiceRestoreDatabaseProcedure,
-		svc.RestoreDatabase,
-		connect.WithSchema(adminServiceMethods.ByName("RestoreDatabase")),
+	adminServiceMountDatabaseHandler := connect.NewUnaryHandler(
+		AdminServiceMountDatabaseProcedure,
+		svc.MountDatabase,
+		connect.WithSchema(adminServiceMethods.ByName("MountDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceUnMountDatabaseHandler := connect.NewUnaryHandler(
+		AdminServiceUnMountDatabaseProcedure,
+		svc.UnMountDatabase,
+		connect.WithSchema(adminServiceMethods.ByName("UnMountDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceDeleteDatabaseHandler := connect.NewUnaryHandler(
+		AdminServiceDeleteDatabaseProcedure,
+		svc.DeleteDatabase,
+		connect.WithSchema(adminServiceMethods.ByName("DeleteDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/db.v1.AdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -810,12 +894,18 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceListDatabasesHandler.ServeHTTP(w, r)
 		case AdminServiceLoginProcedure:
 			adminServiceLoginHandler.ServeHTTP(w, r)
+		case AdminServiceLogoutProcedure:
+			adminServiceLogoutHandler.ServeHTTP(w, r)
 		case AdminServiceRevokeApiKeyProcedure:
 			adminServiceRevokeApiKeyHandler.ServeHTTP(w, r)
-		case AdminServiceBackupDatabaseProcedure:
-			adminServiceBackupDatabaseHandler.ServeHTTP(w, r)
-		case AdminServiceRestoreDatabaseProcedure:
-			adminServiceRestoreDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceCreateDatabaseProcedure:
+			adminServiceCreateDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceMountDatabaseProcedure:
+			adminServiceMountDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceUnMountDatabaseProcedure:
+			adminServiceUnMountDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceDeleteDatabaseProcedure:
+			adminServiceDeleteDatabaseHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -853,14 +943,26 @@ func (UnimplementedAdminServiceHandler) Login(context.Context, *connect.Request[
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.Login is not implemented"))
 }
 
+func (UnimplementedAdminServiceHandler) Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.Logout is not implemented"))
+}
+
 func (UnimplementedAdminServiceHandler) RevokeApiKey(context.Context, *connect.Request[v1.RevokeApiKeyRequest]) (*connect.Response[v1.RevokeApiKeyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.RevokeApiKey is not implemented"))
 }
 
-func (UnimplementedAdminServiceHandler) BackupDatabase(context.Context, *connect.Request[v1.BackupDatabaseRequest], *connect.ServerStream[v1.BackupDatabaseResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.BackupDatabase is not implemented"))
+func (UnimplementedAdminServiceHandler) CreateDatabase(context.Context, *connect.Request[v1.CreateDatabaseRequest]) (*connect.Response[v1.CreateDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.CreateDatabase is not implemented"))
 }
 
-func (UnimplementedAdminServiceHandler) RestoreDatabase(context.Context, *connect.ClientStream[v1.RestoreDatabaseRequest]) (*connect.Response[v1.RestoreDatabaseResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.RestoreDatabase is not implemented"))
+func (UnimplementedAdminServiceHandler) MountDatabase(context.Context, *connect.Request[v1.MountDatabaseRequest]) (*connect.Response[v1.MountDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.MountDatabase is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) UnMountDatabase(context.Context, *connect.Request[v1.UnMountDatabaseRequest]) (*connect.Response[v1.UnMountDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.UnMountDatabase is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) DeleteDatabase(context.Context, *connect.Request[v1.DeleteDatabaseRequest]) (*connect.Response[v1.DeleteDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.DeleteDatabase is not implemented"))
 }

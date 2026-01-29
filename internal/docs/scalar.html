@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite Server - API Documentation</title>
+    <meta name="description" content="Interactive API documentation for SQLite Server">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --scalar-font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Custom header */
+        .docs-header {
+            background: #0a0a0f;
+            border-bottom: 1px solid #2a2a35;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .docs-header a {
+            color: #f0f0f5;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            font-family: var(--scalar-font);
+        }
+
+        .docs-header .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .docs-header nav {
+            display: flex;
+            gap: 20px;
+        }
+
+        .docs-header nav a {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #a0a0b0;
+            transition: color 0.2s;
+        }
+
+        .docs-header nav a:hover {
+            color: #f0f0f5;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="docs-header">
+        <a href="/">
+            <div class="logo-icon">⚡</div>
+            SQLite Server
+        </a>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/studio/">Studio</a>
+            <a href="/docs/">API Docs</a>
+        </nav>
+    </div>
+
+    <script id="api-reference" data-url="/docs/openapi.yaml" data-configuration='{
+            "theme": "purple",
+            "layout": "modern",
+            "darkMode": true,
+            "hideDarkModeToggle": false,
+            "searchHotKey": "k",
+            "metaData": {
+                "title": "SQLite Server API",
+                "description": "Production-ready gRPC/HTTP bridge for SQLite"
+            },
+            "authentication": {
+                "preferredSecurityScheme": "bearerAuth"
+            }
+        }'></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body>
+
+</html>
