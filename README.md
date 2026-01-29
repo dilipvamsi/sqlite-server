@@ -105,15 +105,16 @@ For Unary Transactions (`BeginTransaction` -> `TransactionQuery`), the server ho
 *   Node.js 18+ (for Studio development)
 
 ### 1. Build the Project
+The project uses a `Makefile` to automate common tasks.
+
 ```bash
-# Generate Protobuf code
-buf generate
+# Install all dependencies and build everything (Proto + Studio + Server)
+make build
 
-# Build the server binary
-go build -o bin/server ./cmd/server
-
-# Build the Studio UI (production)
-cd studio && npm install && npm run build
+# Or build specific components:
+make gen-proto      # Generate Protobuf code
+make studio-build   # Build the Web Studio
+make build-dynamic  # Build only the server binary
 ```
 
 ### 2. Configuration (`config.json`)
@@ -137,14 +138,20 @@ Create a `config.json` file to define your databases.
 
 ### 3. Run the Server
 ```bash
-# Run with default config.json
-./bin/server
+# Build and run with default config.json
+make run
 
-# Run with specific config
-./bin/server my_config.json
+# Fast development run (using go run)
+make run-dev
+
+# Quick test with multiple databases and Auth enabled (admin/admin)
+make run-load-test-auth-dev
+
+# Run with specific config manually
+./bin/sqlite-server.bin my_config.json
 
 # Disable authentication (development only)
-SQLITE_SERVER_AUTH_ENABLED=false ./bin/server
+SQLITE_SERVER_AUTH_ENABLED=false make run
 ```
 
 The server listens on `localhost:50051` using HTTP/2 (h2c).
@@ -329,21 +336,50 @@ Access the Studio at `http://localhost:50051/studio/` after logging in.
 
 ## 🧪 Testing
 
-### Running Tests
+### 1. Running Tests
 ```bash
-# Run all tests
-go test ./...
+# Run all unit tests
+make test
 
-# Run with coverage
-go test ./... -coverprofile=coverage.out
-go tool cover -html=coverage.out -o coverage.html
+# Run tests and generate an HTML coverage report
+make test-coverage
 
 # Run Studio linting
 cd studio && npm run lint
 ```
 
-### Load Testing
-The project includes load testing utilities in `tests/load-with-api-key/` and `tests/load-with-basic-auth/`.
+### 2. Load Testing (Benchmarks)
+The project includes a comprehensive load testing suite to verify performance under high concurrency.
+
+**Setup Test Databases:**
+```bash
+# Initialize unencrypted test DBs
+make build-load-test-setup
+
+# Initialize encrypted (SQLCipher) test DBs
+make build-load-test-setup-cipher
+```
+
+**Run Server for Load Testing:**
+```bash
+# Run server with loadtest config (No Auth)
+make run-load-test-setup
+
+# Run server with loadtest config (With Auth - admin/admin)
+make run-load-test-setup-auth
+```
+
+**Run Benchmark Clients:**
+```bash
+# Build and run all benchmarks
+make load-test
+
+# API Key benchmarks (requires 'make setup-apikey' first)
+make load-test-apikey
+
+# Basic Auth benchmarks (uses admin/admin)
+make load-test-basic
+```
 
 ---
 
@@ -387,6 +423,22 @@ See the `clients/` directory for usage examples and API documentation.
 
 ---
 
-## 📄 License
+## � Development Reference (Makefile)
+
+The `Makefile` is the source of truth for all development workflows. Run `make help` to see all available targets.
+
+### Key Targets:
+| Target | Description |
+| :--- | :--- |
+| `make build` | Full production build (Studio + Binary) |
+| `make gen-proto` | Regenerates all Protobuf and enriched OpenAPI code |
+| `make run-dev` | Fast-reload server for local development |
+| `make test-coverage` | Runs unit tests and generates HTML report |
+| `make clean` | Resets the workspace (removes bins, metadata, and test DBs) |
+| `make help` | Lists all available targets with descriptions |
+
+---
+
+## �📄 License
 
 MIT License - See [LICENSE](LICENSE) for details.
