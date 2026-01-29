@@ -161,6 +161,7 @@ module.exports = {
   createTypedRowIterator,
   createTypedBatchIterator,
   mapTypedQueryResult,
+  mapExplainResponse,
 };
 
 // =============================================================================
@@ -429,4 +430,19 @@ function mapTypedQueryResult(result, typeParsers = {}) {
     type: "UNKNOWN",
     stats,
   };
+}
+
+/**
+ * Maps an ExplainResponse proto to a standardized JS object.
+ *
+ * @param {db_service_pb.ExplainResponse} response - The ExplainResponse proto.
+ * @returns {Array<{id: number, parentId: number, detail: string}>} List of plan nodes.
+ */
+function mapExplainResponse(response) {
+  const nodes = response.getNodesList();
+  return nodes.map((node) => ({
+    id: node.getId(),
+    parentId: node.getParentId(),
+    detail: node.getDetail(),
+  }));
 }

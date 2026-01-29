@@ -135,6 +135,17 @@ function deserialize_db_v1_DatabaseConfig(buffer_arg) {
   return db_v1_db_service_pb.DatabaseConfig.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_DatabaseSchema(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DatabaseSchema)) {
+    throw new Error('Expected argument of type db.v1.DatabaseSchema');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DatabaseSchema(buffer_arg) {
+  return db_v1_db_service_pb.DatabaseSchema.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_DeleteDatabaseRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.DeleteDatabaseRequest)) {
     throw new Error('Expected argument of type db.v1.DeleteDatabaseRequest');
@@ -201,6 +212,39 @@ function deserialize_db_v1_ExecuteTransactionResponse(buffer_arg) {
   return db_v1_db_service_pb.ExecuteTransactionResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_ExplainResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ExplainResponse)) {
+    throw new Error('Expected argument of type db.v1.ExplainResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ExplainResponse(buffer_arg) {
+  return db_v1_db_service_pb.ExplainResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_GetDatabaseSchemaRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.GetDatabaseSchemaRequest)) {
+    throw new Error('Expected argument of type db.v1.GetDatabaseSchemaRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_GetDatabaseSchemaRequest(buffer_arg) {
+  return db_v1_db_service_pb.GetDatabaseSchemaRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_GetTableSchemaRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.GetTableSchemaRequest)) {
+    throw new Error('Expected argument of type db.v1.GetTableSchemaRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_GetTableSchemaRequest(buffer_arg) {
+  return db_v1_db_service_pb.GetTableSchemaRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_ListApiKeysRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.ListApiKeysRequest)) {
     throw new Error('Expected argument of type db.v1.ListApiKeysRequest');
@@ -243,6 +287,28 @@ function serialize_db_v1_ListDatabasesResponse(arg) {
 
 function deserialize_db_v1_ListDatabasesResponse(buffer_arg) {
   return db_v1_db_service_pb.ListDatabasesResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListTablesRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListTablesRequest)) {
+    throw new Error('Expected argument of type db.v1.ListTablesRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListTablesRequest(buffer_arg) {
+  return db_v1_db_service_pb.ListTablesRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListTablesResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListTablesResponse)) {
+    throw new Error('Expected argument of type db.v1.ListTablesResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListTablesResponse(buffer_arg) {
+  return db_v1_db_service_pb.ListTablesResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_LoginRequest(arg) {
@@ -364,6 +430,17 @@ function serialize_db_v1_SavepointResponse(arg) {
 
 function deserialize_db_v1_SavepointResponse(buffer_arg) {
   return db_v1_db_service_pb.SavepointResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_TableSchema(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.TableSchema)) {
+    throw new Error('Expected argument of type db.v1.TableSchema');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_TableSchema(buffer_arg) {
+  return db_v1_db_service_pb.TableSchema.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_TransactionControlRequest(arg) {
@@ -750,6 +827,80 @@ typedTransactionQueryStream: {
     requestDeserialize: deserialize_db_v1_TypedTransactionQueryRequest,
     responseSerialize: serialize_db_v1_TypedQueryResponse,
     responseDeserialize: deserialize_db_v1_TypedQueryResponse,
+  },
+  // ---------------------------------------------------------------------------
+// Developer Experience & Introspection
+// ---------------------------------------------------------------------------
+//
+// *
+// Returns structured EXPLAIN QUERY PLAN output as a tree.
+// Helps developers understand index usage and optimization opportunities.
+explain: {
+    path: '/db.v1.DatabaseService/Explain',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.QueryRequest,
+    responseType: db_v1_db_service_pb.ExplainResponse,
+    requestSerialize: serialize_db_v1_QueryRequest,
+    requestDeserialize: deserialize_db_v1_QueryRequest,
+    responseSerialize: serialize_db_v1_ExplainResponse,
+    responseDeserialize: deserialize_db_v1_ExplainResponse,
+  },
+  // *
+// Typed variant of Explain using strongly-typed parameters.
+// Returns the same structured EXPLAIN QUERY PLAN output.
+typedExplain: {
+    path: '/db.v1.DatabaseService/TypedExplain',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.TypedQueryRequest,
+    responseType: db_v1_db_service_pb.ExplainResponse,
+    requestSerialize: serialize_db_v1_TypedQueryRequest,
+    requestDeserialize: deserialize_db_v1_TypedQueryRequest,
+    responseSerialize: serialize_db_v1_ExplainResponse,
+    responseDeserialize: deserialize_db_v1_ExplainResponse,
+  },
+  // *
+// Returns a light listing of all tables in the database.
+// Useful for UI dropdowns and quick navigation.
+listTables: {
+    path: '/db.v1.DatabaseService/ListTables',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.ListTablesRequest,
+    responseType: db_v1_db_service_pb.ListTablesResponse,
+    requestSerialize: serialize_db_v1_ListTablesRequest,
+    requestDeserialize: deserialize_db_v1_ListTablesRequest,
+    responseSerialize: serialize_db_v1_ListTablesResponse,
+    responseDeserialize: deserialize_db_v1_ListTablesResponse,
+  },
+  // *
+// Returns detailed schema for a single table.
+// Includes columns, indexes, foreign keys, and triggers.
+getTableSchema: {
+    path: '/db.v1.DatabaseService/GetTableSchema',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.GetTableSchemaRequest,
+    responseType: db_v1_db_service_pb.TableSchema,
+    requestSerialize: serialize_db_v1_GetTableSchemaRequest,
+    requestDeserialize: deserialize_db_v1_GetTableSchemaRequest,
+    responseSerialize: serialize_db_v1_TableSchema,
+    responseDeserialize: deserialize_db_v1_TableSchema,
+  },
+  // *
+// Returns the full database schema for exports/migrations.
+// Aggregates all tables with their complete schema information.
+getDatabaseSchema: {
+    path: '/db.v1.DatabaseService/GetDatabaseSchema',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.GetDatabaseSchemaRequest,
+    responseType: db_v1_db_service_pb.DatabaseSchema,
+    requestSerialize: serialize_db_v1_GetDatabaseSchemaRequest,
+    requestDeserialize: deserialize_db_v1_GetDatabaseSchemaRequest,
+    responseSerialize: serialize_db_v1_DatabaseSchema,
+    responseDeserialize: deserialize_db_v1_DatabaseSchema,
   },
 };
 

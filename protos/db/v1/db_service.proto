@@ -342,6 +342,40 @@ service DatabaseService {
    */
   rpc TypedTransactionQueryStream(TypedTransactionQueryRequest)
       returns (stream TypedQueryResponse);
+
+  // ---------------------------------------------------------------------------
+  // Developer Experience & Introspection
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns structured EXPLAIN QUERY PLAN output as a tree.
+   * Helps developers understand index usage and optimization opportunities.
+   */
+  rpc Explain(QueryRequest) returns (ExplainResponse);
+
+  /**
+   * Typed variant of Explain using strongly-typed parameters.
+   * Returns the same structured EXPLAIN QUERY PLAN output.
+   */
+  rpc TypedExplain(TypedQueryRequest) returns (ExplainResponse);
+
+  /**
+   * Returns a light listing of all tables in the database.
+   * Useful for UI dropdowns and quick navigation.
+   */
+  rpc ListTables(ListTablesRequest) returns (ListTablesResponse);
+
+  /**
+   * Returns detailed schema for a single table.
+   * Includes columns, indexes, foreign keys, and triggers.
+   */
+  rpc GetTableSchema(GetTableSchemaRequest) returns (TableSchema);
+
+  /**
+   * Returns the full database schema for exports/migrations.
+   * Aggregates all tables with their complete schema information.
+   */
+  rpc GetDatabaseSchema(GetDatabaseSchemaRequest) returns (DatabaseSchema);
 }
 
 /**
@@ -1418,4 +1452,158 @@ message DatabaseConfig {
 
   // ConnMaxLifetimeMs sets how long a connection can be reused before closing.
   int32 conn_max_lifetime_ms = 10;
+}
+
+// =============================================================================
+// DEVELOPER EXPERIENCE & INTROSPECTION MESSAGES
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Explain Query Plan
+// -----------------------------------------------------------------------------
+
+/**
+ * Response containing the structured EXPLAIN QUERY PLAN output.
+ * The nodes form a tree via the parent_id references.
+ */
+message ExplainResponse {
+  // All nodes in the query plan, use parent_id to reconstruct tree structure.
+  repeated QueryPlanNode nodes = 1;
+}
+
+/**
+ * A single node in the EXPLAIN QUERY PLAN tree.
+ * Maps directly to SQLite's output: id, parent, notused, detail.
+ */
+message QueryPlanNode {
+  // Unique identifier for this node within the query plan.
+  int32 id = 1;
+  // Parent node ID (0 for root nodes).
+  int32 parent_id = 2;
+  // The operation description (e.g., "SCAN users", "SEARCH users USING INDEX").
+  string detail = 3;
+}
+
+// -----------------------------------------------------------------------------
+// Schema Introspection
+// -----------------------------------------------------------------------------
+
+/**
+ * Request to list all tables in a database.
+ */
+message ListTablesRequest {
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+}
+
+/**
+ * Response containing a list of table names.
+ */
+message ListTablesResponse { repeated string table_names = 1; }
+
+/**
+ * Request to get detailed schema for a single table.
+ */
+message GetTableSchemaRequest {
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+  string table_name = 2
+      [ (buf.validate.field).string = {min_len : 1, max_len : 256} ];
+}
+
+/**
+ * Request to get the complete database schema.
+ */
+message GetDatabaseSchemaRequest {
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+}
+
+/**
+ * Complete schema information for a single table.
+ */
+message TableSchema {
+  // Table name.
+  string name = 1;
+  // Original CREATE TABLE SQL statement.
+  string sql = 2;
+  // Column definitions.
+  repeated ColumnSchema columns = 3;
+  // Indexes on this table.
+  repeated IndexSchema indexes = 4;
+  // Foreign key constraints.
+  repeated ForeignKeySchema foreign_keys = 5;
+  // Triggers associated with this table.
+  repeated TriggerSchema triggers = 6;
+}
+
+/**
+ * Schema information for a single column.
+ * Derived from PRAGMA table_info().
+ */
+message ColumnSchema {
+  // Column name.
+  string name = 1;
+  // Declared type (e.g., "INTEGER", "TEXT", "VARCHAR(255)").
+  string type = 2;
+  // True if column has NOT NULL constraint.
+  bool not_null = 3;
+  // Default value expression (may be empty).
+  string default_value = 4;
+  // True if column is part of primary key.
+  bool primary_key = 5;
+}
+
+/**
+ * Schema information for a single index.
+ * Derived from PRAGMA index_list() and index_info().
+ */
+message IndexSchema {
+  // Index name.
+  string name = 1;
+  // True if this is a UNIQUE index.
+  bool unique = 2;
+  // Column names in the index (in order).
+  repeated string columns = 3;
+  // Original CREATE INDEX SQL statement (empty for auto-created indexes).
+  string sql = 4;
+}
+
+/**
+ * Schema information for a foreign key constraint.
+ * Derived from PRAGMA foreign_key_list().
+ */
+message ForeignKeySchema {
+  // Foreign key ID (multiple columns share same ID for composite FKs).
+  int32 id = 1;
+  // Referenced (parent) table name.
+  string table = 2;
+  // Column in this (child) table.
+  string from_column = 3;
+  // Column in the referenced (parent) table.
+  string to_column = 4;
+  // ON UPDATE action (e.g., "CASCADE", "NO ACTION").
+  string on_update = 5;
+  // ON DELETE action (e.g., "CASCADE", "SET NULL").
+  string on_delete = 6;
+}
+
+/**
+ * Schema information for a trigger.
+ * Derived from sqlite_schema WHERE type='trigger'.
+ */
+message TriggerSchema {
+  // Trigger name.
+  string name = 1;
+  // Original CREATE TRIGGER SQL statement.
+  string sql = 2;
+}
+
+/**
+ * Complete schema for an entire database.
+ * Contains all tables with their complete schema information.
+ */
+message DatabaseSchema {
+  // All tables in the database with full schema details.
+  repeated TableSchema tables = 1;
 }

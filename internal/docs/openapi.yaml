@@ -596,6 +596,150 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.ExecuteTransactionResponse'
+  /db.v1.DatabaseService/Explain:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Returns structured EXPLAIN QUERY PLAN output as a tree.\r  Helps developers understand index usage and optimization opportunities."
+      description: "*\r\n Returns structured EXPLAIN QUERY PLAN output as a tree.\r\n Helps developers understand index usage and optimization opportunities."
+      operationId: db.v1.DatabaseService.Explain
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.QueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ExplainResponse'
+  /db.v1.DatabaseService/GetDatabaseSchema:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Returns the full database schema for exports/migrations.\r  Aggregates all tables with their complete schema information."
+      description: "*\r\n Returns the full database schema for exports/migrations.\r\n Aggregates all tables with their complete schema information."
+      operationId: db.v1.DatabaseService.GetDatabaseSchema
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.GetDatabaseSchemaRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.DatabaseSchema'
+  /db.v1.DatabaseService/GetTableSchema:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Returns detailed schema for a single table.\r  Includes columns, indexes, foreign keys, and triggers."
+      description: "*\r\n Returns detailed schema for a single table.\r\n Includes columns, indexes, foreign keys, and triggers."
+      operationId: db.v1.DatabaseService.GetTableSchema
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.GetTableSchemaRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.TableSchema'
+  /db.v1.DatabaseService/ListTables:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Returns a light listing of all tables in the database.\r  Useful for UI dropdowns and quick navigation."
+      description: "*\r\n Returns a light listing of all tables in the database.\r\n Useful for UI dropdowns and quick navigation."
+      operationId: db.v1.DatabaseService.ListTables
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.ListTablesRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ListTablesResponse'
   /db.v1.DatabaseService/Query:
     post:
       tags:
@@ -743,6 +887,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.SavepointResponse'
+  /db.v1.DatabaseService/TypedExplain:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Typed variant of Explain using strongly-typed parameters.\r  Returns the same structured EXPLAIN QUERY PLAN output."
+      description: "*\r\n Typed variant of Explain using strongly-typed parameters.\r\n Returns the same structured EXPLAIN QUERY PLAN output."
+      operationId: db.v1.DatabaseService.TypedExplain
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.TypedQueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ExplainResponse'
   /db.v1.DatabaseService/TypedQuery:
     post:
       tags:
@@ -996,6 +1176,32 @@ components:
         - COLUMN_AFFINITY_REAL
         - COLUMN_AFFINITY_NUMERIC
       description: "*\r\n ColumnAffinity defines the storage class of the column.\r\n This determines how the raw bytes should be interpreted at a low level."
+    db.v1.ColumnSchema:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          description: Column name.
+        type:
+          type: string
+          title: type
+          description: Declared type (e.g., "INTEGER", "TEXT", "VARCHAR(255)").
+        notNull:
+          type: boolean
+          title: not_null
+          description: True if column has NOT NULL constraint.
+        defaultValue:
+          type: string
+          title: default_value
+          description: Default value expression (may be empty).
+        primaryKey:
+          type: boolean
+          title: primary_key
+          description: True if column is part of primary key.
+      title: ColumnSchema
+      additionalProperties: false
+      description: "*\r\n Schema information for a single column.\r\n Derived from PRAGMA table_info()."
     db.v1.CommitResponse:
       type: object
       properties:
@@ -1250,6 +1456,18 @@ components:
           title: is_managed
       title: DatabaseInfo
       additionalProperties: false
+    db.v1.DatabaseSchema:
+      type: object
+      properties:
+        tables:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.TableSchema'
+          title: tables
+          description: All tables in the database with full schema details.
+      title: DatabaseSchema
+      additionalProperties: false
+      description: "*\r\n Complete schema for an entire database.\r\n Contains all tables with their complete schema information."
     db.v1.DeclaredType:
       type: string
       title: DeclaredType
@@ -1399,6 +1617,98 @@ components:
       title: ExecutionStats
       additionalProperties: false
       description: "*\r\n Performance metrics for a query execution.\r\n Useful for profiling and monitoring."
+    db.v1.ExplainResponse:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.QueryPlanNode'
+          title: nodes
+          description: All nodes in the query plan, use parent_id to reconstruct tree structure.
+      title: ExplainResponse
+      additionalProperties: false
+      description: "*\r\n Response containing the structured EXPLAIN QUERY PLAN output.\r\n The nodes form a tree via the parent_id references."
+    db.v1.ForeignKeySchema:
+      type: object
+      properties:
+        id:
+          type: integer
+          title: id
+          format: int32
+          description: Foreign key ID (multiple columns share same ID for composite FKs).
+        table:
+          type: string
+          title: table
+          description: Referenced (parent) table name.
+        fromColumn:
+          type: string
+          title: from_column
+          description: Column in this (child) table.
+        toColumn:
+          type: string
+          title: to_column
+          description: Column in the referenced (parent) table.
+        onUpdate:
+          type: string
+          title: on_update
+          description: ON UPDATE action (e.g., "CASCADE", "NO ACTION").
+        onDelete:
+          type: string
+          title: on_delete
+          description: ON DELETE action (e.g., "CASCADE", "SET NULL").
+      title: ForeignKeySchema
+      additionalProperties: false
+      description: "*\r\n Schema information for a foreign key constraint.\r\n Derived from PRAGMA foreign_key_list()."
+    db.v1.GetDatabaseSchemaRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+      title: GetDatabaseSchemaRequest
+      additionalProperties: false
+      description: "*\r\n Request to get the complete database schema."
+    db.v1.GetTableSchemaRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+        tableName:
+          type: string
+          title: table_name
+          maxLength: 256
+          minLength: 1
+      title: GetTableSchemaRequest
+      additionalProperties: false
+      description: "*\r\n Request to get detailed schema for a single table."
+    db.v1.IndexSchema:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          description: Index name.
+        unique:
+          type: boolean
+          title: unique
+          description: True if this is a UNIQUE index.
+        columns:
+          type: array
+          items:
+            type: string
+          title: columns
+          description: Column names in the index (in order).
+        sql:
+          type: string
+          title: sql
+          description: Original CREATE INDEX SQL statement (empty for auto-created indexes).
+      title: IndexSchema
+      additionalProperties: false
+      description: "*\r\n Schema information for a single index.\r\n Derived from PRAGMA index_list() and index_info()."
     db.v1.ListApiKeysRequest:
       type: object
       properties:
@@ -1458,6 +1768,27 @@ components:
       title: ListDatabasesResponse
       additionalProperties: false
       description: "*\r\n Response containing a list of database names."
+    db.v1.ListTablesRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+      title: ListTablesRequest
+      additionalProperties: false
+      description: "*\r\n Request to list all tables in a database."
+    db.v1.ListTablesResponse:
+      type: object
+      properties:
+        tableNames:
+          type: array
+          items:
+            type: string
+          title: table_names
+      title: ListTablesResponse
+      additionalProperties: false
+      description: "*\r\n Response containing a list of table names."
     db.v1.LoginRequest:
       type: object
       properties:
@@ -1586,6 +1917,26 @@ components:
       title: QueryComplete
       additionalProperties: false
       description: "*\r\n Signals the successful completion of a read query stream."
+    db.v1.QueryPlanNode:
+      type: object
+      properties:
+        id:
+          type: integer
+          title: id
+          format: int32
+          description: Unique identifier for this node within the query plan.
+        parentId:
+          type: integer
+          title: parent_id
+          format: int32
+          description: Parent node ID (0 for root nodes).
+        detail:
+          type: string
+          title: detail
+          description: The operation description (e.g., "SCAN users", "SEARCH users USING INDEX").
+      title: QueryPlanNode
+      additionalProperties: false
+      description: "*\r\n A single node in the EXPLAIN QUERY PLAN tree.\r\n Maps directly to SQLite's output: id, parent, notused, detail."
     db.v1.QueryRequest:
       type: object
       properties:
@@ -1976,6 +2327,44 @@ components:
         - SQLITE_CODE_ROW
         - SQLITE_CODE_DONE
       description: "*\r\n SqliteCode maps standard SQLite C result codes to a Proto Enum.\r\n Use this to handle specific DB errors programmatically.\r\n Reference: https://www.sqlite.org/rescode.html"
+    db.v1.TableSchema:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          description: Table name.
+        sql:
+          type: string
+          title: sql
+          description: Original CREATE TABLE SQL statement.
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ColumnSchema'
+          title: columns
+          description: Column definitions.
+        indexes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.IndexSchema'
+          title: indexes
+          description: Indexes on this table.
+        foreignKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ForeignKeySchema'
+          title: foreign_keys
+          description: Foreign key constraints.
+        triggers:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.TriggerSchema'
+          title: triggers
+          description: Triggers associated with this table.
+      title: TableSchema
+      additionalProperties: false
+      description: "*\r\n Complete schema information for a single table."
     db.v1.TransactionControlRequest:
       type: object
       properties:
@@ -2209,6 +2598,20 @@ components:
       title: TransactionalQueryRequest
       additionalProperties: false
       description: "*\r\n A query executed within an active transaction context.\r\n Unlike `QueryRequest`, this does not specify a database name as the context\r\n is already established."
+    db.v1.TriggerSchema:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          description: Trigger name.
+        sql:
+          type: string
+          title: sql
+          description: Original CREATE TRIGGER SQL statement.
+      title: TriggerSchema
+      additionalProperties: false
+      description: "*\r\n Schema information for a trigger.\r\n Derived from sqlite_schema WHERE type='trigger'."
     db.v1.TypedParameters:
       type: object
       properties:

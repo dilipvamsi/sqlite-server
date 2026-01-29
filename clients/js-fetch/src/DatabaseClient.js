@@ -277,6 +277,29 @@ class DatabaseClient {
     }
 
     /**
+     * Returns the structured EXPLAIN QUERY PLAN for a given query.
+     *
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<Array<{id: number, parentId: number, detail: string}>>} List of plan nodes.
+     */
+    async explain(sqlOrObj, paramsOrHints, hintsOrNull) {
+        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+
+        const body = {
+            database: this.database,
+            sql: sql,
+            parameters: toParams(positional, named, hints)
+        };
+
+        const res = await this._fetch(RPC.EXPLAIN, body);
+        const json = await res.json();
+
+        return json.nodes || [];
+    }
+
+    /**
      * Executes a query efficiently returning a stream of rows.
      * Useful for large result sets.
      *

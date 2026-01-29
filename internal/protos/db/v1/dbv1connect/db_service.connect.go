@@ -102,6 +102,20 @@ const (
 	// DatabaseServiceTypedTransactionQueryStreamProcedure is the fully-qualified name of the
 	// DatabaseService's TypedTransactionQueryStream RPC.
 	DatabaseServiceTypedTransactionQueryStreamProcedure = "/db.v1.DatabaseService/TypedTransactionQueryStream"
+	// DatabaseServiceExplainProcedure is the fully-qualified name of the DatabaseService's Explain RPC.
+	DatabaseServiceExplainProcedure = "/db.v1.DatabaseService/Explain"
+	// DatabaseServiceTypedExplainProcedure is the fully-qualified name of the DatabaseService's
+	// TypedExplain RPC.
+	DatabaseServiceTypedExplainProcedure = "/db.v1.DatabaseService/TypedExplain"
+	// DatabaseServiceListTablesProcedure is the fully-qualified name of the DatabaseService's
+	// ListTables RPC.
+	DatabaseServiceListTablesProcedure = "/db.v1.DatabaseService/ListTables"
+	// DatabaseServiceGetTableSchemaProcedure is the fully-qualified name of the DatabaseService's
+	// GetTableSchema RPC.
+	DatabaseServiceGetTableSchemaProcedure = "/db.v1.DatabaseService/GetTableSchema"
+	// DatabaseServiceGetDatabaseSchemaProcedure is the fully-qualified name of the DatabaseService's
+	// GetDatabaseSchema RPC.
+	DatabaseServiceGetDatabaseSchemaProcedure = "/db.v1.DatabaseService/GetDatabaseSchema"
 	// AdminServiceCreateUserProcedure is the fully-qualified name of the AdminService's CreateUser RPC.
 	AdminServiceCreateUserProcedure = "/db.v1.AdminService/CreateUser"
 	// AdminServiceDeleteUserProcedure is the fully-qualified name of the AdminService's DeleteUser RPC.
@@ -206,6 +220,26 @@ type DatabaseServiceClient interface {
 	// Executes a typed query inside the context of an existing 'transaction_id'.
 	// The server will stream the typed results back to the client.
 	TypedTransactionQueryStream(context.Context, *connect.Request[v1.TypedTransactionQueryRequest]) (*connect.ServerStreamForClient[v1.TypedQueryResponse], error)
+	// *
+	// Returns structured EXPLAIN QUERY PLAN output as a tree.
+	// Helps developers understand index usage and optimization opportunities.
+	Explain(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.ExplainResponse], error)
+	// *
+	// Typed variant of Explain using strongly-typed parameters.
+	// Returns the same structured EXPLAIN QUERY PLAN output.
+	TypedExplain(context.Context, *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.ExplainResponse], error)
+	// *
+	// Returns a light listing of all tables in the database.
+	// Useful for UI dropdowns and quick navigation.
+	ListTables(context.Context, *connect.Request[v1.ListTablesRequest]) (*connect.Response[v1.ListTablesResponse], error)
+	// *
+	// Returns detailed schema for a single table.
+	// Includes columns, indexes, foreign keys, and triggers.
+	GetTableSchema(context.Context, *connect.Request[v1.GetTableSchemaRequest]) (*connect.Response[v1.TableSchema], error)
+	// *
+	// Returns the full database schema for exports/migrations.
+	// Aggregates all tables with their complete schema information.
+	GetDatabaseSchema(context.Context, *connect.Request[v1.GetDatabaseSchemaRequest]) (*connect.Response[v1.DatabaseSchema], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the db.v1.DatabaseService service. By default,
@@ -303,6 +337,36 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("TypedTransactionQueryStream")),
 			connect.WithClientOptions(opts...),
 		),
+		explain: connect.NewClient[v1.QueryRequest, v1.ExplainResponse](
+			httpClient,
+			baseURL+DatabaseServiceExplainProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("Explain")),
+			connect.WithClientOptions(opts...),
+		),
+		typedExplain: connect.NewClient[v1.TypedQueryRequest, v1.ExplainResponse](
+			httpClient,
+			baseURL+DatabaseServiceTypedExplainProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("TypedExplain")),
+			connect.WithClientOptions(opts...),
+		),
+		listTables: connect.NewClient[v1.ListTablesRequest, v1.ListTablesResponse](
+			httpClient,
+			baseURL+DatabaseServiceListTablesProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("ListTables")),
+			connect.WithClientOptions(opts...),
+		),
+		getTableSchema: connect.NewClient[v1.GetTableSchemaRequest, v1.TableSchema](
+			httpClient,
+			baseURL+DatabaseServiceGetTableSchemaProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("GetTableSchema")),
+			connect.WithClientOptions(opts...),
+		),
+		getDatabaseSchema: connect.NewClient[v1.GetDatabaseSchemaRequest, v1.DatabaseSchema](
+			httpClient,
+			baseURL+DatabaseServiceGetDatabaseSchemaProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("GetDatabaseSchema")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -322,6 +386,11 @@ type databaseServiceClient struct {
 	typedQueryStream            *connect.Client[v1.TypedQueryRequest, v1.TypedQueryResponse]
 	typedTransactionQuery       *connect.Client[v1.TypedTransactionQueryRequest, v1.TypedQueryResult]
 	typedTransactionQueryStream *connect.Client[v1.TypedTransactionQueryRequest, v1.TypedQueryResponse]
+	explain                     *connect.Client[v1.QueryRequest, v1.ExplainResponse]
+	typedExplain                *connect.Client[v1.TypedQueryRequest, v1.ExplainResponse]
+	listTables                  *connect.Client[v1.ListTablesRequest, v1.ListTablesResponse]
+	getTableSchema              *connect.Client[v1.GetTableSchemaRequest, v1.TableSchema]
+	getDatabaseSchema           *connect.Client[v1.GetDatabaseSchemaRequest, v1.DatabaseSchema]
 }
 
 // Query calls db.v1.DatabaseService.Query.
@@ -394,6 +463,31 @@ func (c *databaseServiceClient) TypedTransactionQueryStream(ctx context.Context,
 	return c.typedTransactionQueryStream.CallServerStream(ctx, req)
 }
 
+// Explain calls db.v1.DatabaseService.Explain.
+func (c *databaseServiceClient) Explain(ctx context.Context, req *connect.Request[v1.QueryRequest]) (*connect.Response[v1.ExplainResponse], error) {
+	return c.explain.CallUnary(ctx, req)
+}
+
+// TypedExplain calls db.v1.DatabaseService.TypedExplain.
+func (c *databaseServiceClient) TypedExplain(ctx context.Context, req *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.ExplainResponse], error) {
+	return c.typedExplain.CallUnary(ctx, req)
+}
+
+// ListTables calls db.v1.DatabaseService.ListTables.
+func (c *databaseServiceClient) ListTables(ctx context.Context, req *connect.Request[v1.ListTablesRequest]) (*connect.Response[v1.ListTablesResponse], error) {
+	return c.listTables.CallUnary(ctx, req)
+}
+
+// GetTableSchema calls db.v1.DatabaseService.GetTableSchema.
+func (c *databaseServiceClient) GetTableSchema(ctx context.Context, req *connect.Request[v1.GetTableSchemaRequest]) (*connect.Response[v1.TableSchema], error) {
+	return c.getTableSchema.CallUnary(ctx, req)
+}
+
+// GetDatabaseSchema calls db.v1.DatabaseService.GetDatabaseSchema.
+func (c *databaseServiceClient) GetDatabaseSchema(ctx context.Context, req *connect.Request[v1.GetDatabaseSchemaRequest]) (*connect.Response[v1.DatabaseSchema], error) {
+	return c.getDatabaseSchema.CallUnary(ctx, req)
+}
+
 // DatabaseServiceHandler is an implementation of the db.v1.DatabaseService service.
 type DatabaseServiceHandler interface {
 	// *
@@ -461,6 +555,26 @@ type DatabaseServiceHandler interface {
 	// Executes a typed query inside the context of an existing 'transaction_id'.
 	// The server will stream the typed results back to the client.
 	TypedTransactionQueryStream(context.Context, *connect.Request[v1.TypedTransactionQueryRequest], *connect.ServerStream[v1.TypedQueryResponse]) error
+	// *
+	// Returns structured EXPLAIN QUERY PLAN output as a tree.
+	// Helps developers understand index usage and optimization opportunities.
+	Explain(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.ExplainResponse], error)
+	// *
+	// Typed variant of Explain using strongly-typed parameters.
+	// Returns the same structured EXPLAIN QUERY PLAN output.
+	TypedExplain(context.Context, *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.ExplainResponse], error)
+	// *
+	// Returns a light listing of all tables in the database.
+	// Useful for UI dropdowns and quick navigation.
+	ListTables(context.Context, *connect.Request[v1.ListTablesRequest]) (*connect.Response[v1.ListTablesResponse], error)
+	// *
+	// Returns detailed schema for a single table.
+	// Includes columns, indexes, foreign keys, and triggers.
+	GetTableSchema(context.Context, *connect.Request[v1.GetTableSchemaRequest]) (*connect.Response[v1.TableSchema], error)
+	// *
+	// Returns the full database schema for exports/migrations.
+	// Aggregates all tables with their complete schema information.
+	GetDatabaseSchema(context.Context, *connect.Request[v1.GetDatabaseSchemaRequest]) (*connect.Response[v1.DatabaseSchema], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -554,6 +668,36 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("TypedTransactionQueryStream")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceExplainHandler := connect.NewUnaryHandler(
+		DatabaseServiceExplainProcedure,
+		svc.Explain,
+		connect.WithSchema(databaseServiceMethods.ByName("Explain")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceTypedExplainHandler := connect.NewUnaryHandler(
+		DatabaseServiceTypedExplainProcedure,
+		svc.TypedExplain,
+		connect.WithSchema(databaseServiceMethods.ByName("TypedExplain")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceListTablesHandler := connect.NewUnaryHandler(
+		DatabaseServiceListTablesProcedure,
+		svc.ListTables,
+		connect.WithSchema(databaseServiceMethods.ByName("ListTables")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceGetTableSchemaHandler := connect.NewUnaryHandler(
+		DatabaseServiceGetTableSchemaProcedure,
+		svc.GetTableSchema,
+		connect.WithSchema(databaseServiceMethods.ByName("GetTableSchema")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceGetDatabaseSchemaHandler := connect.NewUnaryHandler(
+		DatabaseServiceGetDatabaseSchemaProcedure,
+		svc.GetDatabaseSchema,
+		connect.WithSchema(databaseServiceMethods.ByName("GetDatabaseSchema")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/db.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceQueryProcedure:
@@ -584,6 +728,16 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceTypedTransactionQueryHandler.ServeHTTP(w, r)
 		case DatabaseServiceTypedTransactionQueryStreamProcedure:
 			databaseServiceTypedTransactionQueryStreamHandler.ServeHTTP(w, r)
+		case DatabaseServiceExplainProcedure:
+			databaseServiceExplainHandler.ServeHTTP(w, r)
+		case DatabaseServiceTypedExplainProcedure:
+			databaseServiceTypedExplainHandler.ServeHTTP(w, r)
+		case DatabaseServiceListTablesProcedure:
+			databaseServiceListTablesHandler.ServeHTTP(w, r)
+		case DatabaseServiceGetTableSchemaProcedure:
+			databaseServiceGetTableSchemaHandler.ServeHTTP(w, r)
+		case DatabaseServiceGetDatabaseSchemaProcedure:
+			databaseServiceGetDatabaseSchemaHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -647,6 +801,26 @@ func (UnimplementedDatabaseServiceHandler) TypedTransactionQuery(context.Context
 
 func (UnimplementedDatabaseServiceHandler) TypedTransactionQueryStream(context.Context, *connect.Request[v1.TypedTransactionQueryRequest], *connect.ServerStream[v1.TypedQueryResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TypedTransactionQueryStream is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) Explain(context.Context, *connect.Request[v1.QueryRequest]) (*connect.Response[v1.ExplainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.Explain is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) TypedExplain(context.Context, *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.ExplainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TypedExplain is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) ListTables(context.Context, *connect.Request[v1.ListTablesRequest]) (*connect.Response[v1.ListTablesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.ListTables is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) GetTableSchema(context.Context, *connect.Request[v1.GetTableSchemaRequest]) (*connect.Response[v1.TableSchema], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.GetTableSchema is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) GetDatabaseSchema(context.Context, *connect.Request[v1.GetDatabaseSchemaRequest]) (*connect.Response[v1.DatabaseSchema], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.GetDatabaseSchema is not implemented"))
 }
 
 // AdminServiceClient is a client for the db.v1.AdminService service.

@@ -139,6 +139,12 @@ export interface DmlResult {
 
 export type BufferedResult = SelectResult | DmlResult;
 
+export interface ExplainNode {
+    id: number;
+    parentId: number;
+    detail: string;
+}
+
 export interface IterateResult {
     columns: string[];
     columnAffinities: ColumnAffinity[];
@@ -298,6 +304,16 @@ export class DatabaseClient {
         hints?: QueryHints,
         batchSize?: number,
     ): Promise<BatchStreamResult>;
+
+    /**
+     * Returns the structured EXPLAIN QUERY PLAN for a given query.
+     */
+    explain(statement: SQLStatement, hints?: QueryHints): Promise<ExplainNode[]>;
+    explain(
+        sql: string,
+        params?: MixedParams,
+        hints?: QueryHints,
+    ): Promise<ExplainNode[]>;
 
     /**
      * Opens a bidirectional stream transaction.

@@ -245,6 +245,17 @@ function runFunctionalTests(createClientFn) {
             expect(row[1]).toBeInstanceOf(Date);
             expect(row[0].toISOString()).toBe(nowStr);
         });
+
+        test("EXPLAIN QUERY PLAN", async () => {
+            const nodes = await client.explain("SELECT * FROM users WHERE id = ?", { positional: [1] });
+            expect(Array.isArray(nodes)).toBe(true);
+            expect(nodes.length).toBeGreaterThan(0);
+            expect(nodes[0]).toHaveProperty("id");
+            expect(nodes[0]).toHaveProperty("parentId");
+            expect(nodes[0]).toHaveProperty("detail");
+            // Detail should contain information about the table or index access
+            expect(nodes[0].detail.toLowerCase()).toMatch(/search|scan/);
+        });
     });
 
     describe("Parsing Configuration", () => {

@@ -13,6 +13,7 @@ const {
   createTypedRowIterator,
   createTypedBatchIterator,
   mapTypedQueryResult,
+  mapExplainResponse,
 } = require("./utils");
 
 
@@ -374,6 +375,43 @@ class DatabaseClient {
           // Use typed result mapper
           const result = mapTypedQueryResult(response, this.config.typeParsers);
           this._runInterceptors('afterQuery', result);
+          resolve(result);
+        });
+      });
+    });
+  }
+
+  /**
+   * Returns the structured EXPLAIN QUERY PLAN for a given query.
+   * Leverages the TypedExplain RPC for efficiency.
+   *
+   * @param {string|object} sqlOrObj - SQL string or object.
+   * @param {object|Array} [paramsOrHints] - Parameters or hints.
+   * @param {object} [hintsOrNull] - Hints.
+   * @returns {Promise<Array<{id: number, parentId: number, detail: string}>>} List of plan nodes.
+   */
+  async explain(sqlOrObj, paramsOrHints, hintsOrNull) {
+    return this._withRetry(async () => {
+      const { sql, positional, named } = resolveArgs(
+        sqlOrObj,
+        paramsOrHints,
+        hintsOrNull,
+      );
+
+      this._runInterceptors('beforeQuery', { sql, params: { positional, named } });
+
+      const req = new db_service_pb.TypedQueryRequest();
+      req.setDatabase(this.dbName);
+      req.setSql(sql);
+      req.setParameters(toTypedProtoParams(positional, named));
+
+      return new Promise((resolve, reject) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.client.typedExplain(req, metadata, (err, response) => {
+          if (err) return reject(err);
+          const result = mapExplainResponse(response);
+          // Explains usually don't have detailed stats or need full afterQuery interceptors
+          // but we can pass the result if needed.
           resolve(result);
         });
       });

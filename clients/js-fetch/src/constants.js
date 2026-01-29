@@ -145,6 +145,7 @@ const RPC = {
     QUERY_STREAM: 'db.v1.DatabaseService/QueryStream',
     TRANSACTION_QUERY: 'db.v1.DatabaseService/TransactionQuery',
     TRANSACTION_QUERY_STREAM: 'db.v1.DatabaseService/TransactionQueryStream',
+    EXPLAIN: 'db.v1.DatabaseService/Explain',
 };
 
 module.exports = {

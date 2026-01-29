@@ -29,7 +29,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
+import { BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DatabaseSchema, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, ListTablesRequest, ListTablesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TableSchema, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -234,6 +234,71 @@ export const DatabaseService = {
       I: TypedTransactionQueryRequest,
       O: TypedQueryResponse,
       kind: MethodKind.ServerStreaming,
+    },
+    /**
+     * *
+     * Returns structured EXPLAIN QUERY PLAN output as a tree.
+     * Helps developers understand index usage and optimization opportunities.
+     *
+     * @generated from rpc db.v1.DatabaseService.Explain
+     */
+    explain: {
+      name: "Explain",
+      I: QueryRequest,
+      O: ExplainResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Typed variant of Explain using strongly-typed parameters.
+     * Returns the same structured EXPLAIN QUERY PLAN output.
+     *
+     * @generated from rpc db.v1.DatabaseService.TypedExplain
+     */
+    typedExplain: {
+      name: "TypedExplain",
+      I: TypedQueryRequest,
+      O: ExplainResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Returns a light listing of all tables in the database.
+     * Useful for UI dropdowns and quick navigation.
+     *
+     * @generated from rpc db.v1.DatabaseService.ListTables
+     */
+    listTables: {
+      name: "ListTables",
+      I: ListTablesRequest,
+      O: ListTablesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Returns detailed schema for a single table.
+     * Includes columns, indexes, foreign keys, and triggers.
+     *
+     * @generated from rpc db.v1.DatabaseService.GetTableSchema
+     */
+    getTableSchema: {
+      name: "GetTableSchema",
+      I: GetTableSchemaRequest,
+      O: TableSchema,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Returns the full database schema for exports/migrations.
+     * Aggregates all tables with their complete schema information.
+     *
+     * @generated from rpc db.v1.DatabaseService.GetDatabaseSchema
+     */
+    getDatabaseSchema: {
+      name: "GetDatabaseSchema",
+      I: GetDatabaseSchemaRequest,
+      O: DatabaseSchema,
+      kind: MethodKind.Unary,
     },
   }
 } as const;

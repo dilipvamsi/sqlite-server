@@ -178,6 +178,16 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 }
                 expect(count).toBe(3);
             });
+
+            it("EXPLAIN QUERY PLAN", async () => {
+                const nodes = await client.explain("SELECT * FROM users WHERE id = ?", { positional: [1] });
+                assert.ok(Array.isArray(nodes), "Expected array of nodes");
+                assert.ok(nodes.length > 0, "Expected at least one node");
+                assert.ok('id' in nodes[0], "Expected id field");
+                // parentId might be omitted if it's 0 (default) in JSON
+                assert.ok('detail' in nodes[0], "Expected detail field");
+                assert.match(nodes[0].detail.toLowerCase(), /search|scan/, "Expected search or scan in detail");
+            });
         });
 
         describe("DeclaredType Verification", () => {
