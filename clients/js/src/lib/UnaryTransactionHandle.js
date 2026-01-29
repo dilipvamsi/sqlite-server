@@ -137,7 +137,16 @@ class UnaryTransactionHandle {
      * @param {string|Object} sqlOrObj - SQL string or SQLStatement object.
      * @param {Object|Array} [paramsOrHints] - Parameters or hints (if 3 args).
      * @param {Object} [hintsOrNull] - Hints (if 3 args) or null.
-     * @returns {Promise<Object>} The query result (SELECT or DML).
+     * @returns {Promise<{
+     *   type: 'SELECT'|'DML',
+     *   columns?: string[],
+     *   columnAffinities?: number[],
+     *   columnDeclaredTypes?: number[],
+     *   columnRawTypes?: string[],
+     *   rows?: any[][],
+     *   rowsAffected?: number,
+     *   lastInsertId?: number
+     * }>} The query result (SELECT or DML).
      */
     async query(sqlOrObj, paramsOrHints, hintsOrNull) {
         this._checkActive();
@@ -154,7 +163,7 @@ class UnaryTransactionHandle {
                 if (err) return reject(err);
 
                 // Use helper
-                resolve(mapQueryResult(result, this.config.dateHandling));
+                resolve(mapQueryResult(result, this.config.typeParsers));
             });
         });
     }
@@ -164,20 +173,23 @@ class UnaryTransactionHandle {
      * @param {string|Object} sqlOrObj - SQL string or SQLStatement object.
      * @param {Object|Array} [paramsOrHints] - Parameters.
      * @param {Object} [hintsOrNull] - Hints.
-     * @returns {Promise<{columns: string[], rows: AsyncIterable<any[]>}>}
+     * @returns {Promise<{
+     *   columns: string[],
+     *   columnAffinities: number[],
+     *   columnDeclaredTypes: number[],
+     *   columnRawTypes: string[],
+     *   rows: AsyncIterable<any[]>
+     * }>}
      */
     async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
         const iterator = await this._initStream(sqlOrObj, paramsOrHints, hintsOrNull);
-        const { rows, columnTypes, dateHandling } = iterator;
-
-        // _initStream returns a custom object where 'rows' IS ALREADY A BATCH GENERATOR
-        // (see line 294: rows: batchGen()).
-        // So we can pass it directly to the helper.
-
+        const { rows, columnAffinities, columnDeclaredTypes } = iterator;
         return {
             columns: iterator.columns,
-            columnTypes: iterator.columnTypes,
-            rows: createRowIterator(rows, columnTypes, dateHandling),
+            columnAffinities: iterator.columnAffinities,
+            columnDeclaredTypes: iterator.columnDeclaredTypes,
+            columnRawTypes: iterator.columnRawTypes,
+            rows: createRowIterator(rows, columnAffinities, columnDeclaredTypes, this.config.typeParsers),
         };
     }
 
@@ -187,7 +199,13 @@ class UnaryTransactionHandle {
      * @param {Object|Array} [paramsOrHints] - Parameters.
      * @param {Object} [hintsOrNull] - Hints.
      * @param {number} [batchSize=500] - Client-side re-batching size.
-     * @returns {Promise<{columns: string[], rows: AsyncIterable<any[][]>}>}
+     * @returns {Promise<{
+     *   columns: string[],
+     *   columnAffinities: number[],
+     *   columnDeclaredTypes: number[],
+     *   columnRawTypes: string[],
+     *   rows: AsyncIterable<any[][]>
+     * }>}
      */
     async queryStream(sqlOrObj, paramsOrHints, hintsOrNull, batchSize = 500) {
         // Handle optional batchSize in 4th arg
@@ -199,12 +217,14 @@ class UnaryTransactionHandle {
         }
 
         const iterator = await this._initStream(sqlOrObj, paramsOrHints, resolvedHints);
-        const { rows, columnTypes, dateHandling } = iterator;
+        const { rows, columnAffinities, columnDeclaredTypes } = iterator;
 
         return {
             columns: iterator.columns,
-            columnTypes: iterator.columnTypes,
-            rows: createBatchIterator(rows, columnTypes, dateHandling, resolvedBatchSize),
+            columnAffinities: iterator.columnAffinities,
+            columnDeclaredTypes: iterator.columnDeclaredTypes,
+            columnRawTypes: iterator.columnRawTypes,
+            rows: createBatchIterator(rows, columnAffinities, columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
         };
     }
 
@@ -238,11 +258,15 @@ class UnaryTransactionHandle {
 
         // We expect HEADER first usually
         let columns = [];
-        let columnTypes = [];
+        let columnAffinities = [];
+        let columnDeclaredTypes = [];
+        let columnRawTypes = [];
 
         if (caseType === db_service_pb.QueryResponse.ResponseCase.HEADER) {
             columns = msg.getHeader().getColumnsList();
-            columnTypes = msg.getHeader().getColumnTypesList();
+            columnAffinities = msg.getHeader().getColumnAffinitiesList();
+            columnDeclaredTypes = msg.getHeader().getColumnDeclaredTypesList();
+            columnRawTypes = msg.getHeader().getColumnRawTypesList();
         }
 
         // Generator for raw proto batches
@@ -262,9 +286,10 @@ class UnaryTransactionHandle {
 
         return {
             columns,
-            columnTypes,
+            columnAffinities,
+            columnDeclaredTypes,
+            columnRawTypes,
             rows: batchGen(),
-            dateHandling: this.config.dateHandling,
         };
     }
 

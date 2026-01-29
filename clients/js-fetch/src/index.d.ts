@@ -44,16 +44,52 @@ export enum TransactionMode {
 }
 
 
-export enum ColumnType {
-    COLUMN_TYPE_UNSPECIFIED = 0,
-    COLUMN_TYPE_NULL = 1,
-    COLUMN_TYPE_INTEGER = 2,
-    COLUMN_TYPE_FLOAT = 3,
-    COLUMN_TYPE_TEXT = 4,
-    COLUMN_TYPE_BLOB = 5,
-    COLUMN_TYPE_BOOLEAN = 6,
-    COLUMN_TYPE_DATE = 7,
-    COLUMN_TYPE_JSON = 8,
+
+export enum ColumnAffinity {
+    COLUMN_AFFINITY_UNSPECIFIED = 0,
+    COLUMN_AFFINITY_INTEGER = 1,
+    COLUMN_AFFINITY_TEXT = 2,
+    COLUMN_AFFINITY_BLOB = 3,
+    COLUMN_AFFINITY_REAL = 4,
+    COLUMN_AFFINITY_NUMERIC = 5,
+}
+
+export enum DeclaredType {
+    DECLARED_TYPE_UNSPECIFIED = 0,
+    DECLARED_TYPE_INT = 1,
+    DECLARED_TYPE_INTEGER = 2,
+    DECLARED_TYPE_TINYINT = 3,
+    DECLARED_TYPE_SMALLINT = 4,
+    DECLARED_TYPE_MEDIUMINT = 5,
+    DECLARED_TYPE_BIGINT = 6,
+    DECLARED_TYPE_UNSIGNED_BIG_INT = 7,
+    DECLARED_TYPE_INT2 = 8,
+    DECLARED_TYPE_INT8 = 9,
+    DECLARED_TYPE_CHARACTER = 10,
+    DECLARED_TYPE_VARCHAR = 11,
+    DECLARED_TYPE_VARYING_CHARACTER = 12,
+    DECLARED_TYPE_NCHAR = 13,
+    DECLARED_TYPE_NATIVE_CHARACTER = 14,
+    DECLARED_TYPE_NVARCHAR = 15,
+    DECLARED_TYPE_TEXT = 16,
+    DECLARED_TYPE_CLOB = 17,
+    DECLARED_TYPE_BLOB = 18,
+    DECLARED_TYPE_REAL = 19,
+    DECLARED_TYPE_DOUBLE = 20,
+    DECLARED_TYPE_DOUBLE_PRECISION = 21,
+    DECLARED_TYPE_FLOAT = 22,
+    DECLARED_TYPE_NUMERIC = 23,
+    DECLARED_TYPE_DECIMAL = 24,
+    DECLARED_TYPE_BOOLEAN = 25,
+    DECLARED_TYPE_DATE = 26,
+    DECLARED_TYPE_DATETIME = 27,
+    DECLARED_TYPE_TIMESTAMP = 28,
+    DECLARED_TYPE_JSON = 29,
+    DECLARED_TYPE_UUID = 30,
+    DECLARED_TYPE_TIME = 31,
+    DECLARED_TYPE_YEAR = 32,
+    DECLARED_TYPE_CHAR = 33,
+    DECLARED_TYPE_XML = 34,
 }
 
 export enum SavepointAction {
@@ -73,9 +109,9 @@ export interface SQLStatement {
 
 export interface QueryHints {
     /** Key is the 0-based index of the parameter */
-    positional?: Record<number, ColumnType>;
+    positional?: Record<number, ColumnAffinity>;
     /** Key is the parameter name (e.g. ":id") */
-    named?: Record<string, ColumnType>;
+    named?: Record<string, ColumnAffinity>;
 }
 
 export interface ExecutionStats {
@@ -87,7 +123,9 @@ export interface ExecutionStats {
 export interface SelectResult {
     type: "SELECT";
     columns: string[];
-    columnTypes: ColumnType[];
+    columnAffinities: ColumnAffinity[];
+    columnDeclaredTypes: DeclaredType[];
+    columnRawTypes: string[];
     rows: any[][];
     stats?: ExecutionStats;
 }
@@ -103,13 +141,17 @@ export type BufferedResult = SelectResult | DmlResult;
 
 export interface IterateResult {
     columns: string[];
-    columnTypes: ColumnType[];
+    columnAffinities: ColumnAffinity[];
+    columnDeclaredTypes: DeclaredType[];
+    columnRawTypes: string[];
     rows: AsyncIterable<any[]>;
 }
 
 export interface BatchStreamResult {
     columns: string[];
-    columnTypes: ColumnType[];
+    columnAffinities: ColumnAffinity[];
+    columnDeclaredTypes: DeclaredType[];
+    columnRawTypes: string[];
     rows: AsyncIterable<any[][]>;
 }
 
@@ -203,11 +245,18 @@ export interface BearerAuthConfig {
 
 export type AuthConfig = BasicAuthConfig | BearerAuthConfig;
 
+export interface TypeParsersConfig {
+    bigint?: boolean;
+    json?: boolean;
+    blob?: boolean;
+    date?: 'date' | 'string' | 'number';
+}
+
 export interface ClientConfig {
-    dateHandling?: 'date' | 'string' | 'number';
     retry?: RetryConfig;
     interceptors?: Interceptor[];
     auth?: AuthConfig;
+    typeParsers?: TypeParsersConfig;
     // No gRPC credentials in fetch client
 }
 

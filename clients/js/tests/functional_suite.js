@@ -4,6 +4,7 @@ const {
     TransactionType,
 } = require("../src/lib/constants");
 const db_service_pb = require("../src/protos/db/v1/db_service_pb");
+
 const { SQL } = require("../src");
 
 /**
@@ -31,9 +32,10 @@ function runFunctionalTests(createClientFn) {
             const result = await client.query("SELECT 1 + 1 AS sum");
             expect(result.rows[0][0]).toBe(2);
             expect(result.columns).toContain("sum");
-            expect(result.columnTypes).toBeDefined();
-            // 2 = INTEGER
-            expect(result.columnTypes[0]).toBe(db_service_pb.ColumnType.COLUMN_TYPE_INTEGER);
+            expect(result.columnAffinities).toBeDefined();
+            // 2 = INTEGER (TEXT pending server impl specifics for expressions, but usually INT/NUMERIC)
+            // 5 = NUMERIC (often used for expressions like 1+1 in SQLite/this-setup)
+            expect(result.columnAffinities[0]).toBe(db_service_pb.ColumnAffinity.COLUMN_AFFINITY_NUMERIC);
         });
 
         test("BLOB Data Integrity", async () => {
@@ -47,7 +49,7 @@ function runFunctionalTests(createClientFn) {
                 { positional: [binaryData.toString("base64")] },
                 {
                     positional: {
-                        0: db_service_pb.ColumnType.COLUMN_TYPE_BLOB,
+                        0: db_service_pb.ColumnAffinity.COLUMN_AFFINITY_BLOB,
                     },
                 },
             );
@@ -71,13 +73,13 @@ function runFunctionalTests(createClientFn) {
             const placeholders = Array(15).fill("(?, ?, ?, ?)").join(",");
             await client.query(`INSERT INTO users (id, name, country, age) VALUES ${placeholders}`, { positional: values });
 
-            const { columns, columnTypes, rows } = await client.iterate(
+            const { columns, columnAffinities, rows } = await client.iterate(
                 "SELECT id FROM users LIMIT 10",
             );
             expect(columns).toContain("id");
-            expect(columnTypes).toBeDefined();
-            // id column is INTEGER (2)
-            expect(columnTypes[0]).toBe(db_service_pb.ColumnType.COLUMN_TYPE_INTEGER);
+            expect(columnAffinities).toBeDefined();
+            // id column is INTEGER
+            expect(columnAffinities[0]).toBe(db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER);
 
             let count = 0;
             for await (const row of rows) {
@@ -127,10 +129,10 @@ function runFunctionalTests(createClientFn) {
             await client.query("DELETE FROM stream_users");
             await client.query("INSERT INTO stream_users (id) VALUES (1), (2), (3)");
 
-            const { columns, columnTypes, rows } = await client.queryStream("SELECT id FROM stream_users");
+            const { columns, columnAffinities, rows } = await client.queryStream("SELECT id FROM stream_users");
             expect(columns).toContain("id");
-            expect(columnTypes).toBeDefined();
-            expect(columnTypes[0]).toBe(db_service_pb.ColumnType.COLUMN_TYPE_INTEGER);
+            expect(columnAffinities).toBeDefined();
+            expect(columnAffinities[0]).toBe(db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER);
 
             let count = 0;
             for await (const batch of rows) {
@@ -139,6 +141,289 @@ function runFunctionalTests(createClientFn) {
             expect(count).toBe(3);
         });
 
+
+        test("DeclaredType Verification", async () => {
+            await client.query("CREATE TABLE IF NOT EXISTS dtypes (id UUID, meta JSON, age INT, name VARCHAR(255))");
+            await client.query("DELETE FROM dtypes");
+            await client.query("INSERT INTO dtypes (id, meta, age, name) VALUES ('u-1', '{\"a\":1}', 30, 'Alice')");
+
+            const result = await client.query("SELECT id, meta, age, name FROM dtypes LIMIT 1");
+
+            expect(result.columnDeclaredTypes).toBeDefined();
+            expect(result.columnDeclaredTypes.length).toBe(4);
+
+            // 1. UUID -> DECLARED_TYPE_UUID
+            expect(result.columnDeclaredTypes[0]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_UUID);
+
+            // 2. JSON -> DECLARED_TYPE_JSON
+            expect(result.columnDeclaredTypes[1]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_JSON);
+
+            // 3. INT -> DECLARED_TYPE_INTEGER
+            expect(result.columnDeclaredTypes[2]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_INTEGER);
+
+            // 4. VARCHAR(255) -> DECLARED_TYPE_VARCHAR
+            expect(result.columnDeclaredTypes[3]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_VARCHAR);
+
+            // Verify raw types as well
+            expect(result.columnRawTypes).toBeDefined();
+            expect(result.columnRawTypes[0]).toBe("UUID");
+            expect(result.columnRawTypes[1]).toBe("JSON");
+            expect(result.columnRawTypes[3]).toBe("VARCHAR(255)");
+            expect(result.columnRawTypes[3]).toBe("VARCHAR(255)");
+        });
+
+        test("BigInt Verification", async () => {
+            const tableName = "bigint_test";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT, val TEXT)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            // Insert a value larger than 2^53 - 1 but within Int64
+            // Max Safe Integer: 9,007,199,254,740,991
+            // Max Int64:        9,223,372,036,854,775,807
+            const bigVal = 9223372036854775800n;
+            const bigValStr = bigVal.toString();
+
+            // Insert as string because JS client params might not support BigInt directly yet without specific handling,
+            // but let's try assuming the client serialization handles BigInt -> String or similar, OR we pass as string and rely on implicit cast.
+            // Safest: Pass as string for insertion, verify readout as BigInt.
+            await client.query(`INSERT INTO ${tableName} (id, val) VALUES (?, 'test')`, {
+                positional: [bigValStr]
+            });
+
+            const result = await client.query(`SELECT id FROM ${tableName} LIMIT 1`);
+
+            expect(result.columnDeclaredTypes[0]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_BIGINT);
+
+            const row = result.rows[0];
+            const id = row[0];
+
+            expect(id).toBe(bigVal);
+        });
+
+        test("JSON Verification", async () => {
+            const tableName = "json_test";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id INT, data JSON)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const jsonData = { foo: "bar", baz: 123, nested: { array: [1, 2] } };
+            const jsonStr = JSON.stringify(jsonData);
+
+            await client.query(`INSERT INTO ${tableName} (id, data) VALUES (1, ?)`, {
+                positional: [jsonStr]
+            });
+
+            const result = await client.query(`SELECT data FROM ${tableName} LIMIT 1`);
+
+            expect(result.columnDeclaredTypes[0]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_JSON);
+
+            const row = result.rows[0];
+            const data = row[0];
+
+            expect(typeof data).toBe('object');
+            expect(data).toEqual(jsonData);
+        });
+        test("Date Verification", async () => {
+            const tableName = "date_test";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER, d DATE, dt DATETIME)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const now = new Date();
+            // SQLite stores dates as strings usually, but we want to verify hydration
+            const nowStr = now.toISOString();
+
+            await client.query(`INSERT INTO ${tableName} (id, d, dt) VALUES (1, ?, ?)`, {
+                positional: [nowStr, nowStr]
+            });
+
+            const result = await client.query(`SELECT d, dt FROM ${tableName} LIMIT 1`);
+
+            // Check Declared Types
+            expect(result.columnDeclaredTypes).toBeDefined();
+            // 0: DATE, 1: DATETIME
+            expect(result.columnDeclaredTypes[0]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_DATE);
+            expect(result.columnDeclaredTypes[1]).toBe(db_service_pb.DeclaredType.DECLARED_TYPE_DATETIME);
+
+            // Check Hydration (Default is Date object)
+            const row = result.rows[0];
+            expect(row[0]).toBeInstanceOf(Date);
+            expect(row[1]).toBeInstanceOf(Date);
+            expect(row[0].toISOString()).toBe(nowStr);
+        });
+    });
+
+    describe("Parsing Configuration", () => {
+        test("Disable BigInt Parsing", async () => {
+            const tableName = "bigint_parse_off";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const bigValStr = "9223372036854775800";
+            await client.query(`INSERT INTO ${tableName} (id) VALUES (?)`, { positional: [bigValStr] });
+
+            // Temporarily disable bigint parsing
+            const originalSetting = client.config.typeParsers.bigint;
+            client.config.typeParsers.bigint = false;
+            try {
+                const result = await client.query(`SELECT id FROM ${tableName} LIMIT 1`);
+                expect(result.rows[0][0]).toBe(bigValStr); // Should be string
+                expect(typeof result.rows[0][0]).toBe('string');
+            } finally {
+                client.config.typeParsers.bigint = originalSetting;
+            }
+        });
+
+        test("Disable JSON Parsing", async () => {
+            const tableName = "json_parse_off";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (data JSON)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const jsonData = { foo: "bar" };
+            const jsonStr = JSON.stringify(jsonData);
+            await client.query(`INSERT INTO ${tableName} (data) VALUES (?)`, { positional: [jsonStr] });
+
+            // Temporarily disable json parsing
+            const originalSetting = client.config.typeParsers.json;
+            client.config.typeParsers.json = false;
+            try {
+                const result = await client.query(`SELECT data FROM ${tableName} LIMIT 1`);
+                expect(result.rows[0][0]).toBe(jsonStr); // Should be string
+                expect(typeof result.rows[0][0]).toBe('string');
+            } finally {
+                client.config.typeParsers.json = originalSetting;
+            }
+        });
+
+        test("Date as String", async () => {
+            const tableName = "date_parse_string";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (d DATE)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const nowStr = new Date().toISOString();
+            await client.query(`INSERT INTO ${tableName} (d) VALUES (?)`, { positional: [nowStr] });
+
+            const originalSetting = client.config.typeParsers.date;
+            client.config.typeParsers.date = 'string';
+            try {
+                const result = await client.query(`SELECT d FROM ${tableName} LIMIT 1`);
+                // Server may strip trailing zeros, so check prefix match
+                expect(result.rows[0][0].startsWith(nowStr.slice(0, 19))).toBe(true);
+                expect(typeof result.rows[0][0]).toBe('string');
+            } finally {
+                client.config.typeParsers.date = originalSetting;
+            }
+        });
+
+        test("Date as Number", async () => {
+            const tableName = "date_parse_number";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (d DATE)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const now = new Date();
+            const nowStr = now.toISOString();
+            const nowTs = now.getTime();
+
+            await client.query(`INSERT INTO ${tableName} (d) VALUES (?)`, { positional: [nowStr] });
+
+            const originalSetting = client.config.typeParsers.date;
+            client.config.typeParsers.date = 'number';
+            try {
+                const result = await client.query(`SELECT d FROM ${tableName} LIMIT 1`);
+                expect(result.rows[0][0]).toBe(nowTs);
+                expect(typeof result.rows[0][0]).toBe('number');
+            } finally {
+                client.config.typeParsers.date = originalSetting;
+            }
+        });
+
+        test("Disable BLOB Parsing", async () => {
+            const tableName = "blob_parse_off";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (data BLOB)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            // Use the existing BLOB test data approach (Buffer passed directly)
+            const rawBytes = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+            // Use X'...' hex literal for inserting BLOB data
+            await client.query(`INSERT INTO ${tableName} (data) VALUES (X'01020304')`);
+
+            const originalSetting = client.config.typeParsers.blob;
+            client.config.typeParsers.blob = false;
+            try {
+                const result = await client.query(`SELECT data FROM ${tableName} LIMIT 1`);
+                // Should be base64 string instead of Buffer
+                expect(typeof result.rows[0][0]).toBe('string');
+            } finally {
+                client.config.typeParsers.blob = originalSetting;
+            }
+        });
+
+        test("Multiple parsers disabled simultaneously", async () => {
+            const tableName = "multi_parse_off";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT, data JSON)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const bigValStr = "9223372036854775800";
+            const jsonData = { key: "value" };
+            const jsonStr = JSON.stringify(jsonData);
+
+            await client.query(`INSERT INTO ${tableName} (id, data) VALUES (?, ?)`, {
+                positional: [bigValStr, jsonStr]
+            });
+
+            const origBigint = client.config.typeParsers.bigint;
+            const origJson = client.config.typeParsers.json;
+            client.config.typeParsers.bigint = false;
+            client.config.typeParsers.json = false;
+            try {
+                const result = await client.query(`SELECT id, data FROM ${tableName} LIMIT 1`);
+                expect(typeof result.rows[0][0]).toBe('string');
+                expect(result.rows[0][0]).toBe(bigValStr);
+                expect(typeof result.rows[0][1]).toBe('string');
+                expect(result.rows[0][1]).toBe(jsonStr);
+            } finally {
+                client.config.typeParsers.bigint = origBigint;
+                client.config.typeParsers.json = origJson;
+            }
+        });
+
+        test("TypeParsers apply to streaming (iterate)", async () => {
+            const tableName = "stream_parse_test";
+            await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (data JSON)`);
+            await client.query(`DELETE FROM ${tableName}`);
+
+            const jsonData = { stream: true };
+            const jsonStr = JSON.stringify(jsonData);
+            await client.query(`INSERT INTO ${tableName} (data) VALUES (?)`, { positional: [jsonStr] });
+
+            const originalSetting = client.config.typeParsers.json;
+            client.config.typeParsers.json = false;
+            try {
+                const { rows } = await client.iterate(`SELECT data FROM ${tableName}`);
+                for await (const row of rows) {
+                    expect(typeof row[0]).toBe('string');
+                    expect(row[0]).toBe(jsonStr);
+                }
+            } finally {
+                client.config.typeParsers.json = originalSetting;
+            }
+        });
+
+        test("TypeParsers within transaction", async () => {
+            const tableName = "tx_parse_test";
+
+            const originalSetting = client.config.typeParsers.bigint;
+            client.config.typeParsers.bigint = false;
+            try {
+                await client.transaction(async (tx) => {
+                    await tx.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
+                    await tx.query(`DELETE FROM ${tableName}`);
+                    await tx.query(`INSERT INTO ${tableName} (id) VALUES (?)`, { positional: ["9223372036854775800"] });
+                    const result = await tx.query(`SELECT id FROM ${tableName} LIMIT 1`);
+                    expect(typeof result.rows[0][0]).toBe('string');
+                });
+            } finally {
+                client.config.typeParsers.bigint = originalSetting;
+            }
+        });
     });
 
     describe("Parameter Binding", () => {
@@ -161,7 +446,7 @@ function runFunctionalTests(createClientFn) {
             };
 
             const result = await client.query(sql, params, {
-                named: { age: db_service_pb.ColumnType.COLUMN_TYPE_INTEGER },
+                named: { age: db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER },
             });
 
             expect(result.type).toBe("SELECT");
@@ -174,7 +459,7 @@ function runFunctionalTests(createClientFn) {
             const params = { positional: ["USA", 25] };
 
             const result = await client.query(sql, params, {
-                positional: { 1: db_service_pb.ColumnType.COLUMN_TYPE_INTEGER },
+                positional: { 1: db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER },
             });
 
             expect(result.type).toBe("SELECT");
@@ -191,7 +476,7 @@ function runFunctionalTests(createClientFn) {
             };
 
             const hints = {
-                positional: { 0: db_service_pb.ColumnType.COLUMN_TYPE_INTEGER },
+                positional: { 0: db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER },
             };
 
             const result = await client.query(sql, params, hints);
@@ -312,9 +597,9 @@ function runFunctionalTests(createClientFn) {
 
                 // Test iterate
                 let sum = 0;
-                const { rows: iterRows, columnTypes: iterTypes } = await tx.iterate(`SELECT id FROM ${tableName}`);
+                const { rows: iterRows, columnAffinities: iterTypes } = await tx.iterate(`SELECT id FROM ${tableName}`);
                 expect(iterTypes).toBeDefined();
-                expect(iterTypes[0]).toBe(db_service_pb.ColumnType.COLUMN_TYPE_INTEGER);
+                expect(iterTypes[0]).toBe(db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER);
 
                 for await (const row of iterRows) {
                     sum += row[0];
@@ -322,9 +607,9 @@ function runFunctionalTests(createClientFn) {
                 expect(sum).toBe(6);
 
                 // Test queryStream
-                const { rows: batches, columnTypes: streamTypes } = await tx.queryStream(`SELECT id FROM ${tableName}`);
+                const { rows: batches, columnAffinities: streamTypes } = await tx.queryStream(`SELECT id FROM ${tableName}`);
                 expect(streamTypes).toBeDefined();
-                expect(streamTypes[0]).toBe(db_service_pb.ColumnType.COLUMN_TYPE_INTEGER);
+                expect(streamTypes[0]).toBe(db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER);
 
                 let count = 0;
                 for await (const batch of batches) {

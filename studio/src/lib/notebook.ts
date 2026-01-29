@@ -1,6 +1,7 @@
 import localforage from 'localforage';
 import { toJson } from "@bufbuild/protobuf";
 import { ValueSchema } from "@bufbuild/protobuf/wkt";
+import { DeclaredType } from "../gen/db/v1/db_service_pb";
 
 export interface NotebookCard {
     id: string;
@@ -9,6 +10,9 @@ export interface NotebookCard {
     // Result is now optional and may be loaded lazily
     result?: {
         columns?: string[];
+        columnAffinities?: number[];
+        columnDeclaredTypes?: number[];
+        columnRawTypes?: string[];
         rows?: any[];
         rowsAffected?: string;
         lastInsertId?: string;
@@ -368,6 +372,9 @@ export class NotebookManager {
             if (result.result.case === 'select') {
                 card.result = {
                     columns: result.result.value.columns,
+                    columnAffinities: result.result.value.columnAffinities,
+                    columnDeclaredTypes: result.result.value.columnDeclaredTypes,
+                    columnRawTypes: result.result.value.columnRawTypes,
                     rows: result.result.value.rows,
                 };
             } else if (result.result.case === 'dml') {
@@ -380,14 +387,20 @@ export class NotebookManager {
             // Save everything
             this.saveCardResult(card);
 
-            // Auto-create next card on success
+            // Auto-create next card on success (only if no empty card exists)
+            const hasEmptyCard = this.cards.some(c => c.id !== card.id && c.status === 'idle' && !c.sql.trim());
+
             if (this.pageType === 'transaction') {
                 card.readOnly = true; // Lock this step
                 // Auto-create next step, BUT keep selection on current result so user can see what happened
-                this.addCard(true, false);
+                if (!hasEmptyCard) {
+                    this.addCard(true, false);
+                }
             } else if (this.pageType === 'query') {
                 // Query mode: auto-add a new card for convenience, keep selection on current result
-                this.addCard(true, false);
+                if (!hasEmptyCard) {
+                    this.addCard(true, false);
+                }
             }
 
         } catch (e: any) {
@@ -578,9 +591,16 @@ export class NotebookManager {
             if (card.result.rows.length === 0) {
                 return '<div class="empty-msg">No rows returned</div>';
             }
-            const headers = card.result.columns.map(c => `<th>${c}</th>`).join('');
+            const headers = card.result.columns.map((c, i) => {
+                const type = card.result?.columnRawTypes?.[i];
+                const typeLabel = type ? `<br><small style="color:var(--text-secondary);font-weight:normal">${type}</small>` : '';
+                return `<th>${c}${typeLabel}</th>`;
+            }).join('');
             const body = card.result.rows.map((row: any) => {
-                const cells = row.values.map((v: any) => `<td>${this.formatValue(v)}</td>`).join('');
+                const cells = row.values.map((v: any, colIndex: number) => {
+                    const declaredType = card.result?.columnDeclaredTypes?.[colIndex];
+                    return `<td>${this.formatValue(v, declaredType)}</td>`;
+                }).join('');
                 return `<tr>${cells}</tr>`;
             }).join('');
 
@@ -596,10 +616,30 @@ export class NotebookManager {
         return '';
     }
 
-    private formatValue(val: any): string {
+    private formatValue(val: any, declaredType?: number): string {
         try {
             const unwrapped = toJson(ValueSchema, val);
             if (unwrapped === null || unwrapped === undefined) return '<span class="null">NULL</span>';
+
+            // JSON Handling
+            if (declaredType === DeclaredType.JSON) {
+                if (typeof unwrapped === 'string') {
+                    try {
+                        // Parse and re-stringify for pretty printing
+                        const parsed = JSON.parse(unwrapped);
+                        return `<pre class="json-cell">${JSON.stringify(parsed, null, 2)}</pre>`;
+                    } catch {
+                        // Fallback if invalid JSON string
+                        return String(unwrapped);
+                    }
+                }
+            }
+
+            // BigInt Handling (Visual Hint)
+            if (declaredType === DeclaredType.BIGINT) {
+                return `<span style="font-family: var(--mono-font); color: var(--accent-color)">${unwrapped}</span><span style="color:#666;font-size:0.7em">n</span>`;
+            }
+
             if (typeof unwrapped === 'object') return JSON.stringify(unwrapped);
             return String(unwrapped);
         } catch (e) {

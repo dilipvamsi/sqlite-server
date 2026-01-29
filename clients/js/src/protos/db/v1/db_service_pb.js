@@ -31,7 +31,7 @@ goog.exportSymbol('proto.db.v1.BeginRequest', null, global);
 goog.exportSymbol('proto.db.v1.BeginResponse', null, global);
 goog.exportSymbol('proto.db.v1.BeginTransactionRequest', null, global);
 goog.exportSymbol('proto.db.v1.BeginTransactionResponse', null, global);
-goog.exportSymbol('proto.db.v1.ColumnType', null, global);
+goog.exportSymbol('proto.db.v1.ColumnAffinity', null, global);
 goog.exportSymbol('proto.db.v1.CommitResponse', null, global);
 goog.exportSymbol('proto.db.v1.CreateApiKeyRequest', null, global);
 goog.exportSymbol('proto.db.v1.CreateApiKeyResponse', null, global);
@@ -41,6 +41,7 @@ goog.exportSymbol('proto.db.v1.CreateUserRequest', null, global);
 goog.exportSymbol('proto.db.v1.CreateUserResponse', null, global);
 goog.exportSymbol('proto.db.v1.DMLResult', null, global);
 goog.exportSymbol('proto.db.v1.DatabaseInfo', null, global);
+goog.exportSymbol('proto.db.v1.DeclaredType', null, global);
 goog.exportSymbol('proto.db.v1.DeleteDatabaseRequest', null, global);
 goog.exportSymbol('proto.db.v1.DeleteDatabaseResponse', null, global);
 goog.exportSymbol('proto.db.v1.DeleteUserRequest', null, global);
@@ -7220,13 +7221,13 @@ proto.db.v1.Parameters.prototype.hasNamed = function() {
 
 
 /**
- * map<int32, ColumnType> positional_hints = 3;
+ * map<int32, ColumnAffinity> positional_hints = 3;
  * @param {boolean=} opt_noLazyCreate Do not create the map if
  * empty, instead returning `undefined`
- * @return {!jspb.Map<number,!proto.db.v1.ColumnType>}
+ * @return {!jspb.Map<number,!proto.db.v1.ColumnAffinity>}
  */
 proto.db.v1.Parameters.prototype.getPositionalHintsMap = function(opt_noLazyCreate) {
-  return /** @type {!jspb.Map<number,!proto.db.v1.ColumnType>} */ (
+  return /** @type {!jspb.Map<number,!proto.db.v1.ColumnAffinity>} */ (
       jspb.Message.getMapField(this, 3, opt_noLazyCreate,
       null));
 };
@@ -7243,13 +7244,13 @@ proto.db.v1.Parameters.prototype.clearPositionalHintsMap = function() {
 
 
 /**
- * map<string, ColumnType> named_hints = 4;
+ * map<string, ColumnAffinity> named_hints = 4;
  * @param {boolean=} opt_noLazyCreate Do not create the map if
  * empty, instead returning `undefined`
- * @return {!jspb.Map<string,!proto.db.v1.ColumnType>}
+ * @return {!jspb.Map<string,!proto.db.v1.ColumnAffinity>}
  */
 proto.db.v1.Parameters.prototype.getNamedHintsMap = function(opt_noLazyCreate) {
-  return /** @type {!jspb.Map<string,!proto.db.v1.ColumnType>} */ (
+  return /** @type {!jspb.Map<string,!proto.db.v1.ColumnAffinity>} */ (
       jspb.Message.getMapField(this, 4, opt_noLazyCreate,
       null));
 };
@@ -10913,7 +10914,7 @@ proto.db.v1.ExecuteTransactionResponse.prototype.clearResponsesList = function()
  * @private {!Array<number>}
  * @const
  */
-proto.db.v1.SelectResult.repeatedFields_ = [1,2,3];
+proto.db.v1.SelectResult.repeatedFields_ = [1,2,3,4,5];
 
 
 
@@ -10947,7 +10948,9 @@ proto.db.v1.SelectResult.prototype.toObject = function(opt_includeInstance) {
 proto.db.v1.SelectResult.toObject = function(includeInstance, msg) {
   var f, obj = {
 columnsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
-columnTypesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+columnAffinitiesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+columnDeclaredTypesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+columnRawTypesList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
 rowsList: jspb.Message.toObjectList(msg.getRowsList(),
     google_protobuf_struct_pb.ListValue.toObject, includeInstance)
   };
@@ -10991,9 +10994,16 @@ proto.db.v1.SelectResult.deserializeBinaryFromReader = function(msg, reader) {
       msg.addColumns(value);
       break;
     case 2:
-      reader.readPackableEnumInto(msg.getColumnTypesList());
+      reader.readPackableEnumInto(msg.getColumnAffinitiesList());
       break;
     case 3:
+      reader.readPackableEnumInto(msg.getColumnDeclaredTypesList());
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      msg.addColumnRawTypes(value);
+      break;
+    case 5:
       var value = new google_protobuf_struct_pb.ListValue;
       reader.readMessage(value,google_protobuf_struct_pb.ListValue.deserializeBinaryFromReader);
       msg.addRows(value);
@@ -11034,17 +11044,31 @@ proto.db.v1.SelectResult.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getColumnTypesList();
+  f = message.getColumnAffinitiesList();
   if (f.length > 0) {
     writer.writePackedEnum(
       2,
       f
     );
   }
+  f = message.getColumnDeclaredTypesList();
+  if (f.length > 0) {
+    writer.writePackedEnum(
+      3,
+      f
+    );
+  }
+  f = message.getColumnRawTypesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      4,
+      f
+    );
+  }
   f = message.getRowsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      3,
+      5,
       f,
       google_protobuf_struct_pb.ListValue.serializeBinaryToWriter
     );
@@ -11090,29 +11114,29 @@ proto.db.v1.SelectResult.prototype.clearColumnsList = function() {
 
 
 /**
- * repeated ColumnType column_types = 2;
- * @return {!Array<!proto.db.v1.ColumnType>}
+ * repeated ColumnAffinity column_affinities = 2;
+ * @return {!Array<!proto.db.v1.ColumnAffinity>}
  */
-proto.db.v1.SelectResult.prototype.getColumnTypesList = function() {
-  return /** @type {!Array<!proto.db.v1.ColumnType>} */ (jspb.Message.getRepeatedField(this, 2));
+proto.db.v1.SelectResult.prototype.getColumnAffinitiesList = function() {
+  return /** @type {!Array<!proto.db.v1.ColumnAffinity>} */ (jspb.Message.getRepeatedField(this, 2));
 };
 
 
 /**
- * @param {!Array<!proto.db.v1.ColumnType>} value
+ * @param {!Array<!proto.db.v1.ColumnAffinity>} value
  * @return {!proto.db.v1.SelectResult} returns this
  */
-proto.db.v1.SelectResult.prototype.setColumnTypesList = function(value) {
+proto.db.v1.SelectResult.prototype.setColumnAffinitiesList = function(value) {
   return jspb.Message.setField(this, 2, value || []);
 };
 
 
 /**
- * @param {!proto.db.v1.ColumnType} value
+ * @param {!proto.db.v1.ColumnAffinity} value
  * @param {number=} opt_index
  * @return {!proto.db.v1.SelectResult} returns this
  */
-proto.db.v1.SelectResult.prototype.addColumnTypes = function(value, opt_index) {
+proto.db.v1.SelectResult.prototype.addColumnAffinities = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
 };
 
@@ -11121,18 +11145,92 @@ proto.db.v1.SelectResult.prototype.addColumnTypes = function(value, opt_index) {
  * Clears the list making it empty but non-null.
  * @return {!proto.db.v1.SelectResult} returns this
  */
-proto.db.v1.SelectResult.prototype.clearColumnTypesList = function() {
-  return this.setColumnTypesList([]);
+proto.db.v1.SelectResult.prototype.clearColumnAffinitiesList = function() {
+  return this.setColumnAffinitiesList([]);
 };
 
 
 /**
- * repeated google.protobuf.ListValue rows = 3;
+ * repeated DeclaredType column_declared_types = 3;
+ * @return {!Array<!proto.db.v1.DeclaredType>}
+ */
+proto.db.v1.SelectResult.prototype.getColumnDeclaredTypesList = function() {
+  return /** @type {!Array<!proto.db.v1.DeclaredType>} */ (jspb.Message.getRepeatedField(this, 3));
+};
+
+
+/**
+ * @param {!Array<!proto.db.v1.DeclaredType>} value
+ * @return {!proto.db.v1.SelectResult} returns this
+ */
+proto.db.v1.SelectResult.prototype.setColumnDeclaredTypesList = function(value) {
+  return jspb.Message.setField(this, 3, value || []);
+};
+
+
+/**
+ * @param {!proto.db.v1.DeclaredType} value
+ * @param {number=} opt_index
+ * @return {!proto.db.v1.SelectResult} returns this
+ */
+proto.db.v1.SelectResult.prototype.addColumnDeclaredTypes = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.db.v1.SelectResult} returns this
+ */
+proto.db.v1.SelectResult.prototype.clearColumnDeclaredTypesList = function() {
+  return this.setColumnDeclaredTypesList([]);
+};
+
+
+/**
+ * repeated string column_raw_types = 4;
+ * @return {!Array<string>}
+ */
+proto.db.v1.SelectResult.prototype.getColumnRawTypesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.db.v1.SelectResult} returns this
+ */
+proto.db.v1.SelectResult.prototype.setColumnRawTypesList = function(value) {
+  return jspb.Message.setField(this, 4, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.db.v1.SelectResult} returns this
+ */
+proto.db.v1.SelectResult.prototype.addColumnRawTypes = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.db.v1.SelectResult} returns this
+ */
+proto.db.v1.SelectResult.prototype.clearColumnRawTypesList = function() {
+  return this.setColumnRawTypesList([]);
+};
+
+
+/**
+ * repeated google.protobuf.ListValue rows = 5;
  * @return {!Array<!proto.google.protobuf.ListValue>}
  */
 proto.db.v1.SelectResult.prototype.getRowsList = function() {
   return /** @type{!Array<!proto.google.protobuf.ListValue>} */ (
-    jspb.Message.getRepeatedWrapperField(this, google_protobuf_struct_pb.ListValue, 3));
+    jspb.Message.getRepeatedWrapperField(this, google_protobuf_struct_pb.ListValue, 5));
 };
 
 
@@ -11141,7 +11239,7 @@ proto.db.v1.SelectResult.prototype.getRowsList = function() {
  * @return {!proto.db.v1.SelectResult} returns this
 */
 proto.db.v1.SelectResult.prototype.setRowsList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 3, value);
+  return jspb.Message.setRepeatedWrapperField(this, 5, value);
 };
 
 
@@ -11151,7 +11249,7 @@ proto.db.v1.SelectResult.prototype.setRowsList = function(value) {
  * @return {!proto.google.protobuf.ListValue}
  */
 proto.db.v1.SelectResult.prototype.addRows = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 3, opt_value, proto.google.protobuf.ListValue, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 5, opt_value, proto.google.protobuf.ListValue, opt_index);
 };
 
 
@@ -11330,7 +11428,7 @@ proto.db.v1.DMLResult.prototype.setLastInsertId = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.db.v1.QueryResultHeader.repeatedFields_ = [1,2];
+proto.db.v1.QueryResultHeader.repeatedFields_ = [1,2,3,4];
 
 
 
@@ -11364,7 +11462,9 @@ proto.db.v1.QueryResultHeader.prototype.toObject = function(opt_includeInstance)
 proto.db.v1.QueryResultHeader.toObject = function(includeInstance, msg) {
   var f, obj = {
 columnsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
-columnTypesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+columnAffinitiesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+columnDeclaredTypesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+columnRawTypesList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -11406,7 +11506,14 @@ proto.db.v1.QueryResultHeader.deserializeBinaryFromReader = function(msg, reader
       msg.addColumns(value);
       break;
     case 2:
-      reader.readPackableEnumInto(msg.getColumnTypesList());
+      reader.readPackableEnumInto(msg.getColumnAffinitiesList());
+      break;
+    case 3:
+      reader.readPackableEnumInto(msg.getColumnDeclaredTypesList());
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      msg.addColumnRawTypes(value);
       break;
     default:
       reader.skipField();
@@ -11444,10 +11551,24 @@ proto.db.v1.QueryResultHeader.serializeBinaryToWriter = function(message, writer
       f
     );
   }
-  f = message.getColumnTypesList();
+  f = message.getColumnAffinitiesList();
   if (f.length > 0) {
     writer.writePackedEnum(
       2,
+      f
+    );
+  }
+  f = message.getColumnDeclaredTypesList();
+  if (f.length > 0) {
+    writer.writePackedEnum(
+      3,
+      f
+    );
+  }
+  f = message.getColumnRawTypesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      4,
       f
     );
   }
@@ -11492,29 +11613,29 @@ proto.db.v1.QueryResultHeader.prototype.clearColumnsList = function() {
 
 
 /**
- * repeated ColumnType column_types = 2;
- * @return {!Array<!proto.db.v1.ColumnType>}
+ * repeated ColumnAffinity column_affinities = 2;
+ * @return {!Array<!proto.db.v1.ColumnAffinity>}
  */
-proto.db.v1.QueryResultHeader.prototype.getColumnTypesList = function() {
-  return /** @type {!Array<!proto.db.v1.ColumnType>} */ (jspb.Message.getRepeatedField(this, 2));
+proto.db.v1.QueryResultHeader.prototype.getColumnAffinitiesList = function() {
+  return /** @type {!Array<!proto.db.v1.ColumnAffinity>} */ (jspb.Message.getRepeatedField(this, 2));
 };
 
 
 /**
- * @param {!Array<!proto.db.v1.ColumnType>} value
+ * @param {!Array<!proto.db.v1.ColumnAffinity>} value
  * @return {!proto.db.v1.QueryResultHeader} returns this
  */
-proto.db.v1.QueryResultHeader.prototype.setColumnTypesList = function(value) {
+proto.db.v1.QueryResultHeader.prototype.setColumnAffinitiesList = function(value) {
   return jspb.Message.setField(this, 2, value || []);
 };
 
 
 /**
- * @param {!proto.db.v1.ColumnType} value
+ * @param {!proto.db.v1.ColumnAffinity} value
  * @param {number=} opt_index
  * @return {!proto.db.v1.QueryResultHeader} returns this
  */
-proto.db.v1.QueryResultHeader.prototype.addColumnTypes = function(value, opt_index) {
+proto.db.v1.QueryResultHeader.prototype.addColumnAffinities = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
 };
 
@@ -11523,8 +11644,82 @@ proto.db.v1.QueryResultHeader.prototype.addColumnTypes = function(value, opt_ind
  * Clears the list making it empty but non-null.
  * @return {!proto.db.v1.QueryResultHeader} returns this
  */
-proto.db.v1.QueryResultHeader.prototype.clearColumnTypesList = function() {
-  return this.setColumnTypesList([]);
+proto.db.v1.QueryResultHeader.prototype.clearColumnAffinitiesList = function() {
+  return this.setColumnAffinitiesList([]);
+};
+
+
+/**
+ * repeated DeclaredType column_declared_types = 3;
+ * @return {!Array<!proto.db.v1.DeclaredType>}
+ */
+proto.db.v1.QueryResultHeader.prototype.getColumnDeclaredTypesList = function() {
+  return /** @type {!Array<!proto.db.v1.DeclaredType>} */ (jspb.Message.getRepeatedField(this, 3));
+};
+
+
+/**
+ * @param {!Array<!proto.db.v1.DeclaredType>} value
+ * @return {!proto.db.v1.QueryResultHeader} returns this
+ */
+proto.db.v1.QueryResultHeader.prototype.setColumnDeclaredTypesList = function(value) {
+  return jspb.Message.setField(this, 3, value || []);
+};
+
+
+/**
+ * @param {!proto.db.v1.DeclaredType} value
+ * @param {number=} opt_index
+ * @return {!proto.db.v1.QueryResultHeader} returns this
+ */
+proto.db.v1.QueryResultHeader.prototype.addColumnDeclaredTypes = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.db.v1.QueryResultHeader} returns this
+ */
+proto.db.v1.QueryResultHeader.prototype.clearColumnDeclaredTypesList = function() {
+  return this.setColumnDeclaredTypesList([]);
+};
+
+
+/**
+ * repeated string column_raw_types = 4;
+ * @return {!Array<string>}
+ */
+proto.db.v1.QueryResultHeader.prototype.getColumnRawTypesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.db.v1.QueryResultHeader} returns this
+ */
+proto.db.v1.QueryResultHeader.prototype.setColumnRawTypesList = function(value) {
+  return jspb.Message.setField(this, 4, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.db.v1.QueryResultHeader} returns this
+ */
+proto.db.v1.QueryResultHeader.prototype.addColumnRawTypes = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.db.v1.QueryResultHeader} returns this
+ */
+proto.db.v1.QueryResultHeader.prototype.clearColumnRawTypesList = function() {
+  return this.setColumnRawTypesList([]);
 };
 
 
@@ -12698,16 +12893,54 @@ proto.db.v1.TransactionMode = {
 /**
  * @enum {number}
  */
-proto.db.v1.ColumnType = {
-  COLUMN_TYPE_UNSPECIFIED: 0,
-  COLUMN_TYPE_NULL: 1,
-  COLUMN_TYPE_INTEGER: 2,
-  COLUMN_TYPE_FLOAT: 3,
-  COLUMN_TYPE_TEXT: 4,
-  COLUMN_TYPE_BLOB: 5,
-  COLUMN_TYPE_BOOLEAN: 6,
-  COLUMN_TYPE_DATE: 7,
-  COLUMN_TYPE_JSON: 8
+proto.db.v1.ColumnAffinity = {
+  COLUMN_AFFINITY_UNSPECIFIED: 0,
+  COLUMN_AFFINITY_INTEGER: 1,
+  COLUMN_AFFINITY_TEXT: 2,
+  COLUMN_AFFINITY_BLOB: 3,
+  COLUMN_AFFINITY_REAL: 4,
+  COLUMN_AFFINITY_NUMERIC: 5
+};
+
+/**
+ * @enum {number}
+ */
+proto.db.v1.DeclaredType = {
+  DECLARED_TYPE_UNSPECIFIED: 0,
+  DECLARED_TYPE_INT: 1,
+  DECLARED_TYPE_INTEGER: 2,
+  DECLARED_TYPE_TINYINT: 3,
+  DECLARED_TYPE_SMALLINT: 4,
+  DECLARED_TYPE_MEDIUMINT: 5,
+  DECLARED_TYPE_BIGINT: 6,
+  DECLARED_TYPE_UNSIGNED_BIG_INT: 7,
+  DECLARED_TYPE_INT2: 8,
+  DECLARED_TYPE_INT8: 9,
+  DECLARED_TYPE_CHARACTER: 10,
+  DECLARED_TYPE_VARCHAR: 11,
+  DECLARED_TYPE_VARYING_CHARACTER: 12,
+  DECLARED_TYPE_NCHAR: 13,
+  DECLARED_TYPE_NATIVE_CHARACTER: 14,
+  DECLARED_TYPE_NVARCHAR: 15,
+  DECLARED_TYPE_TEXT: 16,
+  DECLARED_TYPE_CLOB: 17,
+  DECLARED_TYPE_BLOB: 18,
+  DECLARED_TYPE_REAL: 19,
+  DECLARED_TYPE_DOUBLE: 20,
+  DECLARED_TYPE_DOUBLE_PRECISION: 21,
+  DECLARED_TYPE_FLOAT: 22,
+  DECLARED_TYPE_NUMERIC: 23,
+  DECLARED_TYPE_DECIMAL: 24,
+  DECLARED_TYPE_BOOLEAN: 25,
+  DECLARED_TYPE_DATE: 26,
+  DECLARED_TYPE_DATETIME: 27,
+  DECLARED_TYPE_TIMESTAMP: 28,
+  DECLARED_TYPE_JSON: 29,
+  DECLARED_TYPE_UUID: 30,
+  DECLARED_TYPE_TIME: 31,
+  DECLARED_TYPE_YEAR: 32,
+  DECLARED_TYPE_CHAR: 33,
+  DECLARED_TYPE_XML: 34
 };
 
 /**

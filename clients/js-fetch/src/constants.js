@@ -56,20 +56,66 @@ const TransactionMode = {
 };
 
 /**
- * ColumnType hints allow the server to interpret ambiguous JSON/Proto types correctly.
+ * ColumnAffinity defines the storage class of the column.
  * @readonly
  * @enum {number}
  */
-const ColumnType = {
-    COLUMN_TYPE_UNSPECIFIED: 0,
-    COLUMN_TYPE_NULL: 1,
-    COLUMN_TYPE_INTEGER: 2,
-    COLUMN_TYPE_FLOAT: 3,
-    COLUMN_TYPE_TEXT: 4,
-    COLUMN_TYPE_BLOB: 5,
-    COLUMN_TYPE_BOOLEAN: 6,
-    COLUMN_TYPE_DATE: 7,
-    COLUMN_TYPE_JSON: 8,
+const ColumnAffinity = {
+    COLUMN_AFFINITY_UNSPECIFIED: 0,
+    COLUMN_AFFINITY_INTEGER: 1,
+    COLUMN_AFFINITY_TEXT: 2,
+    COLUMN_AFFINITY_BLOB: 3,
+    COLUMN_AFFINITY_REAL: 4,
+    COLUMN_AFFINITY_NUMERIC: 5,
+};
+
+/**
+ * DeclaredType hints at the semantic meaning of the column.
+ * @readonly
+ * @enum {number}
+ */
+const DeclaredType = {
+    DECLARED_TYPE_UNSPECIFIED: 0,
+    // --- Integer Family ---
+    DECLARED_TYPE_INT: 1,
+    DECLARED_TYPE_INTEGER: 2,
+    DECLARED_TYPE_TINYINT: 3,
+    DECLARED_TYPE_SMALLINT: 4,
+    DECLARED_TYPE_MEDIUMINT: 5,
+    DECLARED_TYPE_BIGINT: 6,
+    DECLARED_TYPE_UNSIGNED_BIG_INT: 7,
+    DECLARED_TYPE_INT2: 8,
+    DECLARED_TYPE_INT8: 9,
+    // --- Character/Text Family ---
+    DECLARED_TYPE_CHARACTER: 10,
+    DECLARED_TYPE_VARCHAR: 11,
+    DECLARED_TYPE_VARYING_CHARACTER: 12,
+    DECLARED_TYPE_NCHAR: 13,
+    DECLARED_TYPE_NATIVE_CHARACTER: 14,
+    DECLARED_TYPE_NVARCHAR: 15,
+    DECLARED_TYPE_TEXT: 16,
+    DECLARED_TYPE_CLOB: 17,
+    // --- Blob Family ---
+    DECLARED_TYPE_BLOB: 18,
+    // --- Real/Float Family ---
+    DECLARED_TYPE_REAL: 19,
+    DECLARED_TYPE_DOUBLE: 20,
+    DECLARED_TYPE_DOUBLE_PRECISION: 21,
+    DECLARED_TYPE_FLOAT: 22,
+    // --- Numeric/Date/Boolean/JSON Family ---
+    DECLARED_TYPE_NUMERIC: 23,
+    DECLARED_TYPE_DECIMAL: 24,
+    DECLARED_TYPE_BOOLEAN: 25,
+    DECLARED_TYPE_DATE: 26,
+    DECLARED_TYPE_DATETIME: 27,
+    DECLARED_TYPE_TIMESTAMP: 28,
+    DECLARED_TYPE_JSON: 29,
+    // --- Specialized Types ---
+    DECLARED_TYPE_UUID: 30,
+    DECLARED_TYPE_TIME: 31,
+    DECLARED_TYPE_YEAR: 32,
+    DECLARED_TYPE_CHAR: 33,
+    DECLARED_TYPE_XML: 34,
 };
 
 /**
@@ -104,7 +150,8 @@ const RPC = {
 module.exports = {
     SqliteCode,
     TransactionMode,
-    ColumnType,
+    ColumnAffinity,
+    DeclaredType,
     SavepointAction,
     RPC,
 };

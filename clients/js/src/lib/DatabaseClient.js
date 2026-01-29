@@ -65,12 +65,29 @@ class DatabaseClient {
       credentials,
     );
     this.dbName = databaseName;
-    this.config = {
-      dateHandling: 'date',
+
+    // Default Config
+    const defaults = {
       retry: { maxRetries: 3, baseDelayMs: 100 },
       interceptors: [],
       auth: null,
+      typeParsers: {
+        bigint: true,
+        json: true,
+        blob: true,
+        date: 'date',
+      },
+    };
+
+    // Merge User Config
+    this.config = {
+      ...defaults,
       ...config,
+      // Deep merge typeParsers
+      typeParsers: {
+        ...defaults.typeParsers,
+        ...(config.typeParsers || {}),
+      },
     };
   }
 
@@ -121,6 +138,18 @@ class DatabaseClient {
 
   /**
    * Internal: Initiates a stateless QueryStream and peels off the first message (Header/DML).
+   * @param {string|object} sqlOrObj - SQL string or SQLStatement object.
+   * @param {Array|object} paramsOrHints - Positional/Named parameters or hints.
+   * @param {object} hintsOrNull - Type hints.
+   * @returns {Promise<{
+   *   iterator: AsyncIterator<any>,
+   *   columns: string[],
+   *   columnAffinities: number[],
+   *   columnDeclaredTypes: number[],
+   *   columnRawTypes: string[],
+   *   isDml: boolean,
+   *   dmlStats?: { rowsAffected: number, lastInsertId: number }
+   * }>}
    */
   async _initStream(sqlOrObj, paramsOrHints, hintsOrNull) {
     const { sql, positional, named, hints } = resolveArgs(
@@ -156,7 +185,7 @@ class DatabaseClient {
     try {
       const first = await iterator.next();
       if (first.done) {
-        return { iterator, columns: [], columnTypes: [], isDml: false };
+        return { iterator, columns: [], columnAffinities: [], columnDeclaredTypes: [], columnRawTypes: [], isDml: false };
       }
 
       const msg = first.value;
@@ -176,7 +205,9 @@ class DatabaseClient {
         return {
           iterator,
           columns: [],
-          columnTypes: [],
+          columnAffinities: [],
+          columnDeclaredTypes: [],
+          columnRawTypes: [],
           isDml: true,
           dmlStats: {
             rowsAffected: dml.getRowsAffected(),
@@ -186,21 +217,41 @@ class DatabaseClient {
       }
 
       let columns = [];
-      let columnTypes = [];
+      let columnAffinities = [];
+      let columnDeclaredTypes = [];
+      let columnRawTypes = [];
       if (responseType === db_service_pb.QueryResponse.ResponseCase.HEADER) {
-        columns = msg.getHeader().getColumnsList();
-        columnTypes = msg.getHeader().getColumnTypesList();
+        const header = msg.getHeader();
+        columns = header.getColumnsList();
+        columnAffinities = header.getColumnAffinitiesList();
+        columnDeclaredTypes = header.getColumnDeclaredTypesList();
+        columnRawTypes = header.getColumnRawTypesList();
       }
 
-      return { iterator, columns, columnTypes, isDml: false };
+      return { iterator, columns, columnAffinities, columnDeclaredTypes, columnRawTypes, isDml: false };
     } catch (err) {
       this._runInterceptors('onError', err);
       throw err;
     }
   }
 
+  /**
+   * Executes a query and yields rows one by one.
+   * Optimized for large result sets to avoid memory overflow.
+   *
+   * @param {string|object} sqlOrObj - SQL string or SQLStatement object.
+   * @param {Array|object} [paramsOrHints] - Parameters or hints.
+   * @param {object} [hintsOrNull] - Hints.
+   * @returns {Promise<{
+   *   columns: string[],
+   *   columnAffinities: number[],
+   *   columnDeclaredTypes: number[],
+   *   columnRawTypes: string[],
+   *   rows: AsyncIterable<any[]>
+   * }>}
+   */
   async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
-    const { iterator, columns, columnTypes, isDml } = await this._initStream(
+    const { iterator, columns, columnAffinities, columnDeclaredTypes, columnRawTypes, isDml } = await this._initStream(
       sqlOrObj,
       paramsOrHints,
       hintsOrNull,
@@ -233,15 +284,17 @@ class DatabaseClient {
 
     return {
       columns,
-      columnTypes,
-      rows: createRowIterator(batchSource(), columnTypes, this.config.dateHandling),
+      columnAffinities,
+      columnDeclaredTypes,
+      columnRawTypes,
+      rows: createRowIterator(batchSource(), columnAffinities, columnDeclaredTypes, this.config.typeParsers),
     };
   }
 
   /**
    * Executes a stateless query and yields batches of rows.
    * @param {number} [batchSize=500]
-   * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<any[][]>}>}
+   * @returns {Promise<{columns: string[], columnAffinities: number[], columnDeclaredTypes: number[], columnRawTypes: string[], rows: AsyncIterable<any[][]>}>}
    */
   async queryStream(sqlOrObj, paramsOrHints, hintsOrNull, batchSize = 500) {
     let resolvedBatchSize = batchSize;
@@ -255,7 +308,7 @@ class DatabaseClient {
       resolvedHints = paramsOrHints;
     }
 
-    const { iterator, columns, columnTypes, isDml } = await this._initStream(
+    const { iterator, columns, columnAffinities, columnDeclaredTypes, columnRawTypes, isDml } = await this._initStream(
       sqlOrObj,
       paramsOrHints,
       resolvedHints,
@@ -282,15 +335,17 @@ class DatabaseClient {
 
     return {
       columns,
-      columnTypes,
-      rows: createBatchIterator(batchSource(), columnTypes, this.config.dateHandling, resolvedBatchSize),
+      columnAffinities,
+      columnDeclaredTypes,
+      columnRawTypes,
+      rows: createBatchIterator(batchSource(), columnAffinities, columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
     };
   }
 
   /**
    * Executes a stateless query and buffers all results in memory.
    * Uses Unary RPC for efficiency.
-   * @returns {Promise<{type: string, columns: string[], columnTypes: number[], rows: any[][], rowsAffected?: number, lastInsertId?: number}>}
+   * @returns {Promise<{type: string, columns: string[], columnAffinities: number[], columnDeclaredTypes: number[], columnRawTypes: string[], rows: any[][], rowsAffected?: number, lastInsertId?: number}>}
    */
   async query(sqlOrObj, paramsOrHints, hintsOrNull) {
     return this._withRetry(async () => {
@@ -312,7 +367,7 @@ class DatabaseClient {
         this.client.query(req, metadata, (err, response) => {
           if (err) return reject(err);
           // Use helper
-          const result = mapQueryResult(response, this.config.dateHandling);
+          const result = mapQueryResult(response, this.config.typeParsers);
           this._runInterceptors('afterQuery', result);
           resolve(result);
         });
@@ -328,7 +383,13 @@ class DatabaseClient {
    *
    * @param {Array<{sql: string|object, params?: any, hints?: any} | string | object>} queries
    * @param {number} [mode] - TransactionMode enum (default: DEFERRED).
-   * @returns {Promise<Array<any>>} - List of results for each query.
+   * @returns {Promise<Array<{
+   *   type: 'SELECT'|'DML',
+   *   rows?: any[][],
+   *   columns?: string[],
+   *   rowsAffected?: number,
+   *   lastInsertId?: number
+   * }>>} List of results for each query.
    */
   async executeTransaction(
     queries,
@@ -398,7 +459,7 @@ class DatabaseClient {
 
               if (caseType === ResCase.QUERY_RESULT) {
                 // Use helper, date handling from config
-                results.push(mapQueryResult(res.getQueryResult(), this.config.dateHandling));
+                results.push(mapQueryResult(res.getQueryResult(), this.config.typeParsers));
               }
             }
             this._runInterceptors('afterQuery', results);

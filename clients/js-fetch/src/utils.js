@@ -2,7 +2,7 @@
  * @file src/utils.js
  * @description Helper functions for parameter marshalling and result hydration.
  */
-const { ColumnType } = require('./constants');
+const { ColumnAffinity, DeclaredType } = require('./constants');
 
 /**
  * Converts JS params to the JSON structure expected by the Connect RPC/JSON gateway.
@@ -38,20 +38,27 @@ function toParams(positional = [], named = {}, hints = {}) {
 
 /**
  * Hydrates a single row from JSON values based on column types.
- * 
+ *
  * @param {Array<any>} row - The raw JSON row (strings, numbers, nulls).
- * @param {Array<number>} columnTypes - Array of ColumnType enums.
- * @param {string} dateHandling - 'date' | 'string' | 'number'.
+ * @param {Array<number>} affinities - Array of ColumnAffinity enums.
+ * @param {Array<number>} declaredTypes - Array of DeclaredType enums.
+ * @param {object} [typeParsers={}] - { bigint, json, blob, date }
  */
-function hydrateRow(row, columnTypes, dateHandling = 'date') {
+function hydrateRow(row, affinities, declaredTypes, typeParsers = {}) {
     if (!row) return [];
+
+    const parseBigInt = typeParsers.bigint !== false;
+    const parseJson = typeParsers.json !== false;
+    const parseBlob = typeParsers.blob !== false;
+    const dateHandling = typeParsers.date || 'date';
 
     return row.map((val, i) => {
         if (val === null) return null;
 
-        const type = columnTypes[i];
+        const affinity = affinities[i];
+        const declaredType = declaredTypes[i];
 
-        if (type === ColumnType.COLUMN_TYPE_INTEGER || type === 'COLUMN_TYPE_INTEGER') {
+        if (parseBigInt && (affinity === ColumnAffinity.COLUMN_AFFINITY_INTEGER || affinity === 'COLUMN_AFFINITY_INTEGER')) {
             if (typeof val === 'string') {
                 try {
                     return BigInt(val);
@@ -62,14 +69,35 @@ function hydrateRow(row, columnTypes, dateHandling = 'date') {
             return val;
         }
 
-        if (type === ColumnType.COLUMN_TYPE_BLOB || type === 'COLUMN_TYPE_BLOB') {
+        if (parseBigInt && (declaredType === DeclaredType.DECLARED_TYPE_BIGINT || declaredType === 'DECLARED_TYPE_BIGINT')) {
+            if (typeof val === 'string') {
+                try {
+                    return BigInt(val);
+                } catch {
+                    return val;
+                }
+            }
+        }
+
+        if (parseJson && (declaredType === DeclaredType.DECLARED_TYPE_JSON || declaredType === 'DECLARED_TYPE_JSON')) {
+            if (typeof val === 'string') {
+                try {
+                    return JSON.parse(val);
+                } catch {
+                    return val; // Fallback: return raw string if invalid JSON
+                }
+            }
+        }
+
+        if (parseBlob && (affinity === ColumnAffinity.COLUMN_AFFINITY_BLOB || affinity === 'COLUMN_AFFINITY_BLOB')) {
             if (typeof val === 'string') {
                 return Buffer.from(val, 'base64');
             }
             return val;
         }
 
-        if (type === ColumnType.COLUMN_TYPE_DATE || type === 'COLUMN_TYPE_DATE') {
+        if (declaredType === DeclaredType.DECLARED_TYPE_DATE || declaredType === 'DECLARED_TYPE_DATE' ||
+            declaredType === DeclaredType.DECLARED_TYPE_DATETIME || declaredType === 'DECLARED_TYPE_DATETIME') {
             if (dateHandling === 'string') return val;
 
             const date = new Date(val);
@@ -137,28 +165,59 @@ function resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull) {
 /**
  * Helper to convert row arrays to objects.
  */
-function toObject(columns, row) {
+function toObject(columns, row, declaredTypes = [], typeParsers = {}) {
     const obj = {};
+    const parseBigInt = typeParsers.bigint !== false;
+    const parseJson = typeParsers.json !== false;
+
     for (let i = 0; i < columns.length; i++) {
-        obj[columns[i]] = row[i];
+        let val = row[i];
+        if (parseBigInt && declaredTypes && declaredTypes[i] === DeclaredType.DECLARED_TYPE_BIGINT) {
+            if (typeof val === 'string') {
+                try { val = BigInt(val); } catch (e) { console.warn('BigInt parse failed:', e); }
+            }
+        }
+        if (parseJson && declaredTypes && declaredTypes[i] === DeclaredType.DECLARED_TYPE_JSON) {
+            if (typeof val === 'string') {
+                try { val = JSON.parse(val); } catch (e) { console.warn('JSON parse failed:', e); }
+            }
+        }
+        obj[columns[i]] = val;
     }
     return obj;
 }
 
 /**
- * Normalizes column types to integers (enum values).
- * @param {Array<string|number>} types 
+ * Normalizes column affinities to integers (enum values).
+ * @param {Array<string|number>} types
  * @returns {Array<number>}
  */
-function normalizeColumnTypes(types) {
+function normalizeColumnAffinities(types) {
     if (!types) return [];
     return types.map(t => {
         if (typeof t === 'number') return t;
-        // Check if t is a valid key in ColumnType
-        if (Object.prototype.hasOwnProperty.call(ColumnType, t)) {
-            return ColumnType[t];
+        // Check if t is a valid key in ColumnAffinity
+        if (Object.prototype.hasOwnProperty.call(ColumnAffinity, t)) {
+            return ColumnAffinity[t];
         }
-        return ColumnType.COLUMN_TYPE_UNSPECIFIED;
+        return ColumnAffinity.COLUMN_AFFINITY_UNSPECIFIED;
+    });
+}
+
+/**
+ * Normalizes declared types to integers (enum values).
+ * @param {Array<string|number>} types
+ * @returns {Array<number>}
+ */
+function normalizeDeclaredTypes(types) {
+    if (!types) return [];
+    return types.map(t => {
+        if (typeof t === 'number') return t;
+        // Check if t is a valid key in DeclaredType
+        if (Object.prototype.hasOwnProperty.call(DeclaredType, t)) {
+            return DeclaredType[t];
+        }
+        return DeclaredType.DECLARED_TYPE_UNSPECIFIED;
     });
 }
 
@@ -167,5 +226,6 @@ module.exports = {
     hydrateRow,
     resolveArgs,
     toObject,
-    normalizeColumnTypes,
+    normalizeColumnAffinities,
+    normalizeDeclaredTypes,
 };

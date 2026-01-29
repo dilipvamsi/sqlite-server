@@ -147,28 +147,71 @@ enum TransactionMode {
 }
 
 /**
- * ColumnType defines the resolved data type of a column or parameter.
- * These hints allow the system to restore precision lost by JSON encoding.
+ * ColumnAffinity defines the storage class of the column.
+ * This determines how the raw bytes should be interpreted at a low level.
  */
-enum ColumnType {
-  // Default value, indicates no specific type information is available.
-  COLUMN_TYPE_UNSPECIFIED = 0;
-  // Represents a NULL value.
-  COLUMN_TYPE_NULL = 1;
-  // Maps to INT, INTEGER, BIGINT, TINYINT. Client should parse as int64.
-  COLUMN_TYPE_INTEGER = 2;
-  // Maps to REAL, DOUBLE, FLOAT.
-  COLUMN_TYPE_FLOAT = 3;
-  // Maps to TEXT, VARCHAR, CLOB, CHAR.
-  COLUMN_TYPE_TEXT = 4;
-  // Maps to BLOB, BINARY. Sent as Base64 string in ListValue.
-  COLUMN_TYPE_BLOB = 5;
-  // Maps to BOOLEAN. Sent as 0/1 or true/false.
-  COLUMN_TYPE_BOOLEAN = 6;
-  // Maps to DATETIME/TIMESTAMP. Sent as ISO8601 String.
-  COLUMN_TYPE_DATE = 7;
-  // Maps to specific JSON columns (if the DB supports JSON types).
-  COLUMN_TYPE_JSON = 8;
+enum ColumnAffinity {
+  COLUMN_AFFINITY_UNSPECIFIED = 0;
+  COLUMN_AFFINITY_INTEGER = 1;
+  COLUMN_AFFINITY_TEXT = 2;
+  COLUMN_AFFINITY_BLOB = 3;
+  COLUMN_AFFINITY_REAL = 4;
+  COLUMN_AFFINITY_NUMERIC = 5;
+}
+
+/**
+ * DeclaredType hints at the semantic meaning of the column.
+ * This allows the client to perform automatic type coercion (e.g. String ->
+ * Date).
+ */
+enum DeclaredType {
+  DECLARED_TYPE_UNSPECIFIED = 0;
+
+  // --- Integer Family ---
+  DECLARED_TYPE_INT = 1;
+  DECLARED_TYPE_INTEGER = 2;
+  DECLARED_TYPE_TINYINT = 3;
+  DECLARED_TYPE_SMALLINT = 4;
+  DECLARED_TYPE_MEDIUMINT = 5;
+  DECLARED_TYPE_BIGINT = 6;
+  DECLARED_TYPE_UNSIGNED_BIG_INT = 7;
+  DECLARED_TYPE_INT2 = 8;
+  DECLARED_TYPE_INT8 = 9;
+
+  // --- Character/Text Family ---
+  DECLARED_TYPE_CHARACTER = 10;
+  DECLARED_TYPE_VARCHAR = 11;
+  DECLARED_TYPE_VARYING_CHARACTER = 12;
+  DECLARED_TYPE_NCHAR = 13;
+  DECLARED_TYPE_NATIVE_CHARACTER = 14;
+  DECLARED_TYPE_NVARCHAR = 15;
+  DECLARED_TYPE_TEXT = 16;
+  DECLARED_TYPE_CLOB = 17;
+
+  // --- Blob Family ---
+  DECLARED_TYPE_BLOB = 18;
+
+  // --- Real/Float Family ---
+  DECLARED_TYPE_REAL = 19;
+  DECLARED_TYPE_DOUBLE = 20;
+  DECLARED_TYPE_DOUBLE_PRECISION = 21;
+  DECLARED_TYPE_FLOAT = 22;
+
+  // --- Numeric/Date/Boolean/JSON Family ---
+  DECLARED_TYPE_NUMERIC = 23;
+  DECLARED_TYPE_DECIMAL = 24;
+  DECLARED_TYPE_BOOLEAN = 25;
+  DECLARED_TYPE_DATE = 26;
+  DECLARED_TYPE_DATETIME = 27;
+  DECLARED_TYPE_TIMESTAMP = 28;
+  DECLARED_TYPE_JSON = 29;
+
+  // --- Specialized Types ---
+  DECLARED_TYPE_UUID = 30;
+  DECLARED_TYPE_TIME = 31;
+  DECLARED_TYPE_YEAR = 32;
+  DECLARED_TYPE_CHAR = 33;
+  DECLARED_TYPE_XML = 34;
 }
 
 // -----------------------------------------------------------------------------
@@ -689,14 +732,14 @@ message Parameters {
   // For standard strings, bools, and small ints, NO HINT IS NEEDED.
 
   // Key: The 0-based index of the positional parameter.
-  map<int32, ColumnType> positional_hints = 3 [
+  map<int32, ColumnAffinity> positional_hints = 3 [
     (buf.validate.field).map.keys.int32.gte = 0,
     (buf.validate.field).map.max_pairs = 1000,
     (buf.validate.field).map.values.enum.defined_only = true
   ];
 
   // Key: The parameter name (e.g., ":id", "@user").
-  map<string, ColumnType> named_hints = 4 [
+  map<string, ColumnAffinity> named_hints = 4 [
     (buf.validate.field).map.keys.string.min_len = 1,
     (buf.validate.field).map.max_pairs = 1000,
     (buf.validate.field).map.values.enum.defined_only = true
@@ -1012,11 +1055,12 @@ message ExecuteTransactionResponse {
 message SelectResult {
   // The names of the columns returned by the query.
   repeated string columns = 1;
-  // The resolved column types mapped from SQLite declarations (e.g. VARCHAR ->
-  // TEXT).
-  repeated ColumnType column_types = 2;
+  // The resolved column types mapped from SQLite declarations.
+  repeated ColumnAffinity column_affinities = 2;
+  repeated DeclaredType column_declared_types = 3;
+  repeated string column_raw_types = 4;
   // All rows buffered in memory.
-  repeated google.protobuf.ListValue rows = 3;
+  repeated google.protobuf.ListValue rows = 5;
 }
 
 /**
@@ -1038,7 +1082,9 @@ message QueryResultHeader {
   // The names of the columns.
   repeated string columns = 1;
   // The resolved column types mapped from SQLite declarations.
-  repeated ColumnType column_types = 2;
+  repeated ColumnAffinity column_affinities = 2;
+  repeated DeclaredType column_declared_types = 3;
+  repeated string column_raw_types = 4;
 }
 
 /**

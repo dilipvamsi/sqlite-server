@@ -2,7 +2,7 @@
  * @file src/TransactionHandle.js
  */
 const { SavepointAction, RPC } = require('./constants');
-const { resolveArgs, toParams, hydrateRow, normalizeColumnTypes } = require('./utils');
+const { resolveArgs, toParams, hydrateRow, normalizeColumnAffinities, normalizeDeclaredTypes } = require('./utils');
 
 class TransactionHandle {
     /**
@@ -51,13 +51,16 @@ class TransactionHandle {
         // or { dml: { rowsAffected: "1", lastInsertId: "123" } }
 
         if (json.select) {
-            const { columns, rows, columnTypes } = json.select;
-            const types = normalizeColumnTypes(columnTypes || []); // List of enums
+            const { columns, rows, columnAffinities, columnDeclaredTypes, columnRawTypes } = json.select;
+            const affinities = normalizeColumnAffinities(columnAffinities || []);
+            const declaredTypes = normalizeDeclaredTypes(columnDeclaredTypes || []);
             return {
                 type: 'SELECT',
                 columns: columns || [],
-                columnTypes: types,
-                rows: (rows || []).map(r => hydrateRow(r, types, this.config.dateHandling))
+                columnAffinities: affinities,
+                columnDeclaredTypes: declaredTypes,
+                columnRawTypes: columnRawTypes || [],
+                rows: (rows || []).map(r => hydrateRow(r, affinities, declaredTypes, this.config.typeParsers))
             };
         } else if (json.dml) {
             return {
@@ -121,7 +124,13 @@ class TransactionHandle {
      * @param {string|object} sqlOrObj - SQL string or object.
      * @param {object|Array} [paramsOrHints] - Parameters or hints.
      * @param {object} [hintsOrNull] - Hints.
-     * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<Array<any>>}>}
+     * @returns {Promise<{
+     *   columns: string[],
+     *   columnAffinities: number[],
+     *   columnDeclaredTypes: number[],
+     *   columnRawTypes: string[],
+     *   rows: AsyncIterable<any[]>
+     * }>}
      */
     async queryStream(sqlOrObj, paramsOrHints, hintsOrNull) {
         if (this.isFinalized) throw new Error("Transaction is already finalized.");
@@ -134,14 +143,14 @@ class TransactionHandle {
         };
 
         // TransactionQueryStream
-        const { iterator, columns, columnTypes, isDml } = await this.client._initStream(RPC.TRANSACTION_QUERY_STREAM, body);
+        const { iterator, columns, columnAffinities, columnDeclaredTypes, columnRawTypes, isDml } = await this.client._initStream(RPC.TRANSACTION_QUERY_STREAM, body);
 
         if (isDml) {
             // eslint-disable-next-line require-yield
-            return { columns, columnTypes: [], rows: (async function* () { return; })() };
+            return { columns, columnAffinities: [], columnDeclaredTypes: [], columnRawTypes: [], rows: (async function* () { return; })() };
         }
 
-        const dateHandling = this.config.dateHandling;
+        const typeParsers = this.config.typeParsers;
 
         // Yield batches
         const rowIterator = async function* () {
@@ -151,7 +160,7 @@ class TransactionHandle {
                 }
                 if (msg.batch) {
                     const rows = (msg.batch.rows || []).map(r =>
-                        hydrateRow(r, columnTypes, dateHandling)
+                        hydrateRow(r, columnAffinities, columnDeclaredTypes, typeParsers)
                     );
                     yield rows;
                 }
@@ -160,7 +169,9 @@ class TransactionHandle {
 
         return {
             columns,
-            columnTypes,
+            columnAffinities,
+            columnDeclaredTypes,
+            columnRawTypes,
             rows: rowIterator()
         };
     }
@@ -170,16 +181,24 @@ class TransactionHandle {
      * @param {string|object} sqlOrObj - SQL string or object.
      * @param {object|Array} [paramsOrHints] - Parameters or hints.
      * @param {object} [hintsOrNull] - Hints.
-     * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<any[]>}>}
+     * @returns {Promise<{
+     *   columns: string[],
+     *   columnAffinities: number[],
+     *   columnDeclaredTypes: number[],
+     *   columnRawTypes: string[],
+     *   rows: AsyncIterable<any[]>
+     * }>}
      */
     async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
         if (this.isFinalized) throw new Error("Transaction is already finalized.");
 
-        const { columns, columnTypes, rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull);
+        const { columns, columnAffinities, columnDeclaredTypes, columnRawTypes, rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull);
 
         return {
             columns,
-            columnTypes,
+            columnAffinities,
+            columnDeclaredTypes,
+            columnRawTypes,
             rows: (async function* () {
                 for await (const batch of stream) {
                     for (const row of batch) {

@@ -50,7 +50,7 @@ func main() {
 		log.Fatalf("Failed to create API key: %v", err)
 	}
 
-	log.Printf("Created API key (ID: %d, Name: %s)", keyID, *keyName)
+	log.Printf("Created API key (ID: %s, Name: %s)", keyID, *keyName)
 
 	// Output the key in a format that can be used directly
 	fmt.Println("\n=== API KEY FOR LOAD TESTS ===")

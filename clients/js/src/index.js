@@ -8,7 +8,8 @@ const TransactionHandle = require('./lib/TransactionHandle');
 const {
   TransactionMode,
   SavepointAction,
-  ColumnType,
+  ColumnAffinity,
+  DeclaredType,
   SqliteCode,
   TransactionType,
 } = require("./lib/constants");
@@ -85,10 +86,16 @@ module.exports = {
   SavepointAction,
 
   /**
-   * Enums for column hint types.
+   * Enums for column storage classes.
    * @type {object}
    */
-  ColumnType,
+  ColumnAffinity,
+
+  /**
+   * Enums for declared semantic types.
+   * @type {object}
+   */
+  DeclaredType,
 
   /**
    * Enums for SQLite result codes.

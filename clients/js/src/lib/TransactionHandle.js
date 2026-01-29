@@ -113,7 +113,9 @@ class TransactionHandle {
      * Stores metadata for the currently executing query in the stream.
      * Reset after every query completion.
      */
-    this._currentColumnTypes = [];
+    this._currentColumnAffinities = [];
+    this._currentColumnDeclaredTypes = [];
+    this._currentColumnRawTypes = [];
 
     /**
      * @private
@@ -192,7 +194,16 @@ class TransactionHandle {
    * @param {string|object} sqlOrObj - SQL string or Template Object.
    * @param {Array|object} [paramsOrHints] - Positional/Named parameters.
    * @param {object} [hintsOrNull] - Type hints for BLOBs/BigInts.
-   * @returns {Promise<{type: 'SELECT'|'DML', columns: string[], columnTypes: number[], rows: any[][], rowsAffected?: number, lastInsertId?: number}>}
+   * @returns {Promise<{
+   *   type: 'SELECT'|'DML',
+   *   columns?: string[],
+   *   columnAffinities?: number[],
+   *   columnDeclaredTypes?: number[],
+   *   columnRawTypes?: string[],
+   *   rows?: any[][],
+   *   rowsAffected?: number,
+   *   lastInsertId?: number
+   * }>}
    */
   async query(sqlOrObj, paramsOrHints, hintsOrNull) {
     if (this.pendingResolver || this.activeQueue)
@@ -222,7 +233,13 @@ class TransactionHandle {
    * Executes a query and returns an AsyncIterator yielding one row at a time.
    * Optimized for large result sets; keeps memory usage O(1).
    *
-   * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<any[]>}>}
+   * @returns {Promise<{
+   *   columns: string[],
+   *   columnAffinities: number[],
+   *   columnDeclaredTypes: number[],
+   *   columnRawTypes: string[],
+   *   rows: AsyncIterable<any[]>
+   * }>}
    */
   async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
     if (this.activeQueue || this.pendingResolver)
@@ -253,8 +270,10 @@ class TransactionHandle {
       // We replace 'rows' with our helper wrapper
       return {
         columns: res.columns,
-        columnTypes: res.columnTypes,
-        rows: createRowIterator(res.rows, res.columnTypes, this.config.dateHandling),
+        columnAffinities: res.columnAffinities,
+        columnDeclaredTypes: res.columnDeclaredTypes,
+        columnRawTypes: res.columnRawTypes,
+        rows: createRowIterator(res.rows, res.columnAffinities, res.columnDeclaredTypes, this.config.typeParsers),
       };
     });
   }
@@ -266,7 +285,13 @@ class TransactionHandle {
    * @param {string|object} sqlOrObj
    * @param {Array|object} paramsOrHints
    * @param {number} [batchSize=500] - Desired rows per yield.
-   * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<any[][]>}>}
+   * @returns {Promise<{
+   *   columns: string[],
+   *   columnAffinities: number[],
+   *   columnDeclaredTypes: number[],
+   *   columnRawTypes: string[],
+   *   rows: AsyncIterable<any[][]>
+   * }>}
    */
   async queryStream(sqlOrObj, paramsOrHints, hintsOrNull, batchSize = 500) {
     let resolvedBatchSize = batchSize;
@@ -307,8 +332,10 @@ class TransactionHandle {
     }).then(res => {
       return {
         columns: res.columns,
-        columnTypes: res.columnTypes,
-        rows: createBatchIterator(res.rows, res.columnTypes, this.config.dateHandling, resolvedBatchSize),
+        columnAffinities: res.columnAffinities,
+        columnDeclaredTypes: res.columnDeclaredTypes,
+        columnRawTypes: res.columnRawTypes,
+        rows: createBatchIterator(res.rows, res.columnAffinities, res.columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
       };
     });
   }
@@ -413,7 +440,7 @@ class TransactionHandle {
 
       const result = res.getQueryResult();
       // Use helper
-      const mapped = mapQueryResult(result, this.config.dateHandling);
+      const mapped = mapQueryResult(result, this.config.typeParsers);
       this.pendingResolver.resolve(mapped);
       this.pendingResolver = null;
       return;
@@ -426,12 +453,17 @@ class TransactionHandle {
       const SCase = db_service_pb.QueryResponse.ResponseCase;
 
       if (streamCase === SCase.HEADER) {
-        this._currentColumnTypes = streamRes.getHeader().getColumnTypesList();
+        this._currentColumnAffinities = streamRes.getHeader().getColumnAffinitiesList();
+        this._currentColumnDeclaredTypes = streamRes.getHeader().getColumnDeclaredTypesList();
+        this._currentColumnRawTypes = streamRes.getHeader().getColumnRawTypesList();
+
         // First message of a stream: Resolve the iterate() promise with the iterator
         if (this.pendingResolver?.type === "QUERY_STREAM_INIT") {
           this.pendingResolver.resolve({
             columns: streamRes.getHeader().getColumnsList(),
-            columnTypes: this._currentColumnTypes,
+            columnAffinities: this._currentColumnAffinities,
+            columnDeclaredTypes: this._currentColumnDeclaredTypes,
+            columnRawTypes: this._currentColumnRawTypes,
             rows: this.activeQueue,
           });
           this.pendingResolver = null;
@@ -452,11 +484,15 @@ class TransactionHandle {
           rowsAffected: dml.getRowsAffected(),
           lastInsertId: dml.getLastInsertId(),
         };
-        this._currentColumnTypes = [];
+        this._currentColumnAffinities = [];
+        this._currentColumnDeclaredTypes = [];
+        this._currentColumnRawTypes = [];
         this.activeQueue.close();
       } else if (streamCase === SCase.COMPLETE) {
         // Final message: Close the iterator
-        this._currentColumnTypes = [];
+        this._currentColumnAffinities = [];
+        this._currentColumnDeclaredTypes = [];
+        this._currentColumnRawTypes = [];
         this.activeQueue.close();
         this.activeQueue = null;
       }
@@ -519,7 +555,9 @@ class TransactionHandle {
     this.activeQueue = null;
     this.pendingResolver = null;
     this.stream = null;
-    this._currentColumnTypes = [];
+    this._currentColumnAffinities = [];
+    this._currentColumnDeclaredTypes = [];
+    this._currentColumnRawTypes = [];
   }
 }
 

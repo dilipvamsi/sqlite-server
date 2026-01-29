@@ -911,20 +911,17 @@ components:
       title: BeginTransactionResponse
       additionalProperties: false
       description: "*\r\n Response containing the transaction session token."
-    db.v1.ColumnType:
+    db.v1.ColumnAffinity:
       type: string
-      title: ColumnType
+      title: ColumnAffinity
       enum:
-        - COLUMN_TYPE_UNSPECIFIED
-        - COLUMN_TYPE_NULL
-        - COLUMN_TYPE_INTEGER
-        - COLUMN_TYPE_FLOAT
-        - COLUMN_TYPE_TEXT
-        - COLUMN_TYPE_BLOB
-        - COLUMN_TYPE_BOOLEAN
-        - COLUMN_TYPE_DATE
-        - COLUMN_TYPE_JSON
-      description: "*\r\n ColumnType defines the resolved data type of a column or parameter.\r\n These hints allow the system to restore precision lost by JSON encoding."
+        - COLUMN_AFFINITY_UNSPECIFIED
+        - COLUMN_AFFINITY_INTEGER
+        - COLUMN_AFFINITY_TEXT
+        - COLUMN_AFFINITY_BLOB
+        - COLUMN_AFFINITY_REAL
+        - COLUMN_AFFINITY_NUMERIC
+      description: "*\r\n ColumnAffinity defines the storage class of the column.\r\n This determines how the raw bytes should be interpreted at a low level."
     db.v1.CommitResponse:
       type: object
       properties:
@@ -1065,6 +1062,46 @@ components:
           title: is_managed
       title: DatabaseInfo
       additionalProperties: false
+    db.v1.DeclaredType:
+      type: string
+      title: DeclaredType
+      enum:
+        - DECLARED_TYPE_UNSPECIFIED
+        - DECLARED_TYPE_INT
+        - DECLARED_TYPE_INTEGER
+        - DECLARED_TYPE_TINYINT
+        - DECLARED_TYPE_SMALLINT
+        - DECLARED_TYPE_MEDIUMINT
+        - DECLARED_TYPE_BIGINT
+        - DECLARED_TYPE_UNSIGNED_BIG_INT
+        - DECLARED_TYPE_INT2
+        - DECLARED_TYPE_INT8
+        - DECLARED_TYPE_CHARACTER
+        - DECLARED_TYPE_VARCHAR
+        - DECLARED_TYPE_VARYING_CHARACTER
+        - DECLARED_TYPE_NCHAR
+        - DECLARED_TYPE_NATIVE_CHARACTER
+        - DECLARED_TYPE_NVARCHAR
+        - DECLARED_TYPE_TEXT
+        - DECLARED_TYPE_CLOB
+        - DECLARED_TYPE_BLOB
+        - DECLARED_TYPE_REAL
+        - DECLARED_TYPE_DOUBLE
+        - DECLARED_TYPE_DOUBLE_PRECISION
+        - DECLARED_TYPE_FLOAT
+        - DECLARED_TYPE_NUMERIC
+        - DECLARED_TYPE_DECIMAL
+        - DECLARED_TYPE_BOOLEAN
+        - DECLARED_TYPE_DATE
+        - DECLARED_TYPE_DATETIME
+        - DECLARED_TYPE_TIMESTAMP
+        - DECLARED_TYPE_JSON
+        - DECLARED_TYPE_UUID
+        - DECLARED_TYPE_TIME
+        - DECLARED_TYPE_YEAR
+        - DECLARED_TYPE_CHAR
+        - DECLARED_TYPE_XML
+      description: "*\r\n DeclaredType hints at the semantic meaning of the column.\r\n This allows the client to perform automatic type coercion (e.g. String ->\r\n Date)."
     db.v1.DeleteDatabaseRequest:
       type: object
       properties:
@@ -1334,7 +1371,7 @@ components:
           maxProperties: 1000
           additionalProperties:
             title: value
-            $ref: '#/components/schemas/db.v1.ColumnType'
+            $ref: '#/components/schemas/db.v1.ColumnAffinity'
           description: 'Key: The 0-based index of the positional parameter.'
         namedHints:
           type: object
@@ -1342,7 +1379,7 @@ components:
           maxProperties: 1000
           additionalProperties:
             title: value
-            $ref: '#/components/schemas/db.v1.ColumnType'
+            $ref: '#/components/schemas/db.v1.ColumnAffinity'
           description: 'Key: The parameter name (e.g., ":id", "@user").'
       title: Parameters
       additionalProperties: false
@@ -1355,7 +1392,7 @@ components:
           title: key
         value:
           title: value
-          $ref: '#/components/schemas/db.v1.ColumnType'
+          $ref: '#/components/schemas/db.v1.ColumnAffinity'
       title: NamedHintsEntry
       additionalProperties: false
     db.v1.Parameters.PositionalHintsEntry:
@@ -1367,7 +1404,7 @@ components:
           format: int32
         value:
           title: value
-          $ref: '#/components/schemas/db.v1.ColumnType'
+          $ref: '#/components/schemas/db.v1.ColumnAffinity'
       title: PositionalHintsEntry
       additionalProperties: false
     db.v1.QueryComplete:
@@ -1486,12 +1523,22 @@ components:
             type: string
           title: columns
           description: The names of the columns.
-        columnTypes:
+        columnAffinities:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ColumnType'
-          title: column_types
+            $ref: '#/components/schemas/db.v1.ColumnAffinity'
+          title: column_affinities
           description: The resolved column types mapped from SQLite declarations.
+        columnDeclaredTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.DeclaredType'
+          title: column_declared_types
+        columnRawTypes:
+          type: array
+          items:
+            type: string
+          title: column_raw_types
       title: QueryResultHeader
       additionalProperties: false
       description: "*\r\n Metadata about the columns in a result set (Streaming).\r\n Sent as the first message in a read stream."
@@ -1637,12 +1684,22 @@ components:
             type: string
           title: columns
           description: The names of the columns returned by the query.
-        columnTypes:
+        columnAffinities:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ColumnType'
-          title: column_types
-          description: "The resolved column types mapped from SQLite declarations (e.g. VARCHAR ->\r\n TEXT)."
+            $ref: '#/components/schemas/db.v1.ColumnAffinity'
+          title: column_affinities
+          description: The resolved column types mapped from SQLite declarations.
+        columnDeclaredTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.DeclaredType'
+          title: column_declared_types
+        columnRawTypes:
+          type: array
+          items:
+            type: string
+          title: column_raw_types
         rows:
           type: array
           items:

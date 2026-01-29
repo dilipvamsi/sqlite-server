@@ -5,7 +5,8 @@ const {
     toParams,
     resolveArgs,
     hydrateRow,
-    normalizeColumnTypes
+    normalizeColumnAffinities,
+    normalizeDeclaredTypes
 } = require('./utils');
 const {
     TransactionMode,
@@ -17,17 +18,36 @@ const Transaction = require('./TransactionHandle');
 
 class DatabaseClient {
     /**
-     * @param {string} address - Base URL (e.g. "http://localhost:50051")
-     * @param {string} database - Database name
-     * @param {object} config - { auth: { type: 'basic'|'bearer', username, password, token }, dateHandling: 'date'|'string'|'number' }
+     * @param { string } address - Base URL(e.g. "http://localhost:50051")
+     * @param { string } database - Database name
+     * @param { object } config - Configuration options.
+     * @param { object } [config.auth] - { type: 'basic' | 'bearer', username, password, token }
+     * @param { object } [config.typeParsers] - { bigint: boolean, json: boolean, blob: boolean, date: 'date' | 'string' | 'number' }
      */
     constructor(address, database, config = {}) {
         // Ensure no trailing slash
         this.baseUrl = address.replace(/\/$/, "");
         this.database = database;
+
+        const defaults = {
+            retry: { maxRetries: 3, baseDelayMs: 100 },
+            interceptors: [],
+            auth: null,
+            typeParsers: {
+                bigint: true,
+                json: true,
+                blob: true,
+                date: 'date'
+            }
+        };
+
         this.config = {
-            dateHandling: 'date',
-            ...config
+            ...defaults,
+            ...config,
+            typeParsers: {
+                ...defaults.typeParsers,
+                ...(config.typeParsers || {})
+            }
         };
     }
 
@@ -95,7 +115,7 @@ class DatabaseClient {
      * Internal generator that yields parsed messages from the stream.
      * @param {ReadableStreamDefaultReader} reader
      */
-    async* _fetchStreamIterator(reader) {
+    async * _fetchStreamIterator(reader) {
         let buffer = new Uint8Array(0);
 
         while (true) {
@@ -162,7 +182,7 @@ class DatabaseClient {
         // Read first message
         const first = await iterator.next();
         if (first.done) {
-            return { iterator, columns: [], columnTypes: [], isDml: false };
+            return { iterator, columns: [], columnAffinities: [], columnDeclaredTypes: [], columnRawTypes: [], isDml: false };
         }
 
         const msg = first.value;
@@ -175,7 +195,9 @@ class DatabaseClient {
             return {
                 iterator,
                 columns: [],
-                columnTypes: [],
+                columnAffinities: [],
+                columnDeclaredTypes: [],
+                columnRawTypes: [],
                 isDml: true,
                 dmlStats: {
                     rowsAffected: Number(msg.dml.rowsAffected || 0),
@@ -185,14 +207,18 @@ class DatabaseClient {
         }
 
         let columns = [];
-        let columnTypes = [];
+        let columnAffinities = [];
+        let columnDeclaredTypes = [];
+        let columnRawTypes = [];
 
         if (msg.header) {
             columns = msg.header.columns || [];
-            columnTypes = normalizeColumnTypes(msg.header.columnTypes || []);
+            columnAffinities = normalizeColumnAffinities(msg.header.columnAffinities || []);
+            columnDeclaredTypes = normalizeDeclaredTypes(msg.header.columnDeclaredTypes || []);
+            columnRawTypes = msg.header.columnRawTypes || [];
         }
 
-        return { iterator, columns, columnTypes, isDml: false };
+        return { iterator, columns, columnAffinities, columnDeclaredTypes, columnRawTypes, isDml: false };
     }
 
     /**
@@ -215,38 +241,33 @@ class DatabaseClient {
         const json = await res.json();
 
         if (json.select) {
-            const { columns, rows, columnTypes } = json.select;
-            const types = normalizeColumnTypes(columnTypes || []);
+            const { columns, rows, columnAffinities, columnDeclaredTypes, columnRawTypes } = json.select;
+            const affinities = normalizeColumnAffinities(columnAffinities || []);
+            const declaredTypes = normalizeDeclaredTypes(columnDeclaredTypes || []);
+
             return {
                 type: 'SELECT',
                 columns: columns || [],
-                columnTypes: types,
+                columnAffinities: affinities,
+                columnDeclaredTypes: declaredTypes,
+                columnRawTypes: columnRawTypes || [],
                 rows: (rows || []).map(r => {
                     // console.log("DEBUG ROW:", JSON.stringify(r));
-                    return hydrateRow(r, types, this.config.dateHandling)
-                })
+                    return hydrateRow(r, affinities, declaredTypes, this.config.typeParsers)
+                }),
+                stats: json.stats
             };
         } else if (json.dml) {
             return {
                 type: 'DML',
-                columns: [],
-                rows: [],
                 rowsAffected: Number(json.dml.rowsAffected || 0),
-                lastInsertId: Number(json.dml.lastInsertId || 0)
+                lastInsertId: Number(json.dml.lastInsertId || 0),
+                stats: json.stats
             };
         }
         return { type: 'UNKNOWN', rows: [] };
     }
 
-    /**
-     * Executes a query efficiently returning a stream of rows.
-     * Useful for large result sets.
-     *
-     * @param {string|object} sqlOrObj - SQL string or object.
-     * @param {object|Array} [paramsOrHints] - Parameters or hints.
-     * @param {object} [hintsOrNull] - Hints if 2nd arg was params.
-     * @returns {Promise<{columns: string[], rows: AsyncIterable<Array<any>>}>}
-     */
     /**
      * Executes a query efficiently returning a stream of rows.
      * Useful for large result sets.
@@ -265,14 +286,14 @@ class DatabaseClient {
             parameters: toParams(positional, named, hints)
         };
 
-        const { iterator, columns, columnTypes, isDml } = await this._initStream(RPC.QUERY_STREAM, body);
+        const { iterator, columns, columnAffinities, columnDeclaredTypes, columnRawTypes, isDml } = await this._initStream(RPC.QUERY_STREAM, body);
 
         if (isDml) {
             // eslint-disable-next-line require-yield
-            return { columns, columnTypes: [], rows: (async function* () { return; })() };
+            return { columns, columnAffinities: [], columnDeclaredTypes: [], columnRawTypes: [], rows: (async function* () { return; })() };
         }
 
-        const dateHandling = this.config.dateHandling;
+        const typeParsers = this.config.typeParsers;
 
         // Yield batches
         const rowIterator = async function* () {
@@ -282,7 +303,7 @@ class DatabaseClient {
                 }
                 if (msg.batch) {
                     const rows = (msg.batch.rows || []).map(r =>
-                        hydrateRow(r, columnTypes, dateHandling)
+                        hydrateRow(r, columnAffinities, columnDeclaredTypes, typeParsers)
                     );
                     yield rows;
                 }
@@ -291,7 +312,9 @@ class DatabaseClient {
 
         return {
             columns,
-            columnTypes,
+            columnAffinities,
+            columnDeclaredTypes,
+            columnRawTypes,
             rows: rowIterator()
         };
     }
@@ -306,11 +329,13 @@ class DatabaseClient {
      * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<Array<any>>}>}
      */
     async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
-        const { columns, columnTypes, rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull);
+        const { columns, columnAffinities, columnDeclaredTypes, columnRawTypes, rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull);
 
         return {
             columns,
-            columnTypes,
+            columnAffinities,
+            columnDeclaredTypes,
+            columnRawTypes,
             rows: (async function* () {
                 for await (const batch of stream) {
                     for (const row of batch) {
@@ -375,10 +400,11 @@ class DatabaseClient {
                     // Map Query Result
                     const qr = r.queryResult;
                     if (qr.select) {
-                        const types = qr.select.columnTypes || [];
+                        const affinities = normalizeColumnAffinities(qr.select.columnAffinities || []);
+                        const declaredTypes = normalizeDeclaredTypes(qr.select.columnDeclaredTypes || []);
                         results.push({
                             type: 'SELECT',
-                            rows: (qr.select.rows || []).map(row => hydrateRow(row, types, this.config.dateHandling))
+                            rows: (qr.select.rows || []).map(row => hydrateRow(row, affinities, declaredTypes, this.config.typeParsers))
                         });
                     } else if (qr.dml) {
                         results.push({

@@ -56,21 +56,29 @@ func TestIsReadOnly(t *testing.T) {
 func TestApplyHint(t *testing.T) {
 	// 1. BLOB Hint
 	blobStr := base64.StdEncoding.EncodeToString([]byte("data"))
-	val := applyHint(blobStr, dbv1.ColumnType_COLUMN_TYPE_BLOB, true)
+	val := applyHint(blobStr, dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB, true)
 	assert.Equal(t, []byte("data"), val)
 
 	// 2. Integer Hint (String -> Int)
-	val = applyHint("123", dbv1.ColumnType_COLUMN_TYPE_INTEGER, true)
+	val = applyHint("123", dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, int64(123), val)
 
 	// 3. Integer Hint (Float -> Int)
-	val = applyHint(float64(123.0), dbv1.ColumnType_COLUMN_TYPE_INTEGER, true)
+	val = applyHint(float64(123.0), dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, int64(123), val)
 
 	// 4. Boolean
-	val = applyHint(true, dbv1.ColumnType_COLUMN_TYPE_BOOLEAN, true)
+	// Boolean is not in Affinity enum explicitly as a hint input usually, but we treat it as INTEGER/NUMERIC
+	// The implementation of applyHint converts BOOLEAN affinity roughly to Integer logic?
+	// applyHint switch:
+	// case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER: ...
+	// Wait, if I pass true/false and use INTEGER affinity, does it convert?
+	// In query_utils.go applyHint for INTEGER:
+	// case bool: return 1 or 0.
+	// So we should use INTEGER affinity for boolean test here.
+	val = applyHint(true, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, 1, val)
-	val = applyHint(false, dbv1.ColumnType_COLUMN_TYPE_BOOLEAN, true)
+	val = applyHint(false, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, 0, val)
 }
 
@@ -80,11 +88,11 @@ func TestParameterConversion(t *testing.T) {
 		Positional: &structpb.ListValue{Values: []*structpb.Value{
 			structpb.NewStringValue("123"),
 		}},
-		PositionalHints: map[int32]dbv1.ColumnType{0: dbv1.ColumnType_COLUMN_TYPE_INTEGER},
+		PositionalHints: map[int32]dbv1.ColumnAffinity{0: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER},
 		Named: &structpb.Struct{Fields: map[string]*structpb.Value{
 			":id": structpb.NewStringValue("456"),
 		}},
-		NamedHints: map[string]dbv1.ColumnType{":id": dbv1.ColumnType_COLUMN_TYPE_INTEGER},
+		NamedHints: map[string]dbv1.ColumnAffinity{":id": dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER},
 	}
 
 	res, err := convertParameters("", params)

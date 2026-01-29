@@ -110,7 +110,7 @@ func TestUnaryQuery(t *testing.T) {
 		// Check Blob (Base64)
 		assert.Equal(t, "3q2+7w==", rows[0].Values[2].GetStringValue())
 		// Check Type Hint Resolution
-		assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_INTEGER, res.Msg.GetSelect().ColumnTypes[0])
+		assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, res.Msg.GetSelect().ColumnAffinities[0])
 	})
 
 	t.Run("DML Success", func(t *testing.T) {
@@ -208,7 +208,7 @@ func TestUnaryTransaction(t *testing.T) {
 	assert.Equal(t, float64(99), verifyRes.Msg.GetSelect().Rows[0].Values[0].GetNumberValue())
 
 	// Metadata Check: Ensure the column is correctly identified as INTEGER
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_INTEGER, verifyRes.Msg.GetSelect().ColumnTypes[0])
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, verifyRes.Msg.GetSelect().ColumnAffinities[0])
 }
 
 func TestTransactionTimeouts(t *testing.T) {

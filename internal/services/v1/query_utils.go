@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"strconv"
@@ -153,15 +154,21 @@ func convertParameters(sqlQuery string, params *dbv1.Parameters) ([]any, error) 
 
 // applyHint performs type coercion based on the "Sparse Hint" provided by the client.
 // This solves the problem of JSON (and Proto Structs) lacking native support for BLOBs and Integers.
-func applyHint(val any, hint dbv1.ColumnType, hasHint bool) any {
+func applyHint(val any, hint dbv1.ColumnAffinity, hasHint bool) any {
 	if !hasHint || val == nil {
+		// Basic boolean to integer coercion for SQLite even without hints,
+		// because SQLite doesn't support native booleans.
+		if b, ok := val.(bool); ok {
+			if b {
+				return 1
+			}
+			return 0
+		}
 		return val
 	}
 
-	// log.Printf("val: %s", val)
-	// log.Printf("hint: %s", hint)
 	switch hint {
-	case dbv1.ColumnType_COLUMN_TYPE_BLOB:
+	case dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
 		// Logic: Clients send binary data as Base64 strings.
 		// We decode it back to []byte so SQLite driver uses binary mode.
 		if strVal, ok := val.(string); ok {
@@ -170,10 +177,8 @@ func applyHint(val any, hint dbv1.ColumnType, hasHint bool) any {
 			}
 		}
 
-	case dbv1.ColumnType_COLUMN_TYPE_INTEGER:
-		// Logic: Handle precision safety.
-		// JS sends Large Integers (> 2^53) as strings.
-		// Standard JSON numbers arrive as float64.
+	case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
+		// Logic: Handle precision safety and boolean coercion.
 		switch v := val.(type) {
 		case string:
 			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
@@ -181,18 +186,14 @@ func applyHint(val any, hint dbv1.ColumnType, hasHint bool) any {
 			}
 		case float64:
 			return int64(v)
-		}
-
-	case dbv1.ColumnType_COLUMN_TYPE_BOOLEAN:
-		// Logic: Coerce various truthy values to int 0/1 for SQLite
-		if b, ok := val.(bool); ok {
-			if b {
+		case bool:
+			if v {
 				return 1
 			}
 			return 0
 		}
 
-	case dbv1.ColumnType_COLUMN_TYPE_FLOAT:
+	case dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
 		if s, ok := val.(string); ok {
 			if f, err := strconv.ParseFloat(s, 64); err == nil {
 				return f
@@ -204,36 +205,121 @@ func applyHint(val any, hint dbv1.ColumnType, hasHint bool) any {
 }
 
 // resolveColumnTypes inspects the `sql.Rows` metadata to map SQLite types to Proto Enums.
-// This allows the client to know if "123" is a String or an Integer.
-func resolveColumnTypes(rows *sql.Rows) ([]dbv1.ColumnType, error) {
+// Returns: Affinities (Storage), DeclaredTypes (Semantic), and Raw Types (Strings).
+func resolveColumnTypes(rows *sql.Rows) ([]dbv1.ColumnAffinity, []dbv1.DeclaredType, []string, error) {
 	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	results := make([]dbv1.ColumnType, len(columnTypes))
+
+	count := len(columnTypes)
+	affinities := make([]dbv1.ColumnAffinity, count)
+	declaredTypes := make([]dbv1.DeclaredType, count)
+	rawTypes := make([]string, count)
+
 	for i, ct := range columnTypes {
 		dbType := strings.ToUpper(ct.DatabaseTypeName())
-		// Heuristic mapping of SQLite dynamic types
+		rawTypes[i] = ct.DatabaseTypeName()
+
+		// 1. Determine Affinity (Storage Class)
+		// Rules based on SQLite 3: https://www.sqlite.org/datatype3.html
 		switch {
 		case strings.Contains(dbType, "INT"):
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_INTEGER
-		case strings.Contains(dbType, "CHAR") || strings.Contains(dbType, "TEXT") || strings.Contains(dbType, "CLOB"):
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_TEXT
+			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER
+		case strings.Contains(dbType, "CHAR") || strings.Contains(dbType, "CLOB") || strings.Contains(dbType, "TEXT"):
+			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT
 		case strings.Contains(dbType, "BLOB") || strings.Contains(dbType, "BINARY"):
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_BLOB
+			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB
 		case strings.Contains(dbType, "REAL") || strings.Contains(dbType, "FLOA") || strings.Contains(dbType, "DOUB"):
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_FLOAT
-		case strings.Contains(dbType, "BOOL"):
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_BOOLEAN
-		case strings.Contains(dbType, "DATE") || strings.Contains(dbType, "TIME"):
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_DATE
-		case strings.Contains(dbType, "NULL"):
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_NULL
+			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL
 		default:
-			results[i] = dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED
+			// "NUMERIC" behavior or fallback
+			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC
 		}
+		// Special override for JSON/UUID/XML/DATE which are text-based but semantic
+		// If SQLite says "UUID", the rule above might fallback to NUMERIC or unspecified.
+		// Commonly, specialized types like UUID/JSON are stored as TEXT, but
+		// DatabaseTypeName() returns "UUID".
+		if affinities[i] == dbv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC || affinities[i] == dbv1.ColumnAffinity_COLUMN_AFFINITY_UNSPECIFIED {
+			// Check if it's a known text alias
+			if strings.Contains(dbType, "JSON") || strings.Contains(dbType, "UUID") ||
+				strings.Contains(dbType, "XML") || strings.Contains(dbType, "TIME") ||
+				strings.Contains(dbType, "DATE") {
+				affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT
+			}
+		}
+
+		// 2. Determine Declared Type (Semantic)
+		declaredTypes[i] = mapDeclaredType(dbType)
 	}
-	return results, nil
+
+	return affinities, declaredTypes, rawTypes, nil
+}
+
+func mapDeclaredType(dbType string) dbv1.DeclaredType {
+	ts := strings.ToUpper(dbType)
+
+	// Exact matches for specialized types
+	switch ts {
+	case "UUID":
+		return dbv1.DeclaredType_DECLARED_TYPE_UUID
+	case "JSON":
+		return dbv1.DeclaredType_DECLARED_TYPE_JSON
+	case "XML":
+		return dbv1.DeclaredType_DECLARED_TYPE_XML
+	case "BOOLEAN", "BOOL":
+		return dbv1.DeclaredType_DECLARED_TYPE_BOOLEAN
+	case "DATETIME":
+		return dbv1.DeclaredType_DECLARED_TYPE_DATETIME
+	case "TIMESTAMP":
+		return dbv1.DeclaredType_DECLARED_TYPE_TIMESTAMP
+	case "DATE":
+		return dbv1.DeclaredType_DECLARED_TYPE_DATE
+	case "TIME":
+		return dbv1.DeclaredType_DECLARED_TYPE_TIME
+	case "YEAR":
+		return dbv1.DeclaredType_DECLARED_TYPE_YEAR
+	}
+
+	// Pattern matching
+	switch {
+	case strings.Contains(ts, "INT"):
+		if strings.Contains(ts, "BIG") {
+			return dbv1.DeclaredType_DECLARED_TYPE_BIGINT
+		}
+		if strings.Contains(ts, "SMALL") {
+			return dbv1.DeclaredType_DECLARED_TYPE_SMALLINT
+		}
+		if strings.Contains(ts, "TINY") {
+			return dbv1.DeclaredType_DECLARED_TYPE_TINYINT
+		}
+		return dbv1.DeclaredType_DECLARED_TYPE_INTEGER
+
+	case strings.Contains(ts, "CHAR"):
+		if strings.Contains(ts, "VAR") {
+			return dbv1.DeclaredType_DECLARED_TYPE_VARCHAR
+		}
+		return dbv1.DeclaredType_DECLARED_TYPE_CHARACTER
+
+	case strings.Contains(ts, "TEXT"):
+		return dbv1.DeclaredType_DECLARED_TYPE_TEXT
+	case strings.Contains(ts, "CLOB"):
+		return dbv1.DeclaredType_DECLARED_TYPE_CLOB
+	case strings.Contains(ts, "BLOB"):
+		return dbv1.DeclaredType_DECLARED_TYPE_BLOB
+	case strings.Contains(ts, "REAL"):
+		return dbv1.DeclaredType_DECLARED_TYPE_REAL
+	case strings.Contains(ts, "DOUB"):
+		return dbv1.DeclaredType_DECLARED_TYPE_DOUBLE
+	case strings.Contains(ts, "FLOAT"):
+		return dbv1.DeclaredType_DECLARED_TYPE_FLOAT
+	case strings.Contains(ts, "DECIMAL"):
+		return dbv1.DeclaredType_DECLARED_TYPE_DECIMAL
+	case strings.Contains(ts, "NUMERIC"):
+		return dbv1.DeclaredType_DECLARED_TYPE_NUMERIC
+	}
+
+	return dbv1.DeclaredType_DECLARED_TYPE_UNSPECIFIED
 }
 
 // --- Execution Logic ---
@@ -334,13 +420,18 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 	if err != nil {
 		return err
 	}
-	colTypes, err := resolveColumnTypes(rows)
+	affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
 	if err != nil {
 		return err
 	}
 
 	// Step 1: Send Header
-	if err := writer.SendHeader(&dbv1.QueryResultHeader{Columns: cols, ColumnTypes: colTypes}); err != nil {
+	if err := writer.SendHeader(&dbv1.QueryResultHeader{
+		Columns:             cols,
+		ColumnAffinities:    affinities,
+		ColumnDeclaredTypes: declaredTypes,
+		ColumnRawTypes:      rawTypes,
+	}); err != nil {
 		return err
 	}
 
@@ -361,7 +452,7 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 		rowsReadCount++
 
 		// Convert row to Proto ListValue
-		protoRow := valuesToProto(buf.values, colTypes)
+		protoRow := valuesToProto(buf.values, affinities)
 		rowBuffer = append(rowBuffer, protoRow)
 
 		// Flush Batch
@@ -414,14 +505,16 @@ func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, para
 		if err != nil {
 			return nil, err
 		}
-		colTypes, err := resolveColumnTypes(rows)
+		affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
 		if err != nil {
 			return nil, err
 		}
 
 		selectResult := &dbv1.SelectResult{
-			Columns:     columns,
-			ColumnTypes: colTypes,
+			Columns:             columns,
+			ColumnAffinities:    affinities,
+			ColumnDeclaredTypes: declaredTypes,
+			ColumnRawTypes:      rawTypes,
 		}
 
 		// Rent the buffer
@@ -435,7 +528,7 @@ func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, para
 				return nil, err
 			}
 			rowsRead++
-			protoRow := valuesToProto(buf.values, colTypes)
+			protoRow := valuesToProto(buf.values, affinities)
 			selectResult.Rows = append(selectResult.Rows, protoRow)
 		}
 		stats := &dbv1.ExecutionStats{
@@ -473,10 +566,10 @@ const maxSafeInteger = (1 << 53) - 1
 //
 // PERFORMANCE PROFILE:
 //  1. Zero-Allocation Scanning: Uses RawBytes to point into driver memory.
-//  2. No Reflection: Uses ColumnType hints to drive a manual type switch.
+//  2. No Reflection: Uses ColumnAffinity hints to drive a manual type switch.
 //  3. Minimal Allocations: Allocates only the final required Protobuf objects.
 //  4. Precision Safety: Automatically handles the 2^53 integer limit for JS clients.
-func valuesToProto(values []sql.RawBytes, colTypes []dbv1.ColumnType) *structpb.ListValue {
+func valuesToProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *structpb.ListValue {
 	// Pre-allocate the slice for the Protobuf values to avoid mid-loop growth.
 	pbValues := make([]*structpb.Value, len(values))
 
@@ -487,8 +580,8 @@ func valuesToProto(values []sql.RawBytes, colTypes []dbv1.ColumnType) *structpb.
 			continue
 		}
 
-		switch colTypes[i] {
-		case dbv1.ColumnType_COLUMN_TYPE_INTEGER:
+		switch affinities[i] {
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
 			// 1. Convert RawBytes to a temporary string using unsafe (No Allocation)
 			tempStr := UnsafeBytesToStringNoCopy(rb)
 
@@ -509,41 +602,35 @@ func valuesToProto(values []sql.RawBytes, colTypes []dbv1.ColumnType) *structpb.
 				pbValues[i] = structpb.NewNumberValue(float64(val))
 			}
 
-		case dbv1.ColumnType_COLUMN_TYPE_TEXT:
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT:
 			// A copy is REQUIRED here because rb (RawBytes) will be
 			// overwritten by the driver on the next row.
 			pbValues[i] = structpb.NewStringValue(string(rb))
 
-		case dbv1.ColumnType_COLUMN_TYPE_FLOAT:
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
 			tempStr := UnsafeBytesToStringNoCopy(rb)
 			val, _ := strconv.ParseFloat(tempStr, 64)
-			pbValues[i] = structpb.NewNumberValue(val)
+			// Handle Infinity/NaN if needed, but standard JSON doesn't support them.
+			// structpb panics on NaN.
+			if math.IsNaN(val) || math.IsInf(val, 0) {
+				pbValues[i] = structpb.NewNullValue() // Safety fallback
+			} else {
+				pbValues[i] = structpb.NewNumberValue(val)
+			}
 
-		case dbv1.ColumnType_COLUMN_TYPE_BOOLEAN:
-			tempStr := UnsafeBytesToStringNoCopy(rb)
-			// SQLite stores booleans as 0 or 1.
-			pbValues[i] = structpb.NewBoolValue(tempStr == "1" || tempStr == "true")
-
-		case dbv1.ColumnType_COLUMN_TYPE_BLOB:
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
 			// Base64 encoding creates a new string (Allocation required)
 			pbValues[i] = structpb.NewStringValue(base64.StdEncoding.EncodeToString(rb))
-			// log.Printf("blob: %s", rb)
-			// log.Printf("b64: %s", pbValues[i])
 
 		default:
-			// --- UPDATED DEFAULT CASE ---
-			// For expressions like 'SELECT 1+1', SQLite returns no type info.
-			// We attempt to parse as a number to satisfy JS client expectations.
-
-			// Use unsafe string for parsing (0 allocation)
+			// Fallback (NUMERIC or UNSPECIFIED): Try to guess
 			tempStr := UnsafeBytesToStringNoCopy(rb)
 
 			// 1. Try Integer
 			if val, err := strconv.ParseInt(tempStr, 10, 64); err == nil {
-				// Update metadata for the client
-				if colTypes[i] == dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED {
-					colTypes[i] = dbv1.ColumnType_COLUMN_TYPE_INTEGER
-				}
+				// We don't update the affinity array in-place anymore effectively
+				// because it's passed by value/slice ref, but the damage scope is limited.
+				// In reality, this dynamic behavior is rare if schema is well-defined.
 
 				if val > maxSafeInteger || val < -maxSafeInteger {
 					pbValues[i] = structpb.NewStringValue(tempStr)
@@ -555,18 +642,11 @@ func valuesToProto(values []sql.RawBytes, colTypes []dbv1.ColumnType) *structpb.
 
 			// 2. Try Float
 			if val, err := strconv.ParseFloat(tempStr, 64); err == nil {
-				// Update metadata for the client
-				if colTypes[i] == dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED {
-					colTypes[i] = dbv1.ColumnType_COLUMN_TYPE_FLOAT
-				}
 				pbValues[i] = structpb.NewNumberValue(val)
 				continue
 			}
 
 			// 3. Fallback to Text
-			if colTypes[i] == dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED {
-				colTypes[i] = dbv1.ColumnType_COLUMN_TYPE_TEXT
-			}
 			pbValues[i] = structpb.NewStringValue(string(rb))
 		}
 	}

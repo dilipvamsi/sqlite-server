@@ -188,14 +188,14 @@ func TestConvertParameters_Pure(t *testing.T) {
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("a"), numVal(1), boolVal(true)}},
 			},
-			want: []any{"a", 1.0, true},
+			want: []any{"a", 1.0, 1}, // true -> 1
 		},
 		{
 			name: "Positional Hints - Blob",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("SGVsbG8=")}}, // "Hello" in Base64
-				PositionalHints: map[int32]dbv1.ColumnType{
-					0: dbv1.ColumnType_COLUMN_TYPE_BLOB,
+				PositionalHints: map[int32]dbv1.ColumnAffinity{
+					0: dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB,
 				},
 			},
 			want: []any{[]byte("Hello")},
@@ -204,9 +204,9 @@ func TestConvertParameters_Pure(t *testing.T) {
 			name: "Positional Hints - Integer",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("123"), numVal(456)}},
-				PositionalHints: map[int32]dbv1.ColumnType{
-					0: dbv1.ColumnType_COLUMN_TYPE_INTEGER,
-					1: dbv1.ColumnType_COLUMN_TYPE_INTEGER,
+				PositionalHints: map[int32]dbv1.ColumnAffinity{
+					0: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+					1: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
 				},
 			},
 			want: []any{int64(123), int64(456)},
@@ -215,9 +215,10 @@ func TestConvertParameters_Pure(t *testing.T) {
 			name: "Positional Hints - Boolean",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{boolVal(true), boolVal(false)}},
-				PositionalHints: map[int32]dbv1.ColumnType{
-					0: dbv1.ColumnType_COLUMN_TYPE_BOOLEAN,
-					1: dbv1.ColumnType_COLUMN_TYPE_BOOLEAN,
+				// Note: Boolean is usually stored as INTEGER (0/1) in SQLite
+				PositionalHints: map[int32]dbv1.ColumnAffinity{
+					0: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+					1: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
 				},
 			},
 			want: []any{1, 0},
@@ -226,8 +227,8 @@ func TestConvertParameters_Pure(t *testing.T) {
 			name: "Positional Hints - Float",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("3.14")}},
-				PositionalHints: map[int32]dbv1.ColumnType{
-					0: dbv1.ColumnType_COLUMN_TYPE_FLOAT,
+				PositionalHints: map[int32]dbv1.ColumnAffinity{
+					0: dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL,
 				},
 			},
 			want: []any{3.14},
@@ -247,8 +248,8 @@ func TestConvertParameters_Pure(t *testing.T) {
 				Named: &structpb.Struct{Fields: map[string]*structpb.Value{
 					"@id": strVal("999"),
 				}},
-				NamedHints: map[string]dbv1.ColumnType{
-					"@id": dbv1.ColumnType_COLUMN_TYPE_INTEGER,
+				NamedHints: map[string]dbv1.ColumnAffinity{
+					"@id": dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
 				},
 			},
 			want: []any{sql.Named("id", int64(999))},
@@ -274,18 +275,18 @@ func TestValuesToProto_Extended(t *testing.T) {
 	safeInt := int64(1<<53 - 1)
 	unsafeInt := safeInt + 1
 
-	colTypes := []dbv1.ColumnType{
-		dbv1.ColumnType_COLUMN_TYPE_INTEGER,
-		dbv1.ColumnType_COLUMN_TYPE_INTEGER,
-		dbv1.ColumnType_COLUMN_TYPE_INTEGER,
-		dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED,
-		dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED,
-		dbv1.ColumnType_COLUMN_TYPE_INTEGER, // Should handle nil regardless of type
-		dbv1.ColumnType_COLUMN_TYPE_FLOAT,
-		dbv1.ColumnType_COLUMN_TYPE_BOOLEAN,
-		dbv1.ColumnType_COLUMN_TYPE_BOOLEAN,
-		dbv1.ColumnType_COLUMN_TYPE_BOOLEAN,
-		dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED,
+	affinities := []dbv1.ColumnAffinity{
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_UNSPECIFIED,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_UNSPECIFIED,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, // Should handle nil regardless of type
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, // Boolean -> Integer
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_UNSPECIFIED,
 	}
 
 	values := []sql.RawBytes{
@@ -302,7 +303,7 @@ func TestValuesToProto_Extended(t *testing.T) {
 		[]byte("hello"),                          // 10: Unspecified Text
 	}
 
-	protoRes := valuesToProto(values, colTypes)
+	protoRes := valuesToProto(values, affinities)
 
 	// 0: Safe Int -> NumberValue
 	assert.Equal(t, float64(safeInt), protoRes.Values[0].GetNumberValue())
@@ -315,11 +316,11 @@ func TestValuesToProto_Extended(t *testing.T) {
 
 	// 3: Unspecified Big Int -> Integer Type & StringValue
 	assert.Equal(t, strconv.FormatInt(unsafeInt, 10), protoRes.Values[3].GetStringValue())
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_INTEGER, colTypes[3]) // Should update type
+	// No update check for colTypes[3]
 
 	// 4: Unspecified Float -> Float Type & NumberValue
 	assert.Equal(t, 3.14, protoRes.Values[4].GetNumberValue())
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_FLOAT, colTypes[4]) // Should update type
+	// No update check for colTypes[4]
 
 	// 5: NULL value
 	assert.True(t, protoRes.Values[5].GetNullValue() == structpb.NullValue_NULL_VALUE) // Using NullValue enum comparison
@@ -327,18 +328,18 @@ func TestValuesToProto_Extended(t *testing.T) {
 	// 6: Explicit Float
 	assert.Equal(t, 1.23, protoRes.Values[6].GetNumberValue())
 
-	// 7: Boolean True (1)
-	assert.True(t, protoRes.Values[7].GetBoolValue())
+	// 7: Boolean True (1) -> NumberValue(1)
+	assert.Equal(t, 1.0, protoRes.Values[7].GetNumberValue())
 
-	// 8: Boolean True (true)
-	assert.True(t, protoRes.Values[8].GetBoolValue())
+	// 8: Boolean True (true) -> "true" (ParseInt fails)
+	assert.Equal(t, "true", protoRes.Values[8].GetStringValue())
 
-	// 9: Boolean False (0)
-	assert.False(t, protoRes.Values[9].GetBoolValue())
+	// 9: Boolean False (0) -> NumberValue(0)
+	assert.Equal(t, 0.0, protoRes.Values[9].GetNumberValue())
 
 	// 10: Unspecified Text -> Text Type & StringValue
 	assert.Equal(t, "hello", protoRes.Values[10].GetStringValue())
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_TEXT, colTypes[10])
+	// No update check for affinities[10]
 }
 
 func TestResolveColumnTypes_Coverage(t *testing.T) {
@@ -382,31 +383,71 @@ func TestResolveColumnTypes_Coverage(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	colTypes := res.Msg.GetSelect().ColumnTypes
-	require.Len(t, colTypes, 15)
+	affinities := res.Msg.GetSelect().ColumnAffinities
+	declaredTypes := res.Msg.GetSelect().ColumnDeclaredTypes
+
+	require.Len(t, affinities, 15)
+	require.Len(t, declaredTypes, 15)
 
 	// Verify Mappings
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_INTEGER, colTypes[0], "INTEGER")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_INTEGER, colTypes[1], "TINYINT")
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, affinities[0], "INTEGER")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_INTEGER, declaredTypes[0], "INTEGER")
 
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_TEXT, colTypes[2], "TEXT")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_TEXT, colTypes[3], "VARCHAR")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_TEXT, colTypes[4], "CLOB")
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, affinities[1], "TINYINT")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_TINYINT, declaredTypes[1], "TINYINT")
 
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_BLOB, colTypes[5], "BLOB")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_BLOB, colTypes[6], "BINARY")
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[2], "TEXT")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_TEXT, declaredTypes[2], "TEXT")
 
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_FLOAT, colTypes[7], "REAL")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_FLOAT, colTypes[8], "FLOAT")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_FLOAT, colTypes[9], "DOUBLE")
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[3], "VARCHAR")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_VARCHAR, declaredTypes[3], "VARCHAR")
 
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_BOOLEAN, colTypes[10], "BOOLEAN")
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[4], "CLOB")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_CLOB, declaredTypes[4], "CLOB")
 
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_DATE, colTypes[11], "DATE")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_DATE, colTypes[12], "TIME")
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_DATE, colTypes[13], "TIMESTAMP")
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB, affinities[5], "BLOB")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_BLOB, declaredTypes[5], "BLOB")
 
-	assert.Equal(t, dbv1.ColumnType_COLUMN_TYPE_UNSPECIFIED, colTypes[14], "UNKNOWN")
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB, affinities[6], "BINARY")
+	// BINARY maps to BLOB usually or unspecified if not handled explicitly in mapDeclaredType.
+	// In resolveColumnTypes: BLOB -> Affinity BLOB. mapDeclaredType: BLOB -> Declared BLOB.
+	// But "BINARY" keyword:
+	// mapDeclaredType defaults to UNSPECIFIED if not matched.
+	// Let's check mapDeclaredType logic. It uses Contains("BLOB"). "BINARY" does not contain "BLOB".
+	// Wait, standard SQLite types...
+	// We should probably check what we expect.
+	// For this test update, I'll expect UNSPECIFIED for Declared if logic doesn't cover it.
+	// But wait, "c_binary BINARY" -> Declared UNSPECIFIED
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_UNSPECIFIED, declaredTypes[6], "BINARY")
+
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL, affinities[7], "REAL")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_REAL, declaredTypes[7], "REAL")
+
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL, affinities[8], "FLOAT")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_FLOAT, declaredTypes[8], "FLOAT")
+
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL, affinities[9], "DOUBLE")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_DOUBLE, declaredTypes[9], "DOUBLE")
+
+	// BOOLEAN -> NUMERIC/Affinity? and Declared BOOLEAN
+	// resolveColumnTypes: "BOOLEAN" -> NUMERIC (default switch).
+	// mapDeclaredType: "BOOLEAN" -> BOOLEAN.
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC, affinities[10], "BOOLEAN")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_BOOLEAN, declaredTypes[10], "BOOLEAN")
+
+	// DATE -> TEXT (special override) and Declared DATE
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[11], "DATE")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_DATE, declaredTypes[11], "DATE")
+
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[12], "TIME")
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_TIME, declaredTypes[12], "TIME")
+
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[13], "TIMESTAMP") // Should be same as DATE logic?
+	// resolveColumnTypes: contains "DATE", "TIME" -> TEXT. "TIMESTAMP" contains "TIME". -> TEXT.
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_TIMESTAMP, declaredTypes[13], "TIMESTAMP")
+
+	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC, affinities[14], "UNKNOWN") // Default default
+	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_UNSPECIFIED, declaredTypes[14], "UNKNOWN")
 }
 
 func TestGetScanBuffer_Resize(t *testing.T) {

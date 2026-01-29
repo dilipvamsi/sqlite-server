@@ -158,7 +158,8 @@ func main() {
 	mux.Handle("/docs/", docs.Handler())
 
 	// 3c. Landing Page (root)
-	mux.HandleFunc("/", landing.Handler())
+	serverPort := 50051 // Default port
+	mux.HandleFunc("/", landing.Handler(serverPort))
 
 	srv := &http.Server{
 		Addr: ":50051",
@@ -172,7 +173,7 @@ func main() {
 	// 4. Start Server in a Goroutine
 	// This allows the main thread to block waiting for a shutdown signal.
 	go func() {
-		log.Println("Starting gRPC/HTTP server on localhost:50051...")
+		log.Printf("Starting gRPC/HTTP server on localhost:%d...", serverPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Fatal: listen failed: %v", err)
 		}
