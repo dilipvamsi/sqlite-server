@@ -92,18 +92,24 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
                 await client.query(`INSERT INTO users (id, name, country, age) VALUES ${ph}`, { positional: values });
 
-                const { columns, rows } = await client.iterate(
+                // Verify DML result shape
+                const dmlResult = await client.query("UPDATE users SET age = age + 1 WHERE id = 1");
+                expect(dmlResult.type).toBe("DML");
+                expect(dmlResult.rowsAffected).toBe(1);
+
+                const { columns, columnTypes, rows } = await client.iterate(
                     "SELECT id FROM users LIMIT 10",
                 );
-                // expect(columns).toContain("id"); // Not immeditaly available
-                expect(columns.isLoaded).toBe(false);
+                expect(columns).toContain("id");
+
+                // Verify columnTypes is defined and has correct type for 'id' (INTEGER = 2)
+                expect(columnTypes).toBeDefined();
+                expect(columnTypes.length).toBe(1);
+                // ColumnType.COLUMN_TYPE_INTEGER is 2
+                expect(columnTypes[0]).toBe(ColumnType.COLUMN_TYPE_INTEGER);
 
                 let count = 0;
                 for await (const row of rows) {
-                    if (count === 0) {
-                        expect(columns.isLoaded).toBe(true);
-                        expect(columns).toContain("id");
-                    }
                     expect(row[0]).toBeDefined();
                     count++;
                 }
@@ -138,6 +144,23 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                     count++;
                 }
                 expect(count).toBe(totalRows);
+            });
+
+            it("Stateless Streaming: queryStream", async () => {
+                await client.query("CREATE TABLE IF NOT EXISTS stream_users (id INTEGER)");
+                await client.query("DELETE FROM stream_users");
+                await client.query("INSERT INTO stream_users (id) VALUES (1), (2), (3)");
+
+                const { columns, columnTypes, rows } = await client.queryStream("SELECT id FROM stream_users");
+                expect(columns).toContain("id");
+                expect(columnTypes).toBeDefined();
+                expect(columnTypes[0]).toBe(ColumnType.COLUMN_TYPE_INTEGER);
+
+                let count = 0;
+                for await (const batch of rows) {
+                    count += batch.length;
+                }
+                expect(count).toBe(3);
             });
         });
 
@@ -274,15 +297,22 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 const tx = await client.beginTransaction(TransactionMode.TRANSACTION_MODE_DEFERRED);
                 await tx.query(`INSERT INTO ${tableName} (id) VALUES (1), (2), (3)`);
 
+                // Test iterate
                 let sum = 0;
-                const { rows: iterRows } = await tx.iterate(`SELECT id FROM ${tableName}`);
+                const { rows: iterRows, columnTypes: iterTypes } = await tx.iterate(`SELECT id FROM ${tableName}`);
+                expect(iterTypes).toBeDefined();
+                expect(iterTypes[0]).toBe(ColumnType.COLUMN_TYPE_INTEGER);
+
                 for await (const row of iterRows) {
                     sum += row[0];
                 }
                 expect(sum).toBe(6);
 
                 // Test queryStream
-                const { rows: batches } = await tx.queryStream(`SELECT id FROM ${tableName}`);
+                const { rows: batches, columnTypes: streamTypes } = await tx.queryStream(`SELECT id FROM ${tableName}`);
+                expect(streamTypes).toBeDefined();
+                expect(streamTypes[0]).toBe(ColumnType.COLUMN_TYPE_INTEGER);
+
                 let count = 0;
                 for await (const batch of batches) {
                     count += batch.length;

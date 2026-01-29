@@ -1,12 +1,12 @@
 /**
- * @file src/Transaction.js
+ * @file src/TransactionHandle.js
  */
 const { SavepointAction, RPC } = require('./constants');
-const { resolveArgs, toParams, hydrateRow } = require('./utils');
+const { resolveArgs, toParams, hydrateRow, normalizeColumnTypes } = require('./utils');
 
-class Transaction {
+class TransactionHandle {
     /**
-     * @param {import('./Client')} client
+     * @param {import('./DatabaseClient')} client
      * @param {string} txId
      * @param {object} config
      */
@@ -19,6 +19,10 @@ class Transaction {
 
     /**
      * Executes a query within this transaction context.
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<import('./index').BufferedResult>}
      */
     async query(sqlOrObj, paramsOrHints, hintsOrNull) {
         if (this.isFinalized) throw new Error("Transaction is already finalized.");
@@ -48,7 +52,7 @@ class Transaction {
 
         if (json.select) {
             const { columns, rows, columnTypes } = json.select;
-            const types = columnTypes || []; // List of enums
+            const types = normalizeColumnTypes(columnTypes || []); // List of enums
             return {
                 type: 'SELECT',
                 columns: columns || [],
@@ -69,12 +73,20 @@ class Transaction {
         return { type: 'UNKNOWN', rows: [] };
     }
 
+    /**
+     * Commit the transaction.
+     * @returns {Promise<void>}
+     */
     async commit() {
         if (this.isFinalized) return;
         await this.client._fetch(RPC.COMMIT_TRANSACTION, { transactionId: this.txId });
         this.isFinalized = true;
     }
 
+    /**
+     * Rollback the transaction.
+     * @returns {Promise<void>}
+     */
     async rollback() {
         if (this.isFinalized) return;
         try {
@@ -85,6 +97,12 @@ class Transaction {
         this.isFinalized = true;
     }
 
+    /**
+     * Create, release, or rollback a savepoint.
+     * @param {string} name - Savepoint name.
+     * @param {number} [action=SavepointAction.SAVEPOINT_ACTION_UNSPECIFIED] - Savepoint action (CREATE/RELEASE/ROLLBACK).
+     * @returns {Promise<{success: boolean}>}
+     */
     async savepoint(name, action = SavepointAction.SAVEPOINT_ACTION_UNSPECIFIED) {
         if (this.isFinalized) throw new Error("Transaction is already finalized.");
 
@@ -98,8 +116,14 @@ class Transaction {
         return { success: true };
     }
 
-    // Streaming within transaction
-    async queryStream(sqlOrObj, paramsOrHints, hintsOrNull, onMetadata) {
+    /**
+     * Executes a query within the transaction returning a stream of rows.
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<Array<any>>}>}
+     */
+    async queryStream(sqlOrObj, paramsOrHints, hintsOrNull) {
         if (this.isFinalized) throw new Error("Transaction is already finalized.");
         const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
 
@@ -110,28 +134,52 @@ class Transaction {
         };
 
         // TransactionQueryStream
-        const streamGen = this.client._streamRequest(RPC.TRANSACTION_QUERY_STREAM, body, onMetadata);
-        return {
-            rows: streamGen
-        };
-    }
+        const { iterator, columns, columnTypes, isDml } = await this.client._initStream(RPC.TRANSACTION_QUERY_STREAM, body);
 
-    async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
-        if (this.isFinalized) throw new Error("Transaction is already finalized.");
-        const columns = [];
-        Object.defineProperty(columns, 'isLoaded', { value: false, writable: true });
+        if (isDml) {
+            // eslint-disable-next-line require-yield
+            return { columns, columnTypes: [], rows: (async function* () { return; })() };
+        }
 
-        const onMetadata = (header) => {
-            if (header.columns) {
-                columns.push(...header.columns);
-                columns.isLoaded = true;
+        const dateHandling = this.config.dateHandling;
+
+        // Yield batches
+        const rowIterator = async function* () {
+            for await (const msg of iterator) {
+                if (msg.error) {
+                    throw new Error(msg.error.message);
+                }
+                if (msg.batch) {
+                    const rows = (msg.batch.rows || []).map(r =>
+                        hydrateRow(r, columnTypes, dateHandling)
+                    );
+                    yield rows;
+                }
             }
         };
 
-        const { rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull, onMetadata);
+        return {
+            columns,
+            columnTypes,
+            rows: rowIterator()
+        };
+    }
+
+    /**
+     * Iterates over query results row by row within the transaction.
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<any[]>}>}
+     */
+    async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
+        if (this.isFinalized) throw new Error("Transaction is already finalized.");
+
+        const { columns, columnTypes, rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull);
 
         return {
             columns,
+            columnTypes,
             rows: (async function* () {
                 for await (const batch of stream) {
                     for (const row of batch) {
@@ -144,4 +192,4 @@ class Transaction {
 
 }
 
-module.exports = Transaction;
+module.exports = TransactionHandle;

@@ -176,6 +176,7 @@ class UnaryTransactionHandle {
 
         return {
             columns: iterator.columns,
+            columnTypes: iterator.columnTypes,
             rows: createRowIterator(rows, columnTypes, dateHandling),
         };
     }
@@ -202,6 +203,7 @@ class UnaryTransactionHandle {
 
         return {
             columns: iterator.columns,
+            columnTypes: iterator.columnTypes,
             rows: createBatchIterator(rows, columnTypes, dateHandling, resolvedBatchSize),
         };
     }

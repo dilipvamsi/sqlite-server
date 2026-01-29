@@ -145,9 +145,27 @@ function toObject(columns, row) {
     return obj;
 }
 
+/**
+ * Normalizes column types to integers (enum values).
+ * @param {Array<string|number>} types 
+ * @returns {Array<number>}
+ */
+function normalizeColumnTypes(types) {
+    if (!types) return [];
+    return types.map(t => {
+        if (typeof t === 'number') return t;
+        // Check if t is a valid key in ColumnType
+        if (Object.prototype.hasOwnProperty.call(ColumnType, t)) {
+            return ColumnType[t];
+        }
+        return ColumnType.COLUMN_TYPE_UNSPECIFIED;
+    });
+}
+
 module.exports = {
     toParams,
     hydrateRow,
     resolveArgs,
     toObject,
+    normalizeColumnTypes,
 };

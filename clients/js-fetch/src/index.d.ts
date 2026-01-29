@@ -84,22 +84,32 @@ export interface ExecutionStats {
     rows_written: number;
 }
 
-export interface BufferedResult {
-    type: "SELECT" | "DML";
+export interface SelectResult {
+    type: "SELECT";
     columns: string[];
+    columnTypes: ColumnType[];
     rows: any[][];
-    rowsAffected?: number;
-    lastInsertId?: number;
     stats?: ExecutionStats;
 }
 
+export interface DmlResult {
+    type: "DML";
+    rowsAffected: number;
+    lastInsertId: number;
+    stats?: ExecutionStats;
+}
+
+export type BufferedResult = SelectResult | DmlResult;
+
 export interface IterateResult {
     columns: string[];
+    columnTypes: ColumnType[];
     rows: AsyncIterable<any[]>;
 }
 
 export interface BatchStreamResult {
     columns: string[];
+    columnTypes: ColumnType[];
     rows: AsyncIterable<any[][]>;
 }
 

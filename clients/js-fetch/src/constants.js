@@ -84,6 +84,11 @@ const SavepointAction = {
     SAVEPOINT_ACTION_ROLLBACK: 3,
 };
 
+/**
+ * RPC Method Paths for the gRPC/Connect service.
+ * @readonly
+ * @enum {string}
+ */
 const RPC = {
     BEGIN_TRANSACTION: 'db.v1.DatabaseService/BeginTransaction',
     EXECUTE_TRANSACTION: 'db.v1.DatabaseService/ExecuteTransaction',

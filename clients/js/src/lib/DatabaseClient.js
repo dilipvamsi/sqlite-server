@@ -233,6 +233,7 @@ class DatabaseClient {
 
     return {
       columns,
+      columnTypes,
       rows: createRowIterator(batchSource(), columnTypes, this.config.dateHandling),
     };
   }
@@ -281,6 +282,7 @@ class DatabaseClient {
 
     return {
       columns,
+      columnTypes,
       rows: createBatchIterator(batchSource(), columnTypes, this.config.dateHandling, resolvedBatchSize),
     };
   }

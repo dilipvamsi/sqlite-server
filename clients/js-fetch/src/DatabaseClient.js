@@ -4,13 +4,14 @@
 const {
     toParams,
     resolveArgs,
-    hydrateRow
+    hydrateRow,
+    normalizeColumnTypes
 } = require('./utils');
 const {
     TransactionMode,
     RPC
 } = require('./constants');
-const Transaction = require('./Transaction');
+const Transaction = require('./TransactionHandle');
 
 // Polyfill for ReadableStream async iteration if needed (Node 18+ has it native)
 
@@ -90,24 +91,12 @@ class DatabaseClient {
      *   4 bytes big-endian length
      *   <length> bytes JSON payload
      */
-    async* _streamRequest(rpcPath, bodyObj, onMetadata) {
-        // Envelope the request
-        const jsonStr = JSON.stringify(bodyObj);
-        const jsonBytes = new TextEncoder().encode(jsonStr);
-        const len = jsonBytes.length;
-        const envelope = new Uint8Array(5 + len);
-        envelope[0] = 0; // Flags: 0
-        envelope[1] = (len >> 24) & 0xFF;
-        envelope[2] = (len >> 16) & 0xFF;
-        envelope[3] = (len >> 8) & 0xFF;
-        envelope[4] = len & 0xFF;
-        envelope.set(jsonBytes, 5);
-
-        const res = await this._fetch(rpcPath, envelope, { 'Content-Type': 'application/connect+json' });
-        const reader = res.body.getReader();
-
+    /**
+     * Internal generator that yields parsed messages from the stream.
+     * @param {ReadableStreamDefaultReader} reader
+     */
+    async* _fetchStreamIterator(reader) {
         let buffer = new Uint8Array(0);
-        let currentStreamTypes = [];
 
         while (true) {
             const { done, value } = await reader.read();
@@ -138,36 +127,81 @@ class DatabaseClient {
 
                 if (flags === 2) { // End Stream info
                     // usually contains error or metadata, verify if error
-                    // We can ignore for success case
                     return;
                 }
 
                 if (flags === 0) {
                     const msg = JSON.parse(msgStr);
-                    // Handle QueryResponse (Header, Batch, DML, Error)
-
-                    if (msg.error) {
-                        throw new Error(msg.error.message);
-                    }
-
-                    if (msg.header) {
-                        currentStreamTypes = msg.header.columnTypes;
-                        if (onMetadata) {
-                            onMetadata(msg.header);
-                        }
-                    } else if (msg.batch) {
-                        const rows = (msg.batch.rows || []).map(r =>
-                            hydrateRow(r, currentStreamTypes, this.config.dateHandling)
-                        );
-                        yield rows;
-                    } else if (msg.dml) {
-                        // Empty yield for DML?
-                    }
+                    yield msg;
                 }
             }
         }
     }
 
+    /**
+     * Initializes a stream request and reads the first message (Header/DML).
+     * Returns { iterator, columns, columnTypes, isDml, dmlStats }
+     */
+    async _initStream(rpcPath, bodyObj) {
+        // Envelope the request
+        const jsonStr = JSON.stringify(bodyObj);
+        const jsonBytes = new TextEncoder().encode(jsonStr);
+        const len = jsonBytes.length;
+        const envelope = new Uint8Array(5 + len);
+        envelope[0] = 0; // Flags: 0
+        envelope[1] = (len >> 24) & 0xFF;
+        envelope[2] = (len >> 16) & 0xFF;
+        envelope[3] = (len >> 8) & 0xFF;
+        envelope[4] = len & 0xFF;
+        envelope.set(jsonBytes, 5);
+
+        const res = await this._fetch(rpcPath, envelope, { 'Content-Type': 'application/connect+json' });
+        const reader = res.body.getReader();
+        const iterator = this._fetchStreamIterator(reader);
+
+        // Read first message
+        const first = await iterator.next();
+        if (first.done) {
+            return { iterator, columns: [], columnTypes: [], isDml: false };
+        }
+
+        const msg = first.value;
+
+        if (msg.error) {
+            throw new Error(msg.error.message);
+        }
+
+        if (msg.dml) {
+            return {
+                iterator,
+                columns: [],
+                columnTypes: [],
+                isDml: true,
+                dmlStats: {
+                    rowsAffected: Number(msg.dml.rowsAffected || 0),
+                    lastInsertId: Number(msg.dml.lastInsertId || 0)
+                }
+            };
+        }
+
+        let columns = [];
+        let columnTypes = [];
+
+        if (msg.header) {
+            columns = msg.header.columns || [];
+            columnTypes = normalizeColumnTypes(msg.header.columnTypes || []);
+        }
+
+        return { iterator, columns, columnTypes, isDml: false };
+    }
+
+    /**
+     * Executes a single query and buffers the results.
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<object>} Query result.
+     */
     async query(sqlOrObj, paramsOrHints, hintsOrNull) {
         const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
 
@@ -182,7 +216,7 @@ class DatabaseClient {
 
         if (json.select) {
             const { columns, rows, columnTypes } = json.select;
-            const types = columnTypes || [];
+            const types = normalizeColumnTypes(columnTypes || []);
             return {
                 type: 'SELECT',
                 columns: columns || [],
@@ -204,7 +238,25 @@ class DatabaseClient {
         return { type: 'UNKNOWN', rows: [] };
     }
 
-    async queryStream(sqlOrObj, paramsOrHints, hintsOrNull, onMetadata) {
+    /**
+     * Executes a query efficiently returning a stream of rows.
+     * Useful for large result sets.
+     *
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints if 2nd arg was params.
+     * @returns {Promise<{columns: string[], rows: AsyncIterable<Array<any>>}>}
+     */
+    /**
+     * Executes a query efficiently returning a stream of rows.
+     * Useful for large result sets.
+     *
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints if 2nd arg was params.
+     * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<Array<any>>}>}
+     */
+    async queryStream(sqlOrObj, paramsOrHints, hintsOrNull) {
         const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
 
         const body = {
@@ -213,27 +265,52 @@ class DatabaseClient {
             parameters: toParams(positional, named, hints)
         };
 
-        const streamGen = this._streamRequest(RPC.QUERY_STREAM, body, onMetadata);
-        return {
-            rows: streamGen
-        };
-    }
+        const { iterator, columns, columnTypes, isDml } = await this._initStream(RPC.QUERY_STREAM, body);
 
-    async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
-        const columns = [];
-        Object.defineProperty(columns, 'isLoaded', { value: false, writable: true });
+        if (isDml) {
+            // eslint-disable-next-line require-yield
+            return { columns, columnTypes: [], rows: (async function* () { return; })() };
+        }
 
-        const onMetadata = (header) => {
-            if (header.columns) {
-                columns.push(...header.columns);
-                columns.isLoaded = true;
+        const dateHandling = this.config.dateHandling;
+
+        // Yield batches
+        const rowIterator = async function* () {
+            for await (const msg of iterator) {
+                if (msg.error) {
+                    throw new Error(msg.error.message);
+                }
+                if (msg.batch) {
+                    const rows = (msg.batch.rows || []).map(r =>
+                        hydrateRow(r, columnTypes, dateHandling)
+                    );
+                    yield rows;
+                }
             }
         };
 
-        const { rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull, onMetadata);
+        return {
+            columns,
+            columnTypes,
+            rows: rowIterator()
+        };
+    }
+
+    /**
+     * Iterates over query results row by row.
+     * Wrapper around queryStream for easier consumption.
+     *
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<Array<any>>}>}
+     */
+    async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
+        const { columns, columnTypes, rows: stream } = await this.queryStream(sqlOrObj, paramsOrHints, hintsOrNull);
 
         return {
             columns,
+            columnTypes,
             rows: (async function* () {
                 for await (const batch of stream) {
                     for (const row of batch) {
@@ -244,6 +321,11 @@ class DatabaseClient {
         };
     }
 
+    /**
+     * Begins a new transaction.
+     * @param {TransactionMode} mode - The transaction mode (default: DEFERRED).
+     * @returns {Promise<Transaction>} - The transaction handle.
+     */
     async beginTransaction(mode = TransactionMode.TRANSACTION_MODE_DEFERRED) {
         const body = {
             database: this.database,
@@ -257,6 +339,11 @@ class DatabaseClient {
         return new Transaction(this, json.transactionId, this.config);
     }
 
+    /**
+     * Executes a list of queries atomically (helper for ExecuteTransaction RPC).
+     * @param {Array<string|object>} queries - List of SQL queries.
+     * @returns {Promise<Array<object>>} - List of results.
+     */
     async executeTransaction(queries) {
         // atomic script
         // Map queries...
@@ -308,6 +395,14 @@ class DatabaseClient {
         return results;
     }
 
+    /**
+     * Wrapper for running a function within a managed transaction.
+     * Auto-commits on success, auto-rollbacks on error.
+     *
+     * @param {Function} fn - Async function(tx)
+     * @param {TransactionMode} mode - Transaction mode.
+     * @returns {Promise<any>} - Result of the function.
+     */
     async transaction(fn, mode = TransactionMode.TRANSACTION_MODE_DEFERRED) {
         const tx = await this.beginTransaction(mode);
         try {
