@@ -683,3 +683,327 @@ func generateSavepointSQL(sp *dbv1.SavepointRequest) (string, error) {
 		return "", fmt.Errorf("unsupported savepoint action: %v", sp.Action)
 	}
 }
+
+// =============================================================================
+// TYPED API UTILITY FUNCTIONS
+// =============================================================================
+// These functions support the strongly-typed RPCs (TypedQuery, TypedQueryStream, etc.)
+// that use SqlValue/SqlRow instead of ListValue.
+
+// convertTypedParameters transforms TypedParameters into database/sql compatible args.
+// Unlike convertParameters, this uses the explicit SqlValue types directly (no hints needed).
+func convertTypedParameters(sqlQuery string, params *dbv1.TypedParameters) ([]any, error) {
+	if params == nil {
+		return nil, nil
+	}
+
+	var converted []any
+
+	// 1. Prepare Positional Parameters
+	positional := params.Positional
+
+	// 2. Scan SQL to Interleave Parameters correctly
+	paramRegex := regexp.MustCompile(`(\?)|([:@$]\w+)`)
+	matches := paramRegex.FindAllString(sqlQuery, -1)
+
+	posIndex := 0
+	namedUsed := make(map[string]bool)
+
+	for _, match := range matches {
+		if match == "?" {
+			// Consume next positional parameter
+			if posIndex < len(positional) {
+				converted = append(converted, sqlValueToAny(positional[posIndex]))
+				posIndex++
+			}
+		} else {
+			// Named parameter (e.g. :country)
+			key := match
+			cleanKey := strings.TrimLeft(key, ":@$")
+
+			var val *dbv1.SqlValue
+			var foundKey string
+			var found bool
+
+			if v, ok := params.Named[key]; ok {
+				val = v
+				foundKey = key
+				found = true
+			} else if v, ok := params.Named[cleanKey]; ok {
+				val = v
+				foundKey = cleanKey
+				found = true
+			}
+
+			if found && !namedUsed[foundKey] {
+				converted = append(converted, sql.Named(cleanKey, sqlValueToAny(val)))
+				namedUsed[foundKey] = true
+			}
+		}
+	}
+
+	// 3. Append Leftover Positional Parameters
+	for i := posIndex; i < len(positional); i++ {
+		converted = append(converted, sqlValueToAny(positional[i]))
+	}
+
+	// 4. Append Leftover Named Parameters
+	for key, val := range params.Named {
+		if !namedUsed[key] {
+			cleanKey := strings.TrimLeft(key, ":@$")
+			converted = append(converted, sql.Named(cleanKey, sqlValueToAny(val)))
+		}
+	}
+
+	return converted, nil
+}
+
+// sqlValueToAny converts a typed SqlValue proto to a Go value for database/sql.
+func sqlValueToAny(v *dbv1.SqlValue) any {
+	if v == nil {
+		return nil
+	}
+
+	switch val := v.Value.(type) {
+	case *dbv1.SqlValue_IntegerValue:
+		return val.IntegerValue
+	case *dbv1.SqlValue_RealValue:
+		return val.RealValue
+	case *dbv1.SqlValue_TextValue:
+		return val.TextValue
+	case *dbv1.SqlValue_BlobValue:
+		return val.BlobValue // []byte directly, no base64
+	case *dbv1.SqlValue_NullValue:
+		return nil
+	default:
+		return nil
+	}
+}
+
+// valuesToTypedProto converts a row scanned into sql.RawBytes into a typed SqlRow.
+// This is more efficient than valuesToProto because:
+//  1. BLOBs are sent as raw bytes (no base64 encoding overhead)
+//  2. Integers are always int64 (no precision loss or string fallback)
+func valuesToTypedProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *dbv1.SqlRow {
+	sqlValues := make([]*dbv1.SqlValue, len(values))
+
+	for i, rb := range values {
+		// NULL handling
+		if rb == nil {
+			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_NullValue{NullValue: true}}
+			continue
+		}
+
+		switch affinities[i] {
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
+			tempStr := UnsafeBytesToStringNoCopy(rb)
+			val, err := strconv.ParseInt(tempStr, 10, 64)
+			if err != nil {
+				// Fallback to text
+				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_TextValue{TextValue: string(rb)}}
+				continue
+			}
+			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: val}}
+
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT:
+			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_TextValue{TextValue: string(rb)}}
+
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
+			tempStr := UnsafeBytesToStringNoCopy(rb)
+			val, _ := strconv.ParseFloat(tempStr, 64)
+			if math.IsNaN(val) || math.IsInf(val, 0) {
+				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_NullValue{NullValue: true}}
+			} else {
+				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_RealValue{RealValue: val}}
+			}
+
+		case dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
+			// Copy the bytes since RawBytes will be overwritten on next row
+			blobCopy := make([]byte, len(rb))
+			copy(blobCopy, rb)
+			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_BlobValue{BlobValue: blobCopy}}
+
+		default:
+			// Fallback (NUMERIC or UNSPECIFIED): Try to guess
+			tempStr := UnsafeBytesToStringNoCopy(rb)
+
+			// Try Integer
+			if val, err := strconv.ParseInt(tempStr, 10, 64); err == nil {
+				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: val}}
+				continue
+			}
+
+			// Try Float
+			if val, err := strconv.ParseFloat(tempStr, 64); err == nil {
+				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_RealValue{RealValue: val}}
+				continue
+			}
+
+			// Fallback to Text
+			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_TextValue{TextValue: string(rb)}}
+		}
+	}
+
+	return &dbv1.SqlRow{Values: sqlValues}
+}
+
+// typedStreamQueryResults is the typed variant of streamQueryResults.
+// It uses TypedStreamWriter to send SqlRow instead of ListValue.
+func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.TypedParameters, writer TypedStreamWriter) error {
+	startTime := time.Now()
+
+	params, err := convertTypedParameters(sqlQuery, paramsMsg)
+	if err != nil {
+		return fmt.Errorf("parameter error: %w", err)
+	}
+
+	// --- WRITE PATH (DML) ---
+	if !IsReader(sqlQuery) {
+		res, err := q.ExecContext(ctx, sqlQuery, params...)
+		if err != nil {
+			return err
+		}
+		rowsAffected, _ := res.RowsAffected()
+		lastInsertId, _ := res.LastInsertId()
+		return writer.SendDMLResult(&dbv1.DMLResult{RowsAffected: rowsAffected, LastInsertId: lastInsertId})
+	}
+
+	// --- READ PATH (Streaming) ---
+	rows, err := q.QueryContext(ctx, sqlQuery, params...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
+	if err != nil {
+		return err
+	}
+
+	// Step 1: Send Typed Header
+	if err := writer.SendHeader(&dbv1.TypedQueryResultHeader{
+		Columns:             cols,
+		ColumnAffinities:    affinities,
+		ColumnDeclaredTypes: declaredTypes,
+		ColumnRawTypes:      rawTypes,
+	}); err != nil {
+		return err
+	}
+
+	// Step 2: Stream Rows
+	const chunkSize = 500
+	rowBuffer := make([]*dbv1.SqlRow, 0, chunkSize)
+
+	buf := getScanBuffer(len(cols))
+	defer putbackBuffer(buf)
+
+	var rowsReadCount int64 = 0
+	for rows.Next() {
+		if err := rows.Scan(buf.args...); err != nil {
+			return err
+		}
+		rowsReadCount++
+
+		// Convert row to typed SqlRow
+		typedRow := valuesToTypedProto(buf.values, affinities)
+		rowBuffer = append(rowBuffer, typedRow)
+
+		// Flush Batch
+		if len(rowBuffer) >= chunkSize {
+			if err := writer.SendRowBatch(&dbv1.TypedQueryResultRowBatch{Rows: rowBuffer}); err != nil {
+				return err
+			}
+			rowBuffer = make([]*dbv1.SqlRow, 0, chunkSize)
+		}
+	}
+
+	// Flush Remainder
+	if len(rowBuffer) > 0 {
+		if err := writer.SendRowBatch(&dbv1.TypedQueryResultRowBatch{Rows: rowBuffer}); err != nil {
+			return err
+		}
+	}
+
+	// Step 3: Complete
+	stats := &dbv1.ExecutionStats{
+		DurationMs: float64(time.Since(startTime).Milliseconds()),
+		RowsRead:   rowsReadCount,
+	}
+	return writer.SendComplete(stats)
+}
+
+// typedExecuteQueryAndBuffer executes a query and returns a TypedQueryResult.
+// This is the typed variant of executeQueryAndBuffer.
+func typedExecuteQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.TypedParameters) (*dbv1.TypedQueryResult, error) {
+	startTime := time.Now()
+
+	params, err := convertTypedParameters(sqlQuery, paramsMsg)
+	if err != nil {
+		return nil, fmt.Errorf("parameter error: %w", err)
+	}
+
+	if IsReader(sqlQuery) {
+		rows, err := q.QueryContext(ctx, sqlQuery, params...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		columns, err := rows.Columns()
+		if err != nil {
+			return nil, err
+		}
+		affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		selectResult := &dbv1.TypedSelectResult{
+			Columns:             columns,
+			ColumnAffinities:    affinities,
+			ColumnDeclaredTypes: declaredTypes,
+			ColumnRawTypes:      rawTypes,
+		}
+
+		buf := getScanBuffer(len(columns))
+		defer putbackBuffer(buf)
+
+		var rowsRead int64
+		for rows.Next() {
+			if err := rows.Scan(buf.args...); err != nil {
+				return nil, err
+			}
+			rowsRead++
+			typedRow := valuesToTypedProto(buf.values, affinities)
+			selectResult.Rows = append(selectResult.Rows, typedRow)
+		}
+
+		stats := &dbv1.ExecutionStats{
+			DurationMs: float64(time.Since(startTime).Milliseconds()),
+			RowsRead:   rowsRead,
+		}
+		return &dbv1.TypedQueryResult{
+			Result: &dbv1.TypedQueryResult_Select{Select: selectResult},
+			Stats:  stats,
+		}, nil
+	} else {
+		res, err := q.ExecContext(ctx, sqlQuery, params...)
+		if err != nil {
+			return nil, err
+		}
+		rowsAffected, _ := res.RowsAffected()
+		lastInsertId, _ := res.LastInsertId()
+		stats := &dbv1.ExecutionStats{
+			DurationMs:  float64(time.Since(startTime).Milliseconds()),
+			RowsWritten: rowsAffected,
+		}
+		return &dbv1.TypedQueryResult{
+			Result: &dbv1.TypedQueryResult_Dml{Dml: &dbv1.DMLResult{RowsAffected: rowsAffected, LastInsertId: lastInsertId}},
+			Stats:  stats,
+		}, nil
+	}
+}

@@ -300,3 +300,207 @@ func TestTransactionSavepoint_Coverage(t *testing.T) {
 		assert.True(t, newExpiry.After(oldExpiry))
 	})
 }
+
+// =============================================================================
+// TYPED TRANSACTION QUERY HANDLER TESTS
+// =============================================================================
+
+func TestTypedTransactionQuery_Coverage(t *testing.T) {
+	client, server := setupTestServer(t)
+	ctx := context.Background()
+
+	// Start a valid transaction
+	res, _ := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{Database: "test"}))
+	txID := res.Msg.TransactionId
+
+	t.Run("SELECT Success", func(t *testing.T) {
+		result, err := client.TypedTransactionQuery(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "SELECT id, name FROM users WHERE id = 1",
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, result.Msg.GetSelect())
+		assert.Len(t, result.Msg.GetSelect().Rows, 1)
+		// Check typed values
+		row := result.Msg.GetSelect().Rows[0]
+		assert.Equal(t, int64(1), row.Values[0].GetIntegerValue())
+		assert.Equal(t, "Alice", row.Values[1].GetTextValue())
+	})
+
+	t.Run("DML Success", func(t *testing.T) {
+		result, err := client.TypedTransactionQuery(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "INSERT INTO users (name) VALUES ('TypedTxUser')",
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, result.Msg.GetDml())
+		assert.Equal(t, int64(1), result.Msg.GetDml().RowsAffected)
+	})
+
+	t.Run("Session Not Found", func(t *testing.T) {
+		_, err := client.TypedTransactionQuery(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: "invalid_id",
+			Sql:           "SELECT 1",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("Manual Transaction Control", func(t *testing.T) {
+		_, err := client.TypedTransactionQuery(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "COMMIT",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "manual transaction control")
+	})
+
+	t.Run("Invalid SQL", func(t *testing.T) {
+		_, err := client.TypedTransactionQuery(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "SELECT * FROM missing_table",
+		}))
+		assert.Error(t, err)
+	})
+
+	t.Run("Timed Out Session", func(t *testing.T) {
+		// New session
+		res, _ := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{Database: "test"}))
+		newTxID := res.Msg.TransactionId
+
+		// Manually expire
+		server.txMu.Lock()
+		server.txRegistry[newTxID].Expiry = time.Now().Add(-1 * time.Second)
+		server.txMu.Unlock()
+
+		// Call TypedTransactionQuery -> Should get Aborted
+		_, err := client.TypedTransactionQuery(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: newTxID,
+			Sql:           "SELECT 1",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+	})
+
+	t.Run("With Parameters", func(t *testing.T) {
+		result, err := client.TypedTransactionQuery(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "SELECT name FROM users WHERE id = ?",
+			Parameters: &dbv1.TypedParameters{
+				Positional: []*dbv1.SqlValue{
+					{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 1}},
+				},
+			},
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, "Alice", result.Msg.GetSelect().Rows[0].Values[0].GetTextValue())
+	})
+}
+
+func TestTypedTransactionQueryStream_Coverage(t *testing.T) {
+	client, server := setupTestServer(t)
+	ctx := context.Background()
+
+	// Start a valid transaction
+	res, _ := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{Database: "test"}))
+	txID := res.Msg.TransactionId
+
+	t.Run("SELECT Success", func(t *testing.T) {
+		stream, err := client.TypedTransactionQueryStream(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "SELECT id, name FROM users",
+		}))
+		require.NoError(t, err)
+
+		// 1. Header
+		assert.True(t, stream.Receive())
+		header := stream.Msg().GetHeader()
+		assert.NotNil(t, header)
+		assert.Equal(t, []string{"id", "name"}, header.Columns)
+
+		// 2. Batch
+		assert.True(t, stream.Receive())
+		batch := stream.Msg().GetBatch()
+		assert.NotNil(t, batch)
+
+		// 3. Complete
+		assert.True(t, stream.Receive())
+		assert.NotNil(t, stream.Msg().GetComplete())
+	})
+
+	t.Run("DML Success", func(t *testing.T) {
+		stream, err := client.TypedTransactionQueryStream(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "INSERT INTO users (name) VALUES ('StreamTypedTx')",
+		}))
+		require.NoError(t, err)
+
+		assert.True(t, stream.Receive())
+		assert.NotNil(t, stream.Msg().GetDml())
+	})
+
+	t.Run("Session Not Found", func(t *testing.T) {
+		stream, err := client.TypedTransactionQueryStream(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: "invalid_id",
+			Sql:           "SELECT 1",
+		}))
+		if err == nil {
+			assert.False(t, stream.Receive())
+			assert.Error(t, stream.Err())
+			assert.Contains(t, stream.Err().Error(), "not found")
+		} else {
+			assert.Contains(t, err.Error(), "not found")
+		}
+	})
+
+	t.Run("Manual Transaction Control", func(t *testing.T) {
+		stream, err := client.TypedTransactionQueryStream(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "ROLLBACK",
+		}))
+		if err == nil {
+			assert.False(t, stream.Receive())
+			assert.Error(t, stream.Err())
+			assert.Contains(t, stream.Err().Error(), "manual transaction control")
+		} else {
+			assert.Contains(t, err.Error(), "manual transaction control")
+		}
+	})
+
+	t.Run("Invalid SQL - Returns Error in Stream", func(t *testing.T) {
+		stream, err := client.TypedTransactionQueryStream(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "SELECT * FROM missing_table",
+		}))
+		require.NoError(t, err)
+
+		// Receive error message wrapped in stream
+		assert.True(t, stream.Receive())
+		errMsg := stream.Msg().GetError()
+		assert.NotNil(t, errMsg)
+		assert.Contains(t, errMsg.Message, "no such table")
+	})
+
+	t.Run("Timed Out Session", func(t *testing.T) {
+		// New session
+		res, _ := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{Database: "test"}))
+		newTxID := res.Msg.TransactionId
+
+		// Manually expire
+		server.txMu.Lock()
+		server.txRegistry[newTxID].Expiry = time.Now().Add(-1 * time.Second)
+		server.txMu.Unlock()
+
+		stream, err := client.TypedTransactionQueryStream(ctx, connect.NewRequest(&dbv1.TypedTransactionQueryRequest{
+			TransactionId: newTxID,
+			Sql:           "SELECT 1",
+		}))
+		if err == nil {
+			assert.False(t, stream.Receive())
+			assert.Error(t, stream.Err())
+			assert.Contains(t, stream.Err().Error(), "timed out")
+		} else {
+			assert.Contains(t, err.Error(), "timed out")
+		}
+	})
+}

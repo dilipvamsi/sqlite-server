@@ -743,6 +743,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.SavepointResponse'
+  /db.v1.DatabaseService/TypedQuery:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Executes a single stateless query and returns the entire result with\r  strongly-typed values. Eliminates the need for sparse type hints."
+      description: "*\r\n Executes a single stateless query and returns the entire result with\r\n strongly-typed values. Eliminates the need for sparse type hints."
+      operationId: db.v1.DatabaseService.TypedQuery
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.TypedQueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.TypedQueryResult'
+  /db.v1.DatabaseService/TypedQueryStream: {}
+  /db.v1.DatabaseService/TypedTransactionQuery:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Executes a typed query inside the context of an existing 'transaction_id'."
+      description: "*\r\n Executes a typed query inside the context of an existing 'transaction_id'."
+      operationId: db.v1.DatabaseService.TypedTransactionQuery
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.TypedTransactionQueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.TypedQueryResult'
+  /db.v1.DatabaseService/TypedTransactionQueryStream: {}
 components:
   securitySchemes:
     bearerAuth:
@@ -1709,6 +1783,68 @@ components:
       title: SelectResult
       additionalProperties: false
       description: "*\r\n Represents the full result set of a SELECT query (used in Unary RPC)."
+    db.v1.SqlRow:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.SqlValue'
+          title: values
+      title: SqlRow
+      additionalProperties: false
+      description: "*\r\n Represents a single row of SQL values.\r\n Each value corresponds positionally to a column in the result header."
+    db.v1.SqlValue:
+      type: object
+      oneOf:
+        - properties:
+            blobValue:
+              type: string
+              title: blob_value
+              format: byte
+              description: SQLite BLOB (arbitrary bytes). Maps to bytes directly (no base64).
+          title: blob_value
+          required:
+            - blobValue
+        - properties:
+            integerValue:
+              type:
+                - integer
+                - string
+              title: integer_value
+              format: int64
+              description: SQLite INTEGER (64-bit signed). Maps to int64.
+          title: integer_value
+          required:
+            - integerValue
+        - properties:
+            nullValue:
+              type: boolean
+              title: null_value
+              description: SQLite NULL. True if this value is NULL.
+          title: null_value
+          required:
+            - nullValue
+        - properties:
+            realValue:
+              type: number
+              title: real_value
+              format: double
+              description: SQLite REAL (64-bit IEEE floating point). Maps to double.
+          title: real_value
+          required:
+            - realValue
+        - properties:
+            textValue:
+              type: string
+              title: text_value
+              description: SQLite TEXT (UTF-8 string). Maps to string.
+          title: text_value
+          required:
+            - textValue
+      title: SqlValue
+      additionalProperties: false
+      description: "*\r\n Represents a single SQL value with explicit type information.\r\n This replaces the dynamic typing of google.protobuf.Value with\r\n SQLite-specific semantics."
     db.v1.SqliteCode:
       type: string
       title: SqliteCode
@@ -1848,6 +1984,22 @@ components:
           title: savepoint
           required:
             - savepoint
+        - properties:
+            typedQuery:
+              title: typed_query
+              description: "Executes a typed query and expects the result buffered in a single\r\n response."
+              $ref: '#/components/schemas/db.v1.TypedTransactionalQueryRequest'
+          title: typed_query
+          required:
+            - typedQuery
+        - properties:
+            typedQueryStream:
+              title: typed_query_stream
+              description: Executes a typed query and expects the result to be streamed back.
+              $ref: '#/components/schemas/db.v1.TypedTransactionalQueryRequest'
+          title: typed_query_stream
+          required:
+            - typedQueryStream
       title: TransactionRequest
       additionalProperties: false
       description: "*\r\n The envelope message for a single command within a bidirectional stream.\r\n It uses a `oneof` to enforce that only one action is taken per message."
@@ -1909,6 +2061,22 @@ components:
           title: stream_result
           required:
             - streamResult
+        - properties:
+            typedQueryResult:
+              title: typed_query_result
+              description: Returned exactly once in response to a 'typed_query' request.
+              $ref: '#/components/schemas/db.v1.TypedQueryResult'
+          title: typed_query_result
+          required:
+            - typedQueryResult
+        - properties:
+            typedStreamResult:
+              title: typed_stream_result
+              description: Returned multiple times in response to a 'typed_query_stream' request.
+              $ref: '#/components/schemas/db.v1.TypedQueryResponse'
+          title: typed_stream_result
+          required:
+            - typedStreamResult
       title: TransactionResponse
       additionalProperties: false
       description: "*\r\n The response envelope for the `Transaction` RPC.\r\n Mirrors QueryResponse but adds Transaction-specific lifecycle messages."
@@ -1946,6 +2114,245 @@ components:
       title: TransactionalQueryRequest
       additionalProperties: false
       description: "*\r\n A query executed within an active transaction context.\r\n Unlike `QueryRequest`, this does not specify a database name as the context\r\n is already established."
+    db.v1.TypedParameters:
+      type: object
+      properties:
+        positional:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.SqlValue'
+          title: positional
+          maxItems: 1000
+          description: 'Positional parameters (bound by index: ?1, ?2, ...).'
+        named:
+          type: object
+          title: named
+          maxProperties: 1000
+          additionalProperties:
+            title: value
+            $ref: '#/components/schemas/db.v1.SqlValue'
+          description: "Named parameters (bound by name: :id, @user, $name).\r\n Key is the parameter name WITHOUT the prefix (e.g., \"id\" for \":id\")."
+      title: TypedParameters
+      additionalProperties: false
+      description: "*\r\n Typed parameters for query binding.\r\n Unlike Parameters, these use SqlValue for explicit typing (no hints needed)."
+    db.v1.TypedParameters.NamedEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          title: value
+          $ref: '#/components/schemas/db.v1.SqlValue'
+      title: NamedEntry
+      additionalProperties: false
+    db.v1.TypedQueryRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: Database name. Must be alphanumeric (plus _-), 3-64 chars.
+        sql:
+          type: string
+          title: sql
+          maxLength: 10240
+          minLength: 1
+          description: SQL Statement. Max 10KB.
+        type:
+          title: type
+          description: Optional hint to optimize connection routing.
+          $ref: '#/components/schemas/db.v1.QueryType'
+        parameters:
+          title: parameters
+          description: Typed parameters (no hints required).
+          $ref: '#/components/schemas/db.v1.TypedParameters'
+      title: TypedQueryRequest
+      additionalProperties: false
+      description: "*\r\n A request for the stateless `TypedQuery` and `TypedQueryStream` RPCs."
+    db.v1.TypedQueryResponse:
+      type: object
+      oneOf:
+        - properties:
+            batch:
+              title: batch
+              description: Sent repeatedly containing chunks of typed rows.
+              $ref: '#/components/schemas/db.v1.TypedQueryResultRowBatch'
+          title: batch
+          required:
+            - batch
+        - properties:
+            complete:
+              title: complete
+              description: Sent once when the query successfully finishes.
+              $ref: '#/components/schemas/db.v1.QueryComplete'
+          title: complete
+          required:
+            - complete
+        - properties:
+            dml:
+              title: dml
+              description: Sent if the query was an INSERT/UPDATE/DELETE.
+              $ref: '#/components/schemas/db.v1.DMLResult'
+          title: dml
+          required:
+            - dml
+        - properties:
+            error:
+              title: error
+              description: Sent if an error occurs mid-stream.
+              $ref: '#/components/schemas/db.v1.ErrorResponse'
+          title: error
+          required:
+            - error
+        - properties:
+            header:
+              title: header
+              description: Sent once at the start to define columns.
+              $ref: '#/components/schemas/db.v1.TypedQueryResultHeader'
+          title: header
+          required:
+            - header
+      title: TypedQueryResponse
+      additionalProperties: false
+      description: "*\r\n The response envelope for typed streaming RPCs.\r\n Stream protocol: [TypedHeader] -> [TypedBatch]* -> [Complete]."
+    db.v1.TypedQueryResult:
+      type: object
+      allOf:
+        - properties:
+            stats:
+              title: stats
+              $ref: '#/components/schemas/db.v1.ExecutionStats'
+        - oneOf:
+            - properties:
+                dml:
+                  title: dml
+                  $ref: '#/components/schemas/db.v1.DMLResult'
+              title: dml
+              required:
+                - dml
+            - properties:
+                select:
+                  title: select
+                  $ref: '#/components/schemas/db.v1.TypedSelectResult'
+              title: select
+              required:
+                - select
+      title: TypedQueryResult
+      additionalProperties: false
+      description: "*\r\n The response for typed unary RPCs (`TypedQuery`, `TypedTransactionQuery`)."
+    db.v1.TypedQueryResultHeader:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+          title: columns
+        columnAffinities:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ColumnAffinity'
+          title: column_affinities
+        columnDeclaredTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.DeclaredType'
+          title: column_declared_types
+        columnRawTypes:
+          type: array
+          items:
+            type: string
+          title: column_raw_types
+      title: TypedQueryResultHeader
+      additionalProperties: false
+      description: "*\r\n Metadata about the columns in a typed result set (Streaming).\r\n Sent as the first message in a typed read stream."
+    db.v1.TypedQueryResultRowBatch:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.SqlRow'
+          title: rows
+      title: TypedQueryResultRowBatch
+      additionalProperties: false
+      description: "*\r\n A batch of typed rows in a streaming response."
+    db.v1.TypedSelectResult:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+          title: columns
+          description: The names of the columns returned by the query.
+        columnAffinities:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ColumnAffinity'
+          title: column_affinities
+          description: The resolved column affinities.
+        columnDeclaredTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.DeclaredType'
+          title: column_declared_types
+          description: The declared types as specified in the schema.
+        columnRawTypes:
+          type: array
+          items:
+            type: string
+          title: column_raw_types
+          description: The raw type strings from the schema.
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.SqlRow'
+          title: rows
+          description: All rows with strongly-typed values.
+      title: TypedSelectResult
+      additionalProperties: false
+      description: "*\r\n Represents the full result set of a SELECT query with typed values."
+    db.v1.TypedTransactionQueryRequest:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          title: transaction_id
+          maxLength: 128
+          minLength: 1
+          description: The token received from BeginTransaction.
+        sql:
+          type: string
+          title: sql
+          maxLength: 10240
+          minLength: 1
+          description: The SQL statement to execute.
+        parameters:
+          title: parameters
+          description: Typed parameters for the query.
+          $ref: '#/components/schemas/db.v1.TypedParameters'
+      title: TypedTransactionQueryRequest
+      additionalProperties: false
+      description: "*\r\n Request to execute a typed query within an existing transaction session."
+    db.v1.TypedTransactionalQueryRequest:
+      type: object
+      properties:
+        sql:
+          type: string
+          title: sql
+          maxLength: 10240
+          minLength: 1
+          description: SQL Statement. Max 10KB.
+        parameters:
+          title: parameters
+          description: Typed parameters definition.
+          $ref: '#/components/schemas/db.v1.TypedParameters'
+      title: TypedTransactionalQueryRequest
+      additionalProperties: false
+      description: "*\r\n A typed query executed within an active transaction context (streaming)."
     db.v1.UnMountDatabaseRequest:
       type: object
       properties:

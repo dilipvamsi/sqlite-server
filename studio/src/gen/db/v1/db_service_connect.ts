@@ -29,7 +29,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseRequest, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
+import { BeginTransactionRequest, BeginTransactionResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseRequest, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -183,6 +183,57 @@ export const DatabaseService = {
       I: ExecuteTransactionRequest,
       O: ExecuteTransactionResponse,
       kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Executes a single stateless query and returns the entire result with
+     * strongly-typed values. Eliminates the need for sparse type hints.
+     *
+     * @generated from rpc db.v1.DatabaseService.TypedQuery
+     */
+    typedQuery: {
+      name: "TypedQuery",
+      I: TypedQueryRequest,
+      O: TypedQueryResult,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Executes a stateless query and streams strongly-typed results.
+     * Protocol: TypedHeader -> TypedBatch... -> Complete
+     *
+     * @generated from rpc db.v1.DatabaseService.TypedQueryStream
+     */
+    typedQueryStream: {
+      name: "TypedQueryStream",
+      I: TypedQueryRequest,
+      O: TypedQueryResponse,
+      kind: MethodKind.ServerStreaming,
+    },
+    /**
+     * *
+     * Executes a typed query inside the context of an existing 'transaction_id'.
+     *
+     * @generated from rpc db.v1.DatabaseService.TypedTransactionQuery
+     */
+    typedTransactionQuery: {
+      name: "TypedTransactionQuery",
+      I: TypedTransactionQueryRequest,
+      O: TypedQueryResult,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Executes a typed query inside the context of an existing 'transaction_id'.
+     * The server will stream the typed results back to the client.
+     *
+     * @generated from rpc db.v1.DatabaseService.TypedTransactionQueryStream
+     */
+    typedTransactionQueryStream: {
+      name: "TypedTransactionQueryStream",
+      I: TypedTransactionQueryRequest,
+      O: TypedQueryResponse,
+      kind: MethodKind.ServerStreaming,
     },
   }
 } as const;

@@ -6,7 +6,7 @@ const { ColumnAffinity, DeclaredType } = require('./constants');
 
 /**
  * Converts JS params to the JSON structure expected by the Connect RPC/JSON gateway.
- * 
+ *
  * @param {Array<any>} positional - Positional args.
  * @param {Object} named - Named args.
  * @param {Object} hints - { positional: { index: type }, named: { name: type } }
@@ -15,25 +15,113 @@ const { ColumnAffinity, DeclaredType } = require('./constants');
 function toParams(positional = [], named = {}, hints = {}) {
     const params = {};
 
+    const posHints = hints.positional || {};
+    const namedHints = hints.named || {};
+
     if (Array.isArray(positional) && positional.length > 0) {
-        params.positional = positional;
         params.positionalHints = {};
-        const h = hints.positional || {};
-        for (const [k, v] of Object.entries(h)) {
+        for (const [k, v] of Object.entries(posHints)) {
             params.positionalHints[k] = v;
         }
+
+        params.positional = positional.map((val, i) => {
+            if (val === null || val === undefined) return null;
+
+            if (typeof val === 'bigint') {
+                if (!params.positionalHints[i]) {
+                    params.positionalHints[i] = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+                }
+                return val.toString();
+            }
+
+            if (Buffer.isBuffer(val)) {
+                if (!params.positionalHints[i]) {
+                    params.positionalHints[i] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+                }
+                return val.toString('base64');
+            }
+            if (val instanceof Uint8Array) {
+                if (!params.positionalHints[i]) {
+                    params.positionalHints[i] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+                }
+                return Buffer.from(val).toString('base64');
+            }
+            return encodeValue(val, posHints[i]);
+        });
     }
 
     if (named && Object.keys(named).length > 0) {
-        params.named = named;
         params.namedHints = {};
-        const h = hints.named || {};
-        for (const [k, v] of Object.entries(h)) {
+        for (const [k, v] of Object.entries(namedHints)) {
             params.namedHints[k] = v;
+        }
+
+        params.named = {};
+        for (const [k, val] of Object.entries(named)) {
+            if (val === null || val === undefined) {
+                params.named[k] = null;
+                continue;
+            }
+
+            if (typeof val === 'bigint') {
+                if (!params.namedHints[k]) {
+                    params.namedHints[k] = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+                }
+                params.named[k] = val.toString();
+                continue;
+            }
+
+            if (Buffer.isBuffer(val)) {
+                if (!params.namedHints[k]) {
+                    params.namedHints[k] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+                }
+                params.named[k] = val.toString('base64');
+                continue;
+            }
+            if (val instanceof Uint8Array) {
+                if (!params.namedHints[k]) {
+                    params.namedHints[k] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+                }
+                params.named[k] = Buffer.from(val).toString('base64');
+                continue;
+            }
+            params.named[k] = encodeValue(val, namedHints[k]);
         }
     }
 
     return params;
+}
+
+/**
+ * Helper to encode values for JSON transport.
+ * - Buffers -> base64 string
+ * - String + BLOB hint -> base64 string
+ */
+function encodeValue(val, hint) {
+    if (val === null || val === undefined) return null;
+
+    if (typeof val === 'bigint') return val.toString();
+    if (val instanceof Date) return val.toISOString();
+
+    // 1. Buffer / Uint8Array -> Base64
+    if (Buffer.isBuffer(val)) {
+        return val.toString('base64');
+    }
+    if (val instanceof Uint8Array) {
+        return Buffer.from(val).toString('base64');
+    }
+
+    // 2. String + BLOB hint -> Base64
+    // If the user says it's a BLOB, but passes a string, we assume they passed raw bytes
+    // as a string and we must encode it so the server (which expects base64 for blobs)
+    // receives the correct data.
+    if (typeof val === 'string') {
+        if (hint === ColumnAffinity.COLUMN_AFFINITY_BLOB || hint === 'COLUMN_AFFINITY_BLOB') {
+            return Buffer.from(val).toString('base64');
+        }
+    }
+
+    return val;
 }
 
 /**

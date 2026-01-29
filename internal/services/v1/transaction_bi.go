@@ -59,6 +59,51 @@ func (w *transactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
 	}})
 }
 
+// typedTransactionalStreamWriter adapts a `Transaction` (BidiStream) for typed queries.
+type typedTransactionalStreamWriter struct {
+	stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse]
+}
+
+func (w *typedTransactionalStreamWriter) SendHeader(header *dbv1.TypedQueryResultHeader) error {
+	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
+		TypedStreamResult: &dbv1.TypedQueryResponse{
+			Response: &dbv1.TypedQueryResponse_Header{
+				Header: header,
+			},
+		},
+	}})
+}
+
+func (w *typedTransactionalStreamWriter) SendRowBatch(b *dbv1.TypedQueryResultRowBatch) error {
+	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
+		TypedStreamResult: &dbv1.TypedQueryResponse{
+			Response: &dbv1.TypedQueryResponse_Batch{
+				Batch: b,
+			},
+		},
+	}})
+}
+
+func (w *typedTransactionalStreamWriter) SendDMLResult(r *dbv1.DMLResult) error {
+	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
+		TypedStreamResult: &dbv1.TypedQueryResponse{
+			Response: &dbv1.TypedQueryResponse_Dml{
+				Dml: r,
+			},
+		},
+	}})
+}
+
+func (w *typedTransactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
+	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
+		TypedStreamResult: &dbv1.TypedQueryResponse{
+			Response: &dbv1.TypedQueryResponse_Complete{
+				Complete: &dbv1.QueryComplete{Stats: s},
+			},
+		},
+	}})
+}
+
 // Transaction handles the bidirectional `Transaction` stream.
 // USE CASE:
 // Interactive workflows needing ACID guarantees (e.g., "Read balance, Calculate, Update balance").
@@ -331,6 +376,51 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 				Response: &dbv1.TransactionResponse_Rollback{Rollback: &dbv1.RollbackResponse{Success: true}},
 			})
 			return nil // End of workflow
+
+		// --- TYPED QUERY COMMAND ---
+		case *dbv1.TransactionRequest_TypedQuery:
+			if tx == nil {
+				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
+			}
+
+			if err := ValidateStatelessQuery(cmd.TypedQuery.Sql); err != nil {
+				log.Printf("[%s] Blocked manual transaction control in typed query: %s", traceID, cmd.TypedQuery.Sql)
+				return err
+			}
+
+			result, err := typedExecuteQueryAndBuffer(ctx, tx, cmd.TypedQuery.Sql, cmd.TypedQuery.Parameters)
+			if err != nil {
+				log.Printf("[%s] Typed query error: %v", traceID, err)
+				sendAppError(stream, traceID, err, cmd.TypedQuery.Sql)
+			} else {
+				_ = stream.Send(&dbv1.TransactionResponse{
+					Response: &dbv1.TransactionResponse_TypedQueryResult{
+						TypedQueryResult: result,
+					},
+				})
+			}
+			continue
+
+		// --- TYPED QUERY STREAM COMMAND ---
+		case *dbv1.TransactionRequest_TypedQueryStream:
+			if tx == nil {
+				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
+			}
+
+			if err := ValidateStatelessQuery(cmd.TypedQueryStream.Sql); err != nil {
+				log.Printf("[%s] Blocked manual transaction control in typed stream query: %s", traceID, cmd.TypedQueryStream.Sql)
+				return err
+			}
+
+			// Use the typed transactional writer adapter
+			typedWriter := &typedTransactionalStreamWriter{stream: stream}
+
+			err := typedStreamQueryResults(ctx, tx, cmd.TypedQueryStream.Sql, cmd.TypedQueryStream.Parameters, typedWriter)
+			if err != nil {
+				log.Printf("[%s] Typed stream query error: %v", traceID, err)
+				sendAppError(stream, traceID, err, cmd.TypedQueryStream.Sql)
+			}
+			continue
 
 		default:
 			log.Printf("[%s] Unknown command type", traceID)

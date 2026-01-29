@@ -1,11 +1,12 @@
 const db_service_pb = require("../protos/db/v1/db_service_pb");
 const {
-    toProtoParams,
     resolveArgs,
-    createRowIterator,
-    createBatchIterator,
-    mapQueryResult,
     getAuthMetadata,
+    // Typed API utilities
+    toTypedProtoParams,
+    createTypedRowIterator,
+    createTypedBatchIterator,
+    mapTypedQueryResult,
 } = require("./utils");
 
 /**
@@ -150,20 +151,21 @@ class UnaryTransactionHandle {
      */
     async query(sqlOrObj, paramsOrHints, hintsOrNull) {
         this._checkActive();
-        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+        const { sql, positional, named } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
 
-        const req = new db_service_pb.TransactionQueryRequest();
+        // Use TypedTransactionQueryRequest for better wire efficiency
+        const req = new db_service_pb.TypedTransactionQueryRequest();
         req.setTransactionId(this.transactionId);
         req.setSql(sql);
-        req.setParameters(toProtoParams(positional, named, hints));
+        req.setParameters(toTypedProtoParams(positional, named));
 
         return new Promise((resolve, reject) => {
             const metadata = getAuthMetadata(this.config.auth);
-            this.client.transactionQuery(req, metadata, (err, result) => {
+            this.client.typedTransactionQuery(req, metadata, (err, result) => {
                 if (err) return reject(err);
 
-                // Use helper
-                resolve(mapQueryResult(result, this.config.typeParsers));
+                // Use typed result mapper
+                resolve(mapTypedQueryResult(result, this.config.typeParsers));
             });
         });
     }
@@ -183,13 +185,13 @@ class UnaryTransactionHandle {
      */
     async iterate(sqlOrObj, paramsOrHints, hintsOrNull) {
         const iterator = await this._initStream(sqlOrObj, paramsOrHints, hintsOrNull);
-        const { rows, columnAffinities, columnDeclaredTypes } = iterator;
+        const { rows, columnDeclaredTypes } = iterator;
         return {
             columns: iterator.columns,
             columnAffinities: iterator.columnAffinities,
             columnDeclaredTypes: iterator.columnDeclaredTypes,
             columnRawTypes: iterator.columnRawTypes,
-            rows: createRowIterator(rows, columnAffinities, columnDeclaredTypes, this.config.typeParsers),
+            rows: createTypedRowIterator(rows, columnDeclaredTypes, this.config.typeParsers),
         };
     }
 
@@ -217,14 +219,14 @@ class UnaryTransactionHandle {
         }
 
         const iterator = await this._initStream(sqlOrObj, paramsOrHints, resolvedHints);
-        const { rows, columnAffinities, columnDeclaredTypes } = iterator;
+        const { rows, columnDeclaredTypes } = iterator;
 
         return {
             columns: iterator.columns,
             columnAffinities: iterator.columnAffinities,
             columnDeclaredTypes: iterator.columnDeclaredTypes,
             columnRawTypes: iterator.columnRawTypes,
-            rows: createBatchIterator(rows, columnAffinities, columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
+            rows: createTypedBatchIterator(rows, columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
         };
     }
 
@@ -234,15 +236,16 @@ class UnaryTransactionHandle {
      */
     async _initStream(sqlOrObj, paramsOrHints, hintsOrNull) {
         this._checkActive();
-        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+        const { sql, positional, named } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
 
-        const req = new db_service_pb.TransactionQueryRequest();
+        // Use TypedTransactionQueryRequest for better wire efficiency
+        const req = new db_service_pb.TypedTransactionQueryRequest();
         req.setTransactionId(this.transactionId);
         req.setSql(sql);
-        req.setParameters(toProtoParams(positional, named, hints));
+        req.setParameters(toTypedProtoParams(positional, named));
 
         const metadata = getAuthMetadata(this.config.auth);
-        const stream = this.client.transactionQueryStream(req, metadata);
+        const stream = this.client.typedTransactionQueryStream(req, metadata);
         const iterator = stream[Symbol.asyncIterator]();
 
         // Peel header
@@ -252,7 +255,7 @@ class UnaryTransactionHandle {
         const msg = first.value;
         const caseType = msg.getResponseCase();
 
-        if (caseType === db_service_pb.QueryResponse.ResponseCase.ERROR) {
+        if (caseType === db_service_pb.TypedQueryResponse.ResponseCase.ERROR) {
             throw new Error(msg.getError().getMessage());
         }
 
@@ -262,22 +265,22 @@ class UnaryTransactionHandle {
         let columnDeclaredTypes = [];
         let columnRawTypes = [];
 
-        if (caseType === db_service_pb.QueryResponse.ResponseCase.HEADER) {
+        if (caseType === db_service_pb.TypedQueryResponse.ResponseCase.HEADER) {
             columns = msg.getHeader().getColumnsList();
             columnAffinities = msg.getHeader().getColumnAffinitiesList();
             columnDeclaredTypes = msg.getHeader().getColumnDeclaredTypesList();
             columnRawTypes = msg.getHeader().getColumnRawTypesList();
         }
 
-        // Generator for raw proto batches
+        // Generator for raw proto batches (yields SqlRow[])
         const batchGen = async function* () {
             let nextVal = await iterator.next();
             while (!nextVal.done) {
                 const res = nextVal.value;
                 const type = res.getResponseCase();
-                if (type === db_service_pb.QueryResponse.ResponseCase.BATCH) {
+                if (type === db_service_pb.TypedQueryResponse.ResponseCase.BATCH) {
                     yield res.getBatch().getRowsList();
-                } else if (type === db_service_pb.QueryResponse.ResponseCase.ERROR) {
+                } else if (type === db_service_pb.TypedQueryResponse.ResponseCase.ERROR) {
                     throw new Error(res.getError().getMessage());
                 }
                 nextVal = await iterator.next();

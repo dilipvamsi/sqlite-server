@@ -63,9 +63,19 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 await client.query("CREATE TABLE IF NOT EXISTS blobs (data BLOB)");
                 await client.query("DELETE FROM blobs");
 
+                // 1. Pass Buffer directly - Client should auto-convert to base64
                 await client.query(
                     "INSERT INTO blobs (data) VALUES (?)",
-                    { positional: [binaryData.toString("base64")] },
+                    { positional: [binaryData] }
+                );
+
+                // 2. Pass String with BLOB hint - Client should convert string bytes to base64
+                const stringData = "hello blob"; // "don't use binary string"
+                const stringBuf = Buffer.from(stringData);
+
+                await client.query(
+                    "INSERT INTO blobs (data) VALUES (?)",
+                    { positional: [stringData] },
                     {
                         positional: {
                             0: ColumnAffinity.COLUMN_AFFINITY_BLOB,
@@ -73,11 +83,17 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                     },
                 );
 
-                const result = await client.query("SELECT data FROM blobs LIMIT 1");
-                const returnedBuffer = result.rows[0][0];
+                const result = await client.query("SELECT data FROM blobs");
+                expect(result.rows.length).toBe(2);
 
-                assert.ok(Buffer.isBuffer(returnedBuffer), "Expected Buffer");
-                assert.ok(returnedBuffer.equals(binaryData), "Buffer mismatch");
+                const buf1 = result.rows[0][0];
+                const buf2 = result.rows[1][0];
+
+                assert.ok(Buffer.isBuffer(buf1), "Expected Buffer 1");
+                assert.ok(buf1.equals(binaryData), "Buffer 1 mismatch");
+
+                assert.ok(Buffer.isBuffer(buf2), "Expected Buffer 2");
+                assert.ok(buf2.equals(stringBuf), "Buffer 2 mismatch");
             });
 
             it("Stateless Iteration: Large Result Set", async () => {
@@ -201,7 +217,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 // Insert a value larger than 2^53 - 1 but within Int64
                 const bigVal = 9223372036854775800n;
                 await client.query(`INSERT INTO ${tableName} (id) VALUES (?)`, {
-                    positional: [bigVal.toString()]
+                    positional: [bigVal]
                 });
 
                 const result = await client.query(`SELECT id FROM ${tableName} LIMIT 1`);
@@ -233,6 +249,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 expect(typeof data).toBe('object');
                 expect(data).toEqual(jsonData);
             });
+
             it("Date Verification", async () => {
                 const tableName = "date_test_fetch";
                 await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER, d DATE, dt DATETIME)`);
@@ -242,7 +259,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 const nowStr = now.toISOString();
 
                 await client.query(`INSERT INTO ${tableName} (id, d, dt) VALUES (1, ?, ?)`, {
-                    positional: [nowStr, nowStr]
+                    positional: [now, now]
                 });
 
                 const result = await client.query(`SELECT d, dt FROM ${tableName} LIMIT 1`);

@@ -139,6 +139,40 @@ func (s *DbServer) ExecuteTransaction(ctx context.Context, req *connect.Request[
 				Response: &dbv1.TransactionResponse_QueryResult{QueryResult: result},
 			})
 
+		case *dbv1.TransactionRequest_TypedQuery, *dbv1.TransactionRequest_TypedQueryStream:
+			// --- Handle TYPED QUERY & TYPED QUERY_STREAM ---
+			if tx == nil {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("no active transaction; first command must be 'begin'"))
+			}
+
+			var sqlStr string
+			var params *dbv1.TypedParameters
+			if q := request.GetTypedQuery(); q != nil {
+				sqlStr, params = q.Sql, q.Parameters
+			} else {
+				qs := request.GetTypedQueryStream()
+				sqlStr, params = qs.Sql, qs.Parameters
+			}
+
+			if err := ValidateStatelessQuery(sqlStr); err != nil {
+				log.Printf("[%s] Blocked manual transaction control in script query: %s", reqID, sqlStr)
+				return nil, err
+			}
+
+			result, err := typedExecuteQueryAndBuffer(ctx, tx, sqlStr, params)
+			if err != nil {
+				allResponses = append(allResponses, &dbv1.TransactionResponse{
+					Response: &dbv1.TransactionResponse_Error{
+						Error: makeStreamError(err, sqlStr),
+					},
+				})
+				return connect.NewResponse(&dbv1.ExecuteTransactionResponse{Responses: allResponses}), nil
+			}
+
+			allResponses = append(allResponses, &dbv1.TransactionResponse{
+				Response: &dbv1.TransactionResponse_TypedQueryResult{TypedQueryResult: result},
+			})
+
 		case *dbv1.TransactionRequest_Savepoint:
 			// --- Handle SAVEPOINT (Nested Transactions) ---
 			if tx == nil {

@@ -44,14 +44,10 @@ function runFunctionalTests(createClientFn) {
             await client.query("CREATE TABLE IF NOT EXISTS blobs (data BLOB)");
             await client.query("DELETE FROM blobs"); // Clean up
 
+            // The typed API supports Buffers directly!
             await client.query(
                 "INSERT INTO blobs (data) VALUES (?)",
-                { positional: [binaryData.toString("base64")] },
-                {
-                    positional: {
-                        0: db_service_pb.ColumnAffinity.COLUMN_AFFINITY_BLOB,
-                    },
-                },
+                { positional: [binaryData] },
             );
 
             const result = await client.query("SELECT data FROM blobs LIMIT 1");
@@ -181,13 +177,13 @@ function runFunctionalTests(createClientFn) {
             // Max Safe Integer: 9,007,199,254,740,991
             // Max Int64:        9,223,372,036,854,775,807
             const bigVal = 9223372036854775800n;
-            const bigValStr = bigVal.toString();
+            // const bigValStr = bigVal.toString(); // unused
 
             // Insert as string because JS client params might not support BigInt directly yet without specific handling,
             // but let's try assuming the client serialization handles BigInt -> String or similar, OR we pass as string and rely on implicit cast.
             // Safest: Pass as string for insertion, verify readout as BigInt.
             await client.query(`INSERT INTO ${tableName} (id, val) VALUES (?, 'test')`, {
-                positional: [bigValStr]
+                positional: [bigVal],
             });
 
             const result = await client.query(`SELECT id FROM ${tableName} LIMIT 1`);
@@ -209,7 +205,7 @@ function runFunctionalTests(createClientFn) {
             const jsonStr = JSON.stringify(jsonData);
 
             await client.query(`INSERT INTO ${tableName} (id, data) VALUES (1, ?)`, {
-                positional: [jsonStr]
+                positional: [jsonStr],
             });
 
             const result = await client.query(`SELECT data FROM ${tableName} LIMIT 1`);
@@ -232,7 +228,7 @@ function runFunctionalTests(createClientFn) {
             const nowStr = now.toISOString();
 
             await client.query(`INSERT INTO ${tableName} (id, d, dt) VALUES (1, ?, ?)`, {
-                positional: [nowStr, nowStr]
+                positional: [now, now],
             });
 
             const result = await client.query(`SELECT d, dt FROM ${tableName} LIMIT 1`);
@@ -341,7 +337,7 @@ function runFunctionalTests(createClientFn) {
             await client.query(`DELETE FROM ${tableName}`);
 
             // Use the existing BLOB test data approach (Buffer passed directly)
-            const rawBytes = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+            // const rawBytes = Buffer.from([0x01, 0x02, 0x03, 0x04]);
             // Use X'...' hex literal for inserting BLOB data
             await client.query(`INSERT INTO ${tableName} (data) VALUES (X'01020304')`);
 
@@ -366,7 +362,7 @@ function runFunctionalTests(createClientFn) {
             const jsonStr = JSON.stringify(jsonData);
 
             await client.query(`INSERT INTO ${tableName} (id, data) VALUES (?, ?)`, {
-                positional: [bigValStr, jsonStr]
+                positional: [bigValStr, jsonStr],
             });
 
             const origBigint = client.config.typeParsers.bigint;

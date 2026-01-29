@@ -130,6 +130,11 @@ const SavepointAction = {
   SAVEPOINT_ACTION_ROLLBACK: 3,
 };
 
+/**
+ * TransactionType defines the underlying execution mode.
+ * @readonly
+ * @enum {number}
+ */
 const TransactionType = {
   STREAMING: 1,
   UNARY: 2,

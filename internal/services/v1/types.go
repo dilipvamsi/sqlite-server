@@ -85,3 +85,12 @@ type StreamWriter interface {
 	SendDMLResult(*dbv1.DMLResult) error
 	SendComplete(*dbv1.ExecutionStats) error
 }
+
+// TypedStreamWriter is the typed variant of StreamWriter.
+// It uses SqlValue/SqlRow instead of ListValue for better type safety and wire efficiency.
+type TypedStreamWriter interface {
+	SendHeader(*dbv1.TypedQueryResultHeader) error
+	SendRowBatch(*dbv1.TypedQueryResultRowBatch) error
+	SendDMLResult(*dbv1.DMLResult) error
+	SendComplete(*dbv1.ExecutionStats) error
+}

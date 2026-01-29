@@ -432,6 +432,50 @@ function deserialize_db_v1_TransactionSavepointRequest(buffer_arg) {
   return db_v1_db_service_pb.TransactionSavepointRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_TypedQueryRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.TypedQueryRequest)) {
+    throw new Error('Expected argument of type db.v1.TypedQueryRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_TypedQueryRequest(buffer_arg) {
+  return db_v1_db_service_pb.TypedQueryRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_TypedQueryResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.TypedQueryResponse)) {
+    throw new Error('Expected argument of type db.v1.TypedQueryResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_TypedQueryResponse(buffer_arg) {
+  return db_v1_db_service_pb.TypedQueryResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_TypedQueryResult(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.TypedQueryResult)) {
+    throw new Error('Expected argument of type db.v1.TypedQueryResult');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_TypedQueryResult(buffer_arg) {
+  return db_v1_db_service_pb.TypedQueryResult.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_TypedTransactionQueryRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.TypedTransactionQueryRequest)) {
+    throw new Error('Expected argument of type db.v1.TypedTransactionQueryRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_TypedTransactionQueryRequest(buffer_arg) {
+  return db_v1_db_service_pb.TypedTransactionQueryRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_UnMountDatabaseRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.UnMountDatabaseRequest)) {
     throw new Error('Expected argument of type db.v1.UnMountDatabaseRequest');
@@ -644,6 +688,68 @@ executeTransaction: {
     requestDeserialize: deserialize_db_v1_ExecuteTransactionRequest,
     responseSerialize: serialize_db_v1_ExecuteTransactionResponse,
     responseDeserialize: deserialize_db_v1_ExecuteTransactionResponse,
+  },
+  // ---------------------------------------------------------------------------
+// TYPED API - Strongly-typed variants using SqlValue instead of ListValue
+// These RPCs provide better wire efficiency and eliminate the need for hints.
+// ---------------------------------------------------------------------------
+//
+// *
+// Executes a single stateless query and returns the entire result with
+// strongly-typed values. Eliminates the need for sparse type hints.
+typedQuery: {
+    path: '/db.v1.DatabaseService/TypedQuery',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.TypedQueryRequest,
+    responseType: db_v1_db_service_pb.TypedQueryResult,
+    requestSerialize: serialize_db_v1_TypedQueryRequest,
+    requestDeserialize: deserialize_db_v1_TypedQueryRequest,
+    responseSerialize: serialize_db_v1_TypedQueryResult,
+    responseDeserialize: deserialize_db_v1_TypedQueryResult,
+  },
+  // *
+// Executes a stateless query and streams strongly-typed results.
+// Protocol: TypedHeader -> TypedBatch... -> Complete
+typedQueryStream: {
+    path: '/db.v1.DatabaseService/TypedQueryStream',
+    requestStream: false,
+    responseStream: true,
+    requestType: db_v1_db_service_pb.TypedQueryRequest,
+    responseType: db_v1_db_service_pb.TypedQueryResponse,
+    requestSerialize: serialize_db_v1_TypedQueryRequest,
+    requestDeserialize: deserialize_db_v1_TypedQueryRequest,
+    responseSerialize: serialize_db_v1_TypedQueryResponse,
+    responseDeserialize: deserialize_db_v1_TypedQueryResponse,
+  },
+  // --- Typed Stateful Operations (Unary ID-Based) ---
+//
+// *
+// Executes a typed query inside the context of an existing 'transaction_id'.
+typedTransactionQuery: {
+    path: '/db.v1.DatabaseService/TypedTransactionQuery',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.TypedTransactionQueryRequest,
+    responseType: db_v1_db_service_pb.TypedQueryResult,
+    requestSerialize: serialize_db_v1_TypedTransactionQueryRequest,
+    requestDeserialize: deserialize_db_v1_TypedTransactionQueryRequest,
+    responseSerialize: serialize_db_v1_TypedQueryResult,
+    responseDeserialize: deserialize_db_v1_TypedQueryResult,
+  },
+  // *
+// Executes a typed query inside the context of an existing 'transaction_id'.
+// The server will stream the typed results back to the client.
+typedTransactionQueryStream: {
+    path: '/db.v1.DatabaseService/TypedTransactionQueryStream',
+    requestStream: false,
+    responseStream: true,
+    requestType: db_v1_db_service_pb.TypedTransactionQueryRequest,
+    responseType: db_v1_db_service_pb.TypedQueryResponse,
+    requestSerialize: serialize_db_v1_TypedTransactionQueryRequest,
+    requestDeserialize: deserialize_db_v1_TypedTransactionQueryRequest,
+    responseSerialize: serialize_db_v1_TypedQueryResponse,
+    responseDeserialize: deserialize_db_v1_TypedQueryResponse,
   },
 };
 

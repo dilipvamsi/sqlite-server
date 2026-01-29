@@ -89,3 +89,181 @@ func TestQuery_Coverage(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+// =============================================================================
+// TYPED QUERY HANDLER TESTS
+// =============================================================================
+
+func TestTypedQuery_Coverage(t *testing.T) {
+	client, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	t.Run("SELECT Success", func(t *testing.T) {
+		res, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "SELECT id, name FROM users WHERE id = 1",
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.GetSelect())
+		assert.Len(t, res.Msg.GetSelect().Rows, 1)
+		// Check typed values
+		row := res.Msg.GetSelect().Rows[0]
+		assert.Equal(t, int64(1), row.Values[0].GetIntegerValue())
+		assert.Equal(t, "Alice", row.Values[1].GetTextValue())
+	})
+
+	t.Run("DML Success", func(t *testing.T) {
+		res, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "INSERT INTO users (name) VALUES ('TypedUser')",
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.GetDml())
+		assert.Equal(t, int64(1), res.Msg.GetDml().RowsAffected)
+	})
+
+	t.Run("SELECT with Parameters", func(t *testing.T) {
+		res, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "SELECT name FROM users WHERE id = ?",
+			Parameters: &dbv1.TypedParameters{
+				Positional: []*dbv1.SqlValue{
+					{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 1}},
+				},
+			},
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, "Alice", res.Msg.GetSelect().Rows[0].Values[0].GetTextValue())
+	})
+
+	t.Run("DB Not Found", func(t *testing.T) {
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "missing",
+			Sql:      "SELECT 1",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("Transaction Control Blocked", func(t *testing.T) {
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "BEGIN",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "manual transaction control")
+	})
+
+	t.Run("Invalid SQL", func(t *testing.T) {
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "SELECT * FROM missing_table",
+		}))
+		assert.Error(t, err)
+	})
+
+	t.Run("Proto Validation Error", func(t *testing.T) {
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "", // Empty SQL
+		}))
+		assert.Error(t, err)
+	})
+}
+
+func TestTypedQueryStream_Coverage(t *testing.T) {
+	client, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	t.Run("SELECT Success", func(t *testing.T) {
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "SELECT id, name FROM users",
+		}))
+		require.NoError(t, err)
+
+		// 1. Header
+		assert.True(t, stream.Receive())
+		header := stream.Msg().GetHeader()
+		assert.NotNil(t, header)
+		assert.Equal(t, []string{"id", "name"}, header.Columns)
+
+		// 2. Batch
+		assert.True(t, stream.Receive())
+		batch := stream.Msg().GetBatch()
+		assert.NotNil(t, batch)
+		assert.GreaterOrEqual(t, len(batch.Rows), 1)
+
+		// 3. Complete
+		assert.True(t, stream.Receive())
+		assert.NotNil(t, stream.Msg().GetComplete())
+
+		assert.False(t, stream.Receive())
+	})
+
+	t.Run("DML Success", func(t *testing.T) {
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "INSERT INTO users (name) VALUES ('StreamTypedUser')",
+		}))
+		require.NoError(t, err)
+
+		assert.True(t, stream.Receive())
+		assert.NotNil(t, stream.Msg().GetDml())
+	})
+
+	t.Run("DB Not Found", func(t *testing.T) {
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "missing",
+			Sql:      "SELECT 1",
+		}))
+		if err == nil {
+			assert.False(t, stream.Receive())
+			assert.Error(t, stream.Err())
+			assert.Contains(t, stream.Err().Error(), "not found")
+		} else {
+			assert.Contains(t, err.Error(), "not found")
+		}
+	})
+
+	t.Run("Transaction Control Blocked", func(t *testing.T) {
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "BEGIN",
+		}))
+		if err == nil {
+			assert.False(t, stream.Receive())
+			assert.Error(t, stream.Err())
+			assert.Contains(t, stream.Err().Error(), "manual transaction control")
+		} else {
+			assert.Contains(t, err.Error(), "manual transaction control")
+		}
+	})
+
+	t.Run("Invalid SQL - Returns Error in Stream", func(t *testing.T) {
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "SELECT * FROM missing_table",
+		}))
+		require.NoError(t, err)
+
+		// Receive error message wrapped in stream
+		assert.True(t, stream.Receive())
+		errMsg := stream.Msg().GetError()
+		assert.NotNil(t, errMsg)
+		assert.Contains(t, errMsg.Message, "no such table")
+	})
+
+	t.Run("Proto Validation Error", func(t *testing.T) {
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "", // Empty SQL
+		}))
+		if err == nil {
+			assert.False(t, stream.Receive())
+			assert.Error(t, stream.Err())
+		} else {
+			assert.Error(t, err)
+		}
+	})
+}

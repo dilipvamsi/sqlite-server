@@ -6,13 +6,15 @@ const TransactionHandle = require("./TransactionHandle");
 const UnaryTransactionHandle = require("./UnaryTransactionHandle");
 const { TransactionMode, TransactionType } = require("./constants");
 const {
-  toProtoParams,
   resolveArgs,
-  createRowIterator,
-  createBatchIterator,
-  mapQueryResult,
   getAuthMetadata,
+  // Typed API utilities
+  toTypedProtoParams,
+  createTypedRowIterator,
+  createTypedBatchIterator,
+  mapTypedQueryResult,
 } = require("./utils");
+
 
 // Import the generated static stubs
 const db_service_pb = require("../protos/db/v1/db_service_pb");
@@ -31,6 +33,11 @@ class DatabaseClient {
    * @param {number} [config.retry.maxRetries=3] - Maximum number of retries.
    * @param {number} [config.retry.baseDelayMs=100] - Base delay in milliseconds for exponential backoff.
    * @param {Array<object>} [config.interceptors=[]] - Array of interceptor objects.
+   * @param {object} [config.typeParsers] - Type parsing configuration.
+   * @param {boolean} [config.typeParsers.bigint=true] - If true, BigInts are returned as JS BigInts. If false, as strings.
+   * @param {boolean} [config.typeParsers.json=true] - If true, JSON strings are parsed into objects.
+   * @param {boolean} [config.typeParsers.blob=true] - If true, BLOBs are returned as Buffers. If false, as Base64 strings.
+   * @param {string} [config.typeParsers.date='date'] - 'date' (Date obj), 'string' (ISO), or 'number' (Epoch).
    */
   constructor(
     address,
@@ -89,13 +96,18 @@ class DatabaseClient {
         ...(config.typeParsers || {}),
       },
     };
+
+    this.isClosed = false;
   }
 
   /**
    * Closes the gRPC client connection.
    */
   close() {
-    this.client.close();
+    this.isClosed = true;
+    if (this.client) {
+      this.client.close();
+    }
   }
 
   /**
@@ -106,9 +118,14 @@ class DatabaseClient {
     let attempts = 0;
 
     while (true) {
+      if (this.isClosed) {
+        throw new Error("Client is closed");
+      }
       try {
         return await fn();
       } catch (err) {
+        if (this.isClosed) throw err;
+
         const code = err.code;
         // 5 = SQLITE_BUSY, 6 = SQLITE_LOCKED
         const isLocked = code === 5 || code === 6;
@@ -137,10 +154,10 @@ class DatabaseClient {
   }
 
   /**
-   * Internal: Initiates a stateless QueryStream and peels off the first message (Header/DML).
+   * Internal: Initiates a typed stateless QueryStream and peels off the first message (Header/DML).
    * @param {string|object} sqlOrObj - SQL string or SQLStatement object.
    * @param {Array|object} paramsOrHints - Positional/Named parameters or hints.
-   * @param {object} hintsOrNull - Type hints.
+   * @param {object} hintsOrNull - Type hints (ignored for typed API).
    * @returns {Promise<{
    *   iterator: AsyncIterator<any>,
    *   columns: string[],
@@ -152,7 +169,7 @@ class DatabaseClient {
    * }>}
    */
   async _initStream(sqlOrObj, paramsOrHints, hintsOrNull) {
-    const { sql, positional, named, hints } = resolveArgs(
+    const { sql, positional, named } = resolveArgs(
       sqlOrObj,
       paramsOrHints,
       hintsOrNull,
@@ -160,27 +177,19 @@ class DatabaseClient {
 
     this._runInterceptors('beforeQuery', { sql, params: { positional, named } });
 
-    // Construct the Request using generated classes
-    const req = new db_service_pb.QueryRequest();
+    // Use TypedQueryRequest for better wire efficiency
+    const req = new db_service_pb.TypedQueryRequest();
     req.setDatabase(this.dbName);
     req.setSql(sql);
-
-    // Note: your utils.js toProtoParams should now return a db_service_pb.Parameters object
-    const protoParams = toProtoParams(positional, named, hints);
-    req.setParameters(protoParams);
+    req.setParameters(toTypedProtoParams(positional, named));
 
     // TODO: queryStream currently doesn't support easy retries because it returns a stream immediately.
     // We would need to re-create the stream on error which is complex for a generator.
     // For now, only unary calls get auto-retry.
 
     const metadata = getAuthMetadata(this.config.auth);
-    const stream = this.client.queryStream(req, metadata);
+    const stream = this.client.typedQueryStream(req, metadata);
     const iterator = stream[Symbol.asyncIterator]();
-
-
-    // Note: We need to pass dateHandling to fromProtoList calls in iterate/queryStream methods too.
-    // But _initStream returns the raw iterator.
-    // The transformation happens in iterate() / queryStream().
 
     try {
       const first = await iterator.next();
@@ -191,16 +200,14 @@ class DatabaseClient {
       const msg = first.value;
       const responseType = msg.getResponseCase();
 
-      if (responseType === db_service_pb.QueryResponse.ResponseCase.ERROR) {
+      if (responseType === db_service_pb.TypedQueryResponse.ResponseCase.ERROR) {
         const errPb = msg.getError();
         const err = new Error(errPb.getMessage());
         err.code = errPb.getSqliteErrorCode();
         throw err;
       }
 
-      // ... (rest of logic same as before) ...
-
-      if (responseType === db_service_pb.QueryResponse.ResponseCase.DML) {
+      if (responseType === db_service_pb.TypedQueryResponse.ResponseCase.DML) {
         const dml = msg.getDml();
         return {
           iterator,
@@ -220,7 +227,7 @@ class DatabaseClient {
       let columnAffinities = [];
       let columnDeclaredTypes = [];
       let columnRawTypes = [];
-      if (responseType === db_service_pb.QueryResponse.ResponseCase.HEADER) {
+      if (responseType === db_service_pb.TypedQueryResponse.ResponseCase.HEADER) {
         const header = msg.getHeader();
         columns = header.getColumnsList();
         columnAffinities = header.getColumnAffinitiesList();
@@ -234,6 +241,7 @@ class DatabaseClient {
       throw err;
     }
   }
+
 
   /**
    * Executes a query and yields rows one by one.
@@ -262,20 +270,15 @@ class DatabaseClient {
       return { columns, rows: isDml ? (async function* () { return; })() : null };
     }
 
-    // Adapt the implementation-specific _initStream iterator to the helper
-    // _initStream via grpc stream[Symbol.asyncIterator] yields messages.
-    // We need an adapter that yields only the BATCH rowsList.
+    // Adapt the typed stream iterator to yield SqlRow batches
     const batchSource = async function* () {
-      // Consume the already-started iterator from _initStream
-      // The first message (Header/DML) is already consumed.
-      // We start loop from next.
       let nextVal = await iterator.next();
       while (!nextVal.done) {
         const res = nextVal.value;
         const type = res.getResponseCase();
-        if (type === db_service_pb.QueryResponse.ResponseCase.BATCH) {
+        if (type === db_service_pb.TypedQueryResponse.ResponseCase.BATCH) {
           yield res.getBatch().getRowsList();
-        } else if (type === db_service_pb.QueryResponse.ResponseCase.ERROR) {
+        } else if (type === db_service_pb.TypedQueryResponse.ResponseCase.ERROR) {
           throw new Error(res.getError().getMessage());
         }
         nextVal = await iterator.next();
@@ -287,7 +290,7 @@ class DatabaseClient {
       columnAffinities,
       columnDeclaredTypes,
       columnRawTypes,
-      rows: createRowIterator(batchSource(), columnAffinities, columnDeclaredTypes, this.config.typeParsers),
+      rows: createTypedRowIterator(batchSource(), columnDeclaredTypes, this.config.typeParsers),
     };
   }
 
@@ -319,14 +322,15 @@ class DatabaseClient {
       return { columns, rows: (async function* () { return; })() };
     }
 
+    // Adapt the typed stream iterator to yield SqlRow batches
     const batchSource = async function* () {
       let nextVal = await iterator.next();
       while (!nextVal.done) {
         const res = nextVal.value;
         const type = res.getResponseCase();
-        if (type === db_service_pb.QueryResponse.ResponseCase.BATCH) {
+        if (type === db_service_pb.TypedQueryResponse.ResponseCase.BATCH) {
           yield res.getBatch().getRowsList();
-        } else if (type === db_service_pb.QueryResponse.ResponseCase.ERROR) {
+        } else if (type === db_service_pb.TypedQueryResponse.ResponseCase.ERROR) {
           throw new Error(res.getError().getMessage());
         }
         nextVal = await iterator.next();
@@ -338,7 +342,7 @@ class DatabaseClient {
       columnAffinities,
       columnDeclaredTypes,
       columnRawTypes,
-      rows: createBatchIterator(batchSource(), columnAffinities, columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
+      rows: createTypedBatchIterator(batchSource(), columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
     };
   }
 
@@ -349,7 +353,7 @@ class DatabaseClient {
    */
   async query(sqlOrObj, paramsOrHints, hintsOrNull) {
     return this._withRetry(async () => {
-      const { sql, positional, named, hints } = resolveArgs(
+      const { sql, positional, named } = resolveArgs(
         sqlOrObj,
         paramsOrHints,
         hintsOrNull,
@@ -357,17 +361,18 @@ class DatabaseClient {
 
       this._runInterceptors('beforeQuery', { sql, params: { positional, named } });
 
-      const req = new db_service_pb.QueryRequest();
+      // Use TypedQueryRequest for better wire efficiency
+      const req = new db_service_pb.TypedQueryRequest();
       req.setDatabase(this.dbName);
       req.setSql(sql);
-      req.setParameters(toProtoParams(positional, named, hints));
+      req.setParameters(toTypedProtoParams(positional, named));
 
       return new Promise((resolve, reject) => {
         const metadata = getAuthMetadata(this.config.auth);
-        this.client.query(req, metadata, (err, response) => {
+        this.client.typedQuery(req, metadata, (err, response) => {
           if (err) return reject(err);
-          // Use helper
-          const result = mapQueryResult(response, this.config.typeParsers);
+          // Use typed result mapper
+          const result = mapTypedQueryResult(response, this.config.typeParsers);
           this._runInterceptors('afterQuery', result);
           resolve(result);
         });
@@ -410,19 +415,19 @@ class DatabaseClient {
       // 2. Queries
       const resolvedQueries = [];
       for (const q of queries) {
-        const { sql, positional, named, hints } = resolveArgs(
+        const { sql, positional, named } = resolveArgs(
           q.sql || q,
           q.params,
           q.hints,
         );
         resolvedQueries.push({ sql });
 
-        const queryReq = new db_service_pb.TransactionalQueryRequest();
+        const queryReq = new db_service_pb.TypedTransactionalQueryRequest();
         queryReq.setSql(sql);
-        queryReq.setParameters(toProtoParams(positional, named, hints));
+        queryReq.setParameters(toTypedProtoParams(positional, named));
 
         const txQuery = new db_service_pb.TransactionRequest();
-        txQuery.setQuery(queryReq);
+        txQuery.setTypedQuery(queryReq);
         requests.push(txQuery);
       }
 
@@ -457,9 +462,9 @@ class DatabaseClient {
                 throw err; // will be caught by promise wrapper or fallback
               }
 
-              if (caseType === ResCase.QUERY_RESULT) {
-                // Use helper, date handling from config
-                results.push(mapQueryResult(res.getQueryResult(), this.config.typeParsers));
+              if (caseType === ResCase.TYPED_QUERY_RESULT) {
+                // Use typed helper
+                results.push(mapTypedQueryResult(res.getTypedQueryResult(), this.config.typeParsers));
               }
             }
             this._runInterceptors('afterQuery', results);

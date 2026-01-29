@@ -359,3 +359,120 @@ func (s *DbServer) TransactionSavepoint(ctx context.Context, req *connect.Reques
 		Action:  msg.Savepoint.Action,
 	}), nil
 }
+
+// =============================================================================
+// TYPED TRANSACTION QUERY HANDLERS
+// =============================================================================
+// These use SqlValue/SqlRow for explicit typing instead of ListValue.
+
+// TypedTransactionQuery executes a typed SQL statement within an existing transaction.
+//
+// This is the typed variant of TransactionQuery. It uses SqlValue/SqlRow for
+// parameters and results, providing better type safety.
+func (s *DbServer) TypedTransactionQuery(ctx context.Context, req *connect.Request[dbv1.TypedTransactionQueryRequest]) (*connect.Response[dbv1.TypedQueryResult], error) {
+	reqID := ensureRequestID(req.Header())
+	msg := req.Msg
+
+	if err := protovalidate.Validate(msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := ValidateStatelessQuery(msg.Sql); err != nil {
+		log.Printf("[%s] Blocked manual transaction control in typed query: %s", reqID, msg.Sql)
+		return nil, err
+	}
+
+	// 1. Registry Lookup
+	s.txMu.Lock()
+	session, exists := s.txRegistry[msg.TransactionId]
+	if !exists {
+		s.txMu.Unlock()
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("transaction id not found or expired"))
+	}
+
+	// 2. Lazy Expiry Check
+	if time.Now().After(session.Expiry) {
+		delete(s.txRegistry, msg.TransactionId)
+		s.txMu.Unlock()
+		_ = session.Tx.Rollback()
+		return nil, connect.NewError(connect.CodeAborted, errors.New("transaction timed out"))
+	}
+
+	// 3. Heartbeat: Extend the session life
+	session.Expiry = time.Now().Add(defaultTxTimeout)
+	tx := session.Tx
+	s.txMu.Unlock()
+
+	// 4. Execution using typed functions
+	result, err := typedExecuteQueryAndBuffer(ctx, tx, msg.Sql, msg.Parameters)
+	if err != nil {
+		log.Printf("[%s] TypedTransactionQuery failed: %v", reqID, err)
+		return nil, makeUnaryError(err, msg.Sql)
+	}
+
+	res := connect.NewResponse(result)
+	res.Header().Set(headerRequestID, reqID)
+	return res, nil
+}
+
+// TypedTransactionQueryStream executes a typed SQL statement within an existing
+// transaction context, streaming results.
+//
+// This is the typed variant of TransactionQueryStream.
+func (s *DbServer) TypedTransactionQueryStream(
+	ctx context.Context,
+	req *connect.Request[dbv1.TypedTransactionQueryRequest],
+	stream *connect.ServerStream[dbv1.TypedQueryResponse],
+) error {
+	reqID := ensureRequestID(req.Header())
+	stream.ResponseHeader().Set(headerRequestID, reqID)
+
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := ValidateStatelessQuery(req.Msg.Sql); err != nil {
+		log.Printf("[%s] Blocked manual transaction control in typed stream query: %s", reqID, req.Msg.Sql)
+		return err
+	}
+
+	// 1. Registry Lookup
+	s.txMu.Lock()
+	session, exists := s.txRegistry[req.Msg.TransactionId]
+	if !exists {
+		s.txMu.Unlock()
+		return connect.NewError(connect.CodeNotFound, errors.New("transaction id not found or expired"))
+	}
+
+	// 2. Lazy Expiry Check
+	if time.Now().After(session.Expiry) {
+		delete(s.txRegistry, req.Msg.TransactionId)
+		s.txMu.Unlock()
+		_ = session.Tx.Rollback()
+		return connect.NewError(connect.CodeAborted, errors.New("transaction timed out"))
+	}
+
+	// 3. Heartbeat: Extend the session life
+	session.Expiry = time.Now().Add(defaultTxTimeout)
+	tx := session.Tx
+	s.txMu.Unlock()
+
+	// 4. Execution (Streaming) using typed functions
+	writer := &typedStatelessStreamWriter{stream: stream}
+	err := typedStreamQueryResults(ctx, tx, req.Msg.Sql, req.Msg.Parameters, writer)
+	if err != nil {
+		log.Printf("[%s] TypedTransactionQueryStream failed: %v", reqID, err)
+
+		errResp := makeStreamError(err, req.Msg.Sql)
+		sendErr := stream.Send(&dbv1.TypedQueryResponse{
+			Response: &dbv1.TypedQueryResponse_Error{Error: errResp},
+		})
+
+		if sendErr != nil {
+			return connect.NewError(connect.CodeInternal, sendErr)
+		}
+		return nil
+	}
+
+	return nil
+}

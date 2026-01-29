@@ -90,6 +90,18 @@ const (
 	// DatabaseServiceExecuteTransactionProcedure is the fully-qualified name of the DatabaseService's
 	// ExecuteTransaction RPC.
 	DatabaseServiceExecuteTransactionProcedure = "/db.v1.DatabaseService/ExecuteTransaction"
+	// DatabaseServiceTypedQueryProcedure is the fully-qualified name of the DatabaseService's
+	// TypedQuery RPC.
+	DatabaseServiceTypedQueryProcedure = "/db.v1.DatabaseService/TypedQuery"
+	// DatabaseServiceTypedQueryStreamProcedure is the fully-qualified name of the DatabaseService's
+	// TypedQueryStream RPC.
+	DatabaseServiceTypedQueryStreamProcedure = "/db.v1.DatabaseService/TypedQueryStream"
+	// DatabaseServiceTypedTransactionQueryProcedure is the fully-qualified name of the
+	// DatabaseService's TypedTransactionQuery RPC.
+	DatabaseServiceTypedTransactionQueryProcedure = "/db.v1.DatabaseService/TypedTransactionQuery"
+	// DatabaseServiceTypedTransactionQueryStreamProcedure is the fully-qualified name of the
+	// DatabaseService's TypedTransactionQueryStream RPC.
+	DatabaseServiceTypedTransactionQueryStreamProcedure = "/db.v1.DatabaseService/TypedTransactionQueryStream"
 	// AdminServiceCreateUserProcedure is the fully-qualified name of the AdminService's CreateUser RPC.
 	AdminServiceCreateUserProcedure = "/db.v1.AdminService/CreateUser"
 	// AdminServiceDeleteUserProcedure is the fully-qualified name of the AdminService's DeleteUser RPC.
@@ -179,6 +191,21 @@ type DatabaseServiceClient interface {
 	// Executes a predefined script of commands atomically.
 	// Useful for migrations or testing where interactivity is not required.
 	ExecuteTransaction(context.Context, *connect.Request[v1.ExecuteTransactionRequest]) (*connect.Response[v1.ExecuteTransactionResponse], error)
+	// *
+	// Executes a single stateless query and returns the entire result with
+	// strongly-typed values. Eliminates the need for sparse type hints.
+	TypedQuery(context.Context, *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.TypedQueryResult], error)
+	// *
+	// Executes a stateless query and streams strongly-typed results.
+	// Protocol: TypedHeader -> TypedBatch... -> Complete
+	TypedQueryStream(context.Context, *connect.Request[v1.TypedQueryRequest]) (*connect.ServerStreamForClient[v1.TypedQueryResponse], error)
+	// *
+	// Executes a typed query inside the context of an existing 'transaction_id'.
+	TypedTransactionQuery(context.Context, *connect.Request[v1.TypedTransactionQueryRequest]) (*connect.Response[v1.TypedQueryResult], error)
+	// *
+	// Executes a typed query inside the context of an existing 'transaction_id'.
+	// The server will stream the typed results back to the client.
+	TypedTransactionQueryStream(context.Context, *connect.Request[v1.TypedTransactionQueryRequest]) (*connect.ServerStreamForClient[v1.TypedQueryResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the db.v1.DatabaseService service. By default,
@@ -252,21 +279,49 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("ExecuteTransaction")),
 			connect.WithClientOptions(opts...),
 		),
+		typedQuery: connect.NewClient[v1.TypedQueryRequest, v1.TypedQueryResult](
+			httpClient,
+			baseURL+DatabaseServiceTypedQueryProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("TypedQuery")),
+			connect.WithClientOptions(opts...),
+		),
+		typedQueryStream: connect.NewClient[v1.TypedQueryRequest, v1.TypedQueryResponse](
+			httpClient,
+			baseURL+DatabaseServiceTypedQueryStreamProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("TypedQueryStream")),
+			connect.WithClientOptions(opts...),
+		),
+		typedTransactionQuery: connect.NewClient[v1.TypedTransactionQueryRequest, v1.TypedQueryResult](
+			httpClient,
+			baseURL+DatabaseServiceTypedTransactionQueryProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("TypedTransactionQuery")),
+			connect.WithClientOptions(opts...),
+		),
+		typedTransactionQueryStream: connect.NewClient[v1.TypedTransactionQueryRequest, v1.TypedQueryResponse](
+			httpClient,
+			baseURL+DatabaseServiceTypedTransactionQueryStreamProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("TypedTransactionQueryStream")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // databaseServiceClient implements DatabaseServiceClient.
 type databaseServiceClient struct {
-	query                  *connect.Client[v1.QueryRequest, v1.QueryResult]
-	queryStream            *connect.Client[v1.QueryRequest, v1.QueryResponse]
-	transaction            *connect.Client[v1.TransactionRequest, v1.TransactionResponse]
-	beginTransaction       *connect.Client[v1.BeginTransactionRequest, v1.BeginTransactionResponse]
-	transactionQuery       *connect.Client[v1.TransactionQueryRequest, v1.QueryResult]
-	transactionQueryStream *connect.Client[v1.TransactionQueryRequest, v1.QueryResponse]
-	transactionSavepoint   *connect.Client[v1.TransactionSavepointRequest, v1.SavepointResponse]
-	commitTransaction      *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
-	rollbackTransaction    *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
-	executeTransaction     *connect.Client[v1.ExecuteTransactionRequest, v1.ExecuteTransactionResponse]
+	query                       *connect.Client[v1.QueryRequest, v1.QueryResult]
+	queryStream                 *connect.Client[v1.QueryRequest, v1.QueryResponse]
+	transaction                 *connect.Client[v1.TransactionRequest, v1.TransactionResponse]
+	beginTransaction            *connect.Client[v1.BeginTransactionRequest, v1.BeginTransactionResponse]
+	transactionQuery            *connect.Client[v1.TransactionQueryRequest, v1.QueryResult]
+	transactionQueryStream      *connect.Client[v1.TransactionQueryRequest, v1.QueryResponse]
+	transactionSavepoint        *connect.Client[v1.TransactionSavepointRequest, v1.SavepointResponse]
+	commitTransaction           *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
+	rollbackTransaction         *connect.Client[v1.TransactionControlRequest, v1.TransactionControlResponse]
+	executeTransaction          *connect.Client[v1.ExecuteTransactionRequest, v1.ExecuteTransactionResponse]
+	typedQuery                  *connect.Client[v1.TypedQueryRequest, v1.TypedQueryResult]
+	typedQueryStream            *connect.Client[v1.TypedQueryRequest, v1.TypedQueryResponse]
+	typedTransactionQuery       *connect.Client[v1.TypedTransactionQueryRequest, v1.TypedQueryResult]
+	typedTransactionQueryStream *connect.Client[v1.TypedTransactionQueryRequest, v1.TypedQueryResponse]
 }
 
 // Query calls db.v1.DatabaseService.Query.
@@ -317,6 +372,26 @@ func (c *databaseServiceClient) RollbackTransaction(ctx context.Context, req *co
 // ExecuteTransaction calls db.v1.DatabaseService.ExecuteTransaction.
 func (c *databaseServiceClient) ExecuteTransaction(ctx context.Context, req *connect.Request[v1.ExecuteTransactionRequest]) (*connect.Response[v1.ExecuteTransactionResponse], error) {
 	return c.executeTransaction.CallUnary(ctx, req)
+}
+
+// TypedQuery calls db.v1.DatabaseService.TypedQuery.
+func (c *databaseServiceClient) TypedQuery(ctx context.Context, req *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.TypedQueryResult], error) {
+	return c.typedQuery.CallUnary(ctx, req)
+}
+
+// TypedQueryStream calls db.v1.DatabaseService.TypedQueryStream.
+func (c *databaseServiceClient) TypedQueryStream(ctx context.Context, req *connect.Request[v1.TypedQueryRequest]) (*connect.ServerStreamForClient[v1.TypedQueryResponse], error) {
+	return c.typedQueryStream.CallServerStream(ctx, req)
+}
+
+// TypedTransactionQuery calls db.v1.DatabaseService.TypedTransactionQuery.
+func (c *databaseServiceClient) TypedTransactionQuery(ctx context.Context, req *connect.Request[v1.TypedTransactionQueryRequest]) (*connect.Response[v1.TypedQueryResult], error) {
+	return c.typedTransactionQuery.CallUnary(ctx, req)
+}
+
+// TypedTransactionQueryStream calls db.v1.DatabaseService.TypedTransactionQueryStream.
+func (c *databaseServiceClient) TypedTransactionQueryStream(ctx context.Context, req *connect.Request[v1.TypedTransactionQueryRequest]) (*connect.ServerStreamForClient[v1.TypedQueryResponse], error) {
+	return c.typedTransactionQueryStream.CallServerStream(ctx, req)
 }
 
 // DatabaseServiceHandler is an implementation of the db.v1.DatabaseService service.
@@ -371,6 +446,21 @@ type DatabaseServiceHandler interface {
 	// Executes a predefined script of commands atomically.
 	// Useful for migrations or testing where interactivity is not required.
 	ExecuteTransaction(context.Context, *connect.Request[v1.ExecuteTransactionRequest]) (*connect.Response[v1.ExecuteTransactionResponse], error)
+	// *
+	// Executes a single stateless query and returns the entire result with
+	// strongly-typed values. Eliminates the need for sparse type hints.
+	TypedQuery(context.Context, *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.TypedQueryResult], error)
+	// *
+	// Executes a stateless query and streams strongly-typed results.
+	// Protocol: TypedHeader -> TypedBatch... -> Complete
+	TypedQueryStream(context.Context, *connect.Request[v1.TypedQueryRequest], *connect.ServerStream[v1.TypedQueryResponse]) error
+	// *
+	// Executes a typed query inside the context of an existing 'transaction_id'.
+	TypedTransactionQuery(context.Context, *connect.Request[v1.TypedTransactionQueryRequest]) (*connect.Response[v1.TypedQueryResult], error)
+	// *
+	// Executes a typed query inside the context of an existing 'transaction_id'.
+	// The server will stream the typed results back to the client.
+	TypedTransactionQueryStream(context.Context, *connect.Request[v1.TypedTransactionQueryRequest], *connect.ServerStream[v1.TypedQueryResponse]) error
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -440,6 +530,30 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("ExecuteTransaction")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceTypedQueryHandler := connect.NewUnaryHandler(
+		DatabaseServiceTypedQueryProcedure,
+		svc.TypedQuery,
+		connect.WithSchema(databaseServiceMethods.ByName("TypedQuery")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceTypedQueryStreamHandler := connect.NewServerStreamHandler(
+		DatabaseServiceTypedQueryStreamProcedure,
+		svc.TypedQueryStream,
+		connect.WithSchema(databaseServiceMethods.ByName("TypedQueryStream")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceTypedTransactionQueryHandler := connect.NewUnaryHandler(
+		DatabaseServiceTypedTransactionQueryProcedure,
+		svc.TypedTransactionQuery,
+		connect.WithSchema(databaseServiceMethods.ByName("TypedTransactionQuery")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceTypedTransactionQueryStreamHandler := connect.NewServerStreamHandler(
+		DatabaseServiceTypedTransactionQueryStreamProcedure,
+		svc.TypedTransactionQueryStream,
+		connect.WithSchema(databaseServiceMethods.ByName("TypedTransactionQueryStream")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/db.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceQueryProcedure:
@@ -462,6 +576,14 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceRollbackTransactionHandler.ServeHTTP(w, r)
 		case DatabaseServiceExecuteTransactionProcedure:
 			databaseServiceExecuteTransactionHandler.ServeHTTP(w, r)
+		case DatabaseServiceTypedQueryProcedure:
+			databaseServiceTypedQueryHandler.ServeHTTP(w, r)
+		case DatabaseServiceTypedQueryStreamProcedure:
+			databaseServiceTypedQueryStreamHandler.ServeHTTP(w, r)
+		case DatabaseServiceTypedTransactionQueryProcedure:
+			databaseServiceTypedTransactionQueryHandler.ServeHTTP(w, r)
+		case DatabaseServiceTypedTransactionQueryStreamProcedure:
+			databaseServiceTypedTransactionQueryStreamHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -509,6 +631,22 @@ func (UnimplementedDatabaseServiceHandler) RollbackTransaction(context.Context, 
 
 func (UnimplementedDatabaseServiceHandler) ExecuteTransaction(context.Context, *connect.Request[v1.ExecuteTransactionRequest]) (*connect.Response[v1.ExecuteTransactionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.ExecuteTransaction is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) TypedQuery(context.Context, *connect.Request[v1.TypedQueryRequest]) (*connect.Response[v1.TypedQueryResult], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TypedQuery is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) TypedQueryStream(context.Context, *connect.Request[v1.TypedQueryRequest], *connect.ServerStream[v1.TypedQueryResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TypedQueryStream is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) TypedTransactionQuery(context.Context, *connect.Request[v1.TypedTransactionQueryRequest]) (*connect.Response[v1.TypedQueryResult], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TypedTransactionQuery is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) TypedTransactionQueryStream(context.Context, *connect.Request[v1.TypedTransactionQueryRequest], *connect.ServerStream[v1.TypedQueryResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.TypedTransactionQueryStream is not implemented"))
 }
 
 // AdminServiceClient is a client for the db.v1.AdminService service.

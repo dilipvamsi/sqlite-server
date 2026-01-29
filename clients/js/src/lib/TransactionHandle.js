@@ -7,12 +7,13 @@ const db_service_pb = require("../protos/db/v1/db_service_pb");
 const google_protobuf_empty_pb = require("google-protobuf/google/protobuf/empty_pb");
 const { TransactionMode, SavepointAction } = require("./constants");
 const {
-  toProtoParams,
   resolveArgs,
-  createRowIterator,
-  createBatchIterator,
-  mapQueryResult,
   getAuthMetadata,
+  // Typed API utilities
+  toTypedProtoParams,
+  createTypedRowIterator,
+  createTypedBatchIterator,
+  mapTypedQueryResult,
 } = require("./utils");
 const AsyncQueue = require("./AsyncQueue");
 
@@ -209,7 +210,7 @@ class TransactionHandle {
     if (this.pendingResolver || this.activeQueue)
       throw new Error("Transaction is busy");
 
-    const { sql, positional, named, hints } = resolveArgs(
+    const { sql, positional, named } = resolveArgs(
       sqlOrObj,
       paramsOrHints,
       hintsOrNull,
@@ -218,12 +219,13 @@ class TransactionHandle {
     return new Promise((resolve, reject) => {
       this.pendingResolver = { resolve, reject, type: "QUERY_BUFFERED" };
 
-      const queryReq = new db_service_pb.TransactionalQueryRequest();
+      // Use TypedTransactionalQueryRequest for better wire efficiency
+      const queryReq = new db_service_pb.TypedTransactionalQueryRequest();
       queryReq.setSql(sql);
-      queryReq.setParameters(toProtoParams(positional, named, hints));
+      queryReq.setParameters(toTypedProtoParams(positional, named));
 
       const req = new db_service_pb.TransactionRequest();
-      req.setQuery(queryReq);
+      req.setTypedQuery(queryReq);
 
       this.stream.write(req);
     });
@@ -245,7 +247,7 @@ class TransactionHandle {
     if (this.activeQueue || this.pendingResolver)
       throw new Error("Transaction is busy");
 
-    const { sql, positional, named, hints } = resolveArgs(
+    const { sql, positional, named } = resolveArgs(
       sqlOrObj,
       paramsOrHints,
       hintsOrNull,
@@ -257,23 +259,24 @@ class TransactionHandle {
       // Resolver will trigger once the Header (metadata) is received
       this.pendingResolver = { resolve, reject, type: "QUERY_STREAM_INIT" };
 
-      const queryReq = new db_service_pb.TransactionalQueryRequest();
+      // Use TypedTransactionalQueryRequest for better wire efficiency
+      const queryReq = new db_service_pb.TypedTransactionalQueryRequest();
       queryReq.setSql(sql);
-      queryReq.setParameters(toProtoParams(positional, named, hints));
+      queryReq.setParameters(toTypedProtoParams(positional, named));
 
       const req = new db_service_pb.TransactionRequest();
-      req.setQueryStream(queryReq);
+      req.setTypedQueryStream(queryReq);
 
       this.stream.write(req);
     }).then((res) => {
-      // res is { columns, columnTypes, rows: activeQueue }
-      // We replace 'rows' with our helper wrapper
+      // res is { columns, columnDeclaredTypes, rows: activeQueue }
+      // We replace 'rows' with our typed helper wrapper
       return {
         columns: res.columns,
         columnAffinities: res.columnAffinities,
         columnDeclaredTypes: res.columnDeclaredTypes,
         columnRawTypes: res.columnRawTypes,
-        rows: createRowIterator(res.rows, res.columnAffinities, res.columnDeclaredTypes, this.config.typeParsers),
+        rows: createTypedRowIterator(res.rows, res.columnDeclaredTypes, this.config.typeParsers),
       };
     });
   }
@@ -310,7 +313,7 @@ class TransactionHandle {
     if (this.activeQueue || this.pendingResolver)
       throw new Error("Transaction is busy");
 
-    const { sql, positional, named, hints } = resolveArgs(
+    const { sql, positional, named } = resolveArgs(
       sqlOrObj,
       paramsOrHints,
       resolvedHints,
@@ -321,12 +324,13 @@ class TransactionHandle {
 
       this.pendingResolver = { resolve, reject, type: "QUERY_STREAM_INIT" };
 
-      const queryReq = new db_service_pb.TransactionalQueryRequest();
+      // Use TypedTransactionalQueryRequest for better wire efficiency
+      const queryReq = new db_service_pb.TypedTransactionalQueryRequest();
       queryReq.setSql(sql);
-      queryReq.setParameters(toProtoParams(positional, named, hints));
+      queryReq.setParameters(toTypedProtoParams(positional, named));
 
       const req = new db_service_pb.TransactionRequest();
-      req.setQueryStream(queryReq);
+      req.setTypedQueryStream(queryReq);
 
       this.stream.write(req);
     }).then(res => {
@@ -335,7 +339,7 @@ class TransactionHandle {
         columnAffinities: res.columnAffinities,
         columnDeclaredTypes: res.columnDeclaredTypes,
         columnRawTypes: res.columnRawTypes,
-        rows: createBatchIterator(res.rows, res.columnAffinities, res.columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
+        rows: createTypedBatchIterator(res.rows, res.columnDeclaredTypes, resolvedBatchSize, this.config.typeParsers),
       };
     });
   }
@@ -433,31 +437,33 @@ class TransactionHandle {
       return;
     }
 
-    // 2. HANDLE BUFFERED QUERY RESULTS (SELECT/DML)
-    if (responseCase === Case.QUERY_RESULT) {
+
+
+    // 2. HANDLE TYPED BUFFERED QUERY RESULTS (SELECT/DML)
+    if (responseCase === Case.TYPED_QUERY_RESULT) {
       // CRITICAL GUARD: If the resolver was cleared by an error/timeout, exit
       if (!this.pendingResolver) return;
 
-      const result = res.getQueryResult();
-      // Use helper
-      const mapped = mapQueryResult(result, this.config.typeParsers);
+      const result = res.getTypedQueryResult();
+      // Use typed helper
+      const mapped = mapTypedQueryResult(result, this.config.typeParsers);
       this.pendingResolver.resolve(mapped);
       this.pendingResolver = null;
       return;
     }
 
-    // 3. HANDLE CHUNKED STREAMING RESULTS
-    if (responseCase === Case.STREAM_RESULT) {
-      const streamRes = res.getStreamResult();
+    // 3b. HANDLE TYPED CHUNKED STREAMING RESULTS
+    if (responseCase === Case.TYPED_STREAM_RESULT) {
+      const streamRes = res.getTypedStreamResult();
       const streamCase = streamRes.getResponseCase();
-      const SCase = db_service_pb.QueryResponse.ResponseCase;
+      const SCase = db_service_pb.TypedQueryResponse.ResponseCase;
 
       if (streamCase === SCase.HEADER) {
         this._currentColumnAffinities = streamRes.getHeader().getColumnAffinitiesList();
         this._currentColumnDeclaredTypes = streamRes.getHeader().getColumnDeclaredTypesList();
         this._currentColumnRawTypes = streamRes.getHeader().getColumnRawTypesList();
 
-        // First message of a stream: Resolve the iterate() promise with the iterator
+        // First message of a typed stream: Resolve the iterate() promise with the iterator
         if (this.pendingResolver?.type === "QUERY_STREAM_INIT") {
           this.pendingResolver.resolve({
             columns: streamRes.getHeader().getColumnsList(),
@@ -469,11 +475,8 @@ class TransactionHandle {
           this.pendingResolver = null;
         }
       } else if (streamCase === SCase.BATCH) {
-        // Data message: Push raw batch (array of ListValue) into the queue
-        // The helper iterator will flatten and hydrate it.
+        // Data message: Push typed batch (array of SqlRow) into the queue
         const rowsList = streamRes.getBatch().getRowsList();
-        // Since AsyncQueue is item-based, we can push the whole array as one "item"
-        // and the helper "createRowIterator" expects "batchIterator" (yields arrays).
         if (rowsList && rowsList.length > 0) {
           this.activeQueue.push(rowsList);
         }
@@ -498,6 +501,7 @@ class TransactionHandle {
       }
       return;
     }
+
 
     // 4. HANDLE LIFECYCLE COMMANDS (BEGIN, COMMIT, ROLLBACK, SAVEPOINT)
     if (this.pendingResolver) {

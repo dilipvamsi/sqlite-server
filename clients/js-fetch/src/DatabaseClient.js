@@ -160,7 +160,15 @@ class DatabaseClient {
 
     /**
      * Initializes a stream request and reads the first message (Header/DML).
-     * Returns { iterator, columns, columnTypes, isDml, dmlStats }
+     * @returns {Promise<{
+     *   iterator: AsyncGenerator<object>,
+     *   columns: string[],
+     *   columnAffinities: number[],
+     *   columnDeclaredTypes: number[],
+     *   columnRawTypes: string[],
+     *   isDml: boolean,
+     *   dmlStats?: { rowsAffected: number, lastInsertId: number }
+     * }>}
      */
     async _initStream(rpcPath, bodyObj) {
         // Envelope the request
@@ -275,7 +283,13 @@ class DatabaseClient {
      * @param {string|object} sqlOrObj - SQL string or object.
      * @param {object|Array} [paramsOrHints] - Parameters or hints.
      * @param {object} [hintsOrNull] - Hints if 2nd arg was params.
-     * @returns {Promise<{columns: string[], columnTypes: number[], rows: AsyncIterable<Array<any>>}>}
+     * @returns {Promise<{
+     *   columns: string[],
+     *   columnAffinities: number[],
+     *   columnDeclaredTypes: number[],
+     *   columnRawTypes: string[],
+     *   rows: AsyncIterable<Array<any>>
+     * }>}
      */
     async queryStream(sqlOrObj, paramsOrHints, hintsOrNull) {
         const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);

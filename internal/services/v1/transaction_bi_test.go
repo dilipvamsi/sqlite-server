@@ -272,3 +272,274 @@ func TestBiDiTransaction_Internals(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid_argument")
 	})
 }
+
+// =============================================================================
+// TYPED BIDI TRANSACTION TESTS
+// =============================================================================
+
+func TestBiDiTransaction_TypedQuery(t *testing.T) {
+	client, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	t.Run("TypedQuery Success", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// 1. Begin
+		require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}}))
+		res, _ := stream.Receive()
+		assert.True(t, res.GetBegin().Success)
+
+		// 2. Typed Query
+		require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQuery{
+			TypedQuery: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT id, name FROM users WHERE id = 1"},
+		}}))
+		res, err := stream.Receive()
+		require.NoError(t, err)
+
+		result := res.GetTypedQueryResult()
+		assert.NotNil(t, result)
+		assert.NotNil(t, result.GetSelect())
+		assert.Len(t, result.GetSelect().Rows, 1)
+		// Check typed values
+		row := result.GetSelect().Rows[0]
+		assert.Equal(t, int64(1), row.Values[0].GetIntegerValue())
+		assert.Equal(t, "Alice", row.Values[1].GetTextValue())
+
+		// 3. Rollback
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}})
+		stream.Receive()
+	})
+
+	t.Run("TypedQuery DML", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// Begin
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}})
+		stream.Receive()
+
+		// Typed Query - DML
+		require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQuery{
+			TypedQuery: &dbv1.TypedTransactionalQueryRequest{Sql: "INSERT INTO users (name) VALUES ('BiDiTypedUser')"},
+		}}))
+		res, err := stream.Receive()
+		require.NoError(t, err)
+
+		result := res.GetTypedQueryResult()
+		assert.NotNil(t, result.GetDml())
+		assert.Equal(t, int64(1), result.GetDml().RowsAffected)
+
+		// Rollback
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}})
+		stream.Receive()
+	})
+
+	t.Run("TypedQuery Without Begin", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQuery{
+			TypedQuery: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT 1"},
+		}})
+		_, err := stream.Receive()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no active transaction")
+	})
+
+	t.Run("TypedQuery Manual Transaction Control", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// Begin
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}})
+		stream.Receive()
+
+		// Send "COMMIT" via typed query
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQuery{
+			TypedQuery: &dbv1.TypedTransactionalQueryRequest{Sql: "COMMIT"},
+		}})
+
+		_, err := stream.Receive()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "manual transaction control")
+	})
+
+	t.Run("TypedQuery Error Resilience", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// Begin
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}})
+		stream.Receive()
+
+		// Bad SQL
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQuery{
+			TypedQuery: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT * FROM missing"},
+		}})
+
+		res, err := stream.Receive()
+		require.NoError(t, err)
+		assert.NotNil(t, res.GetError()) // Should get App Error
+
+		// Stream should still be open
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQuery{
+			TypedQuery: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT 1 as val"},
+		}})
+		res, err = stream.Receive()
+		require.NoError(t, err)
+		assert.NotNil(t, res.GetTypedQueryResult())
+	})
+
+	t.Run("TypedQuery With Parameters", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// Begin
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}})
+		stream.Receive()
+
+		// Typed Query with parameters
+		require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQuery{
+			TypedQuery: &dbv1.TypedTransactionalQueryRequest{
+				Sql: "SELECT name FROM users WHERE id = ?",
+				Parameters: &dbv1.TypedParameters{
+					Positional: []*dbv1.SqlValue{
+						{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 1}},
+					},
+				},
+			},
+		}}))
+		res, err := stream.Receive()
+		require.NoError(t, err)
+		assert.Equal(t, "Alice", res.GetTypedQueryResult().GetSelect().Rows[0].Values[0].GetTextValue())
+
+		// Rollback
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}})
+		stream.Receive()
+	})
+}
+
+func TestBiDiTransaction_TypedQueryStream(t *testing.T) {
+	client, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	t.Run("TypedQueryStream Success", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// 1. Begin
+		require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}}))
+		res, _ := stream.Receive()
+		assert.True(t, res.GetBegin().Success)
+
+		// 2. Typed Stream Query
+		require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQueryStream{
+			TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT id, name FROM users"},
+		}}))
+
+		// Header
+		res, _ = stream.Receive()
+		header := res.GetTypedStreamResult().GetHeader()
+		assert.NotNil(t, header)
+		assert.Equal(t, []string{"id", "name"}, header.Columns)
+
+		// Batch
+		res, _ = stream.Receive()
+		batch := res.GetTypedStreamResult().GetBatch()
+		assert.NotNil(t, batch)
+
+		// Complete
+		res, _ = stream.Receive()
+		assert.NotNil(t, res.GetTypedStreamResult().GetComplete())
+
+		// Rollback
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}})
+		stream.Receive()
+	})
+
+	t.Run("TypedQueryStream DML", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// Begin
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}})
+		stream.Receive()
+
+		// Typed Stream Query - DML
+		require.NoError(t, stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQueryStream{
+			TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{Sql: "INSERT INTO users (name) VALUES ('BiDiTypedStreamDML')"},
+		}}))
+		res, err := stream.Receive()
+		require.NoError(t, err)
+		assert.NotNil(t, res.GetTypedStreamResult().GetDml())
+		assert.Equal(t, int64(1), res.GetTypedStreamResult().GetDml().RowsAffected)
+
+		// Rollback
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}})
+		stream.Receive()
+	})
+
+	t.Run("TypedQueryStream Without Begin", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQueryStream{
+			TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT 1"},
+		}})
+		_, err := stream.Receive()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no active transaction")
+	})
+
+	t.Run("TypedQueryStream Manual TX Control", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// Begin
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}})
+		stream.Receive()
+
+		// Send "ROLLBACK" via typed query stream
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQueryStream{
+			TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{Sql: "ROLLBACK"},
+		}})
+
+		_, err := stream.Receive()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "manual transaction control")
+	})
+
+	t.Run("TypedQueryStream Error Resilience", func(t *testing.T) {
+		stream := client.Transaction(ctx)
+
+		// Begin
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
+			Begin: &dbv1.BeginRequest{Database: "test"},
+		}})
+		stream.Receive()
+
+		// Bad SQL
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQueryStream{
+			TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT * FROM missing"},
+		}})
+
+		res, err := stream.Receive()
+		require.NoError(t, err)
+		assert.NotNil(t, res.GetError()) // Should get App Error
+
+		// Stream should still be open
+		stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_TypedQueryStream{
+			TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT 1 as val"},
+		}})
+		res, err = stream.Receive()
+		require.NoError(t, err)
+		assert.NotNil(t, res.GetTypedStreamResult().GetHeader())
+	})
+}

@@ -310,6 +310,38 @@ service DatabaseService {
    */
   rpc ExecuteTransaction(ExecuteTransactionRequest)
       returns (ExecuteTransactionResponse);
+
+  // ---------------------------------------------------------------------------
+  // TYPED API - Strongly-typed variants using SqlValue instead of ListValue
+  // These RPCs provide better wire efficiency and eliminate the need for hints.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Executes a single stateless query and returns the entire result with
+   * strongly-typed values. Eliminates the need for sparse type hints.
+   */
+  rpc TypedQuery(TypedQueryRequest) returns (TypedQueryResult);
+
+  /**
+   * Executes a stateless query and streams strongly-typed results.
+   * Protocol: TypedHeader -> TypedBatch... -> Complete
+   */
+  rpc TypedQueryStream(TypedQueryRequest) returns (stream TypedQueryResponse);
+
+  // --- Typed Stateful Operations (Unary ID-Based) ---
+
+  /**
+   * Executes a typed query inside the context of an existing 'transaction_id'.
+   */
+  rpc TypedTransactionQuery(TypedTransactionQueryRequest)
+      returns (TypedQueryResult);
+
+  /**
+   * Executes a typed query inside the context of an existing 'transaction_id'.
+   * The server will stream the typed results back to the client.
+   */
+  rpc TypedTransactionQueryStream(TypedTransactionQueryRequest)
+      returns (stream TypedQueryResponse);
 }
 
 /**
@@ -843,6 +875,8 @@ message TransactionRequest {
     // Starts the transaction
     BeginRequest begin = 1;
 
+    // --- Untyped Query API (uses ListValue) ---
+
     // Executes a query and expects the result buffered in a single response.
     // Use this for small lookups or DML (INSERT/UPDATE).
     TransactionalQueryRequest query = 2;
@@ -852,8 +886,17 @@ message TransactionRequest {
     // Use this for large SELECTs within a transaction.
     TransactionalQueryRequest query_stream = 3;
 
+    // --- Typed Query API (uses SqlValue - no hints needed) ---
+
+    // Executes a typed query and expects the result buffered in a single
+    // response.
+    TypedTransactionalQueryRequest typed_query = 4;
+
+    // Executes a typed query and expects the result to be streamed back.
+    TypedTransactionalQueryRequest typed_query_stream = 5;
+
     // Manages a sub-transaction (Nested Transaction) using SQLite SAVEPOINTS.
-    SavepointRequest savepoint = 4;
+    SavepointRequest savepoint = 7;
 
     // Finalizes the transaction
     google.protobuf.Empty commit = 8;
@@ -993,7 +1036,7 @@ message TransactionResponse {
     // Starts the transaction
     BeginResponse begin = 1;
 
-    // --- Query Result Models ---
+    // --- Untyped Query Result Models (uses ListValue) ---
 
     // Returned exactly once in response to a 'query' request.
     // Contains the full rows and column metadata in one message.
@@ -1003,8 +1046,16 @@ message TransactionResponse {
     // Follows the streaming protocol (Header -> Batch... -> Complete).
     QueryResponse stream_result = 3;
 
+    // --- Typed Query Result Models (uses SqlValue) ---
+
+    // Returned exactly once in response to a 'typed_query' request.
+    TypedQueryResult typed_query_result = 4;
+
+    // Returned multiple times in response to a 'typed_query_stream' request.
+    TypedQueryResponse typed_stream_result = 5;
+
     // Response for a savepoint operation.
-    SavepointResponse savepoint = 4;
+    SavepointResponse savepoint = 7;
 
     // Finalizes the transaction
     CommitResponse commit = 8;
@@ -1143,4 +1194,171 @@ message ErrorResponse {
   // The precise SQLite error code for programmatic handling.
   // Reference: https://www.sqlite.org/rescode.html
   SqliteCode sqlite_error_code = 3;
+}
+
+// =============================================================================
+// TYPED API MESSAGES
+// =============================================================================
+// These messages provide strongly-typed value representations that eliminate
+// the need for sparse type hints and provide better wire efficiency than
+// google.protobuf.ListValue.
+
+/**
+ * Represents a single SQL value with explicit type information.
+ * This replaces the dynamic typing of google.protobuf.Value with
+ * SQLite-specific semantics.
+ */
+message SqlValue {
+  oneof value {
+    // SQLite INTEGER (64-bit signed). Maps to int64.
+    int64 integer_value = 1;
+    // SQLite REAL (64-bit IEEE floating point). Maps to double.
+    double real_value = 2;
+    // SQLite TEXT (UTF-8 string). Maps to string.
+    string text_value = 3;
+    // SQLite BLOB (arbitrary bytes). Maps to bytes directly (no base64).
+    bytes blob_value = 4;
+    // SQLite NULL. True if this value is NULL.
+    bool null_value = 5;
+  }
+}
+
+/**
+ * Represents a single row of SQL values.
+ * Each value corresponds positionally to a column in the result header.
+ */
+message SqlRow { repeated SqlValue values = 1; }
+
+// -----------------------------------------------------------------------------
+// Typed Request Messages
+// -----------------------------------------------------------------------------
+
+/**
+ * Typed parameters for query binding.
+ * Unlike Parameters, these use SqlValue for explicit typing (no hints needed).
+ */
+message TypedParameters {
+  // Positional parameters (bound by index: ?1, ?2, ...).
+  repeated SqlValue positional = 1
+      [ (buf.validate.field).repeated.max_items = 1000 ];
+
+  // Named parameters (bound by name: :id, @user, $name).
+  // Key is the parameter name WITHOUT the prefix (e.g., "id" for ":id").
+  map<string, SqlValue> named = 2 [
+    (buf.validate.field).map.keys.string.min_len = 1,
+    (buf.validate.field).map.max_pairs = 1000
+  ];
+}
+
+/**
+ * A request for the stateless `TypedQuery` and `TypedQueryStream` RPCs.
+ */
+message TypedQueryRequest {
+  // Database name. Must be alphanumeric (plus _-), 3-64 chars.
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+
+  // SQL Statement. Max 10KB.
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Optional hint to optimize connection routing.
+  QueryType type = 3 [ (buf.validate.field).enum.defined_only = true ];
+
+  // Typed parameters (no hints required).
+  TypedParameters parameters = 4;
+}
+
+/**
+ * Request to execute a typed query within an existing transaction session.
+ */
+message TypedTransactionQueryRequest {
+  // The token received from BeginTransaction.
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 128} ];
+
+  // The SQL statement to execute.
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Typed parameters for the query.
+  TypedParameters parameters = 3;
+}
+
+/**
+ * A typed query executed within an active transaction context (streaming).
+ */
+message TypedTransactionalQueryRequest {
+  // SQL Statement. Max 10KB.
+  string sql = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Typed parameters definition.
+  TypedParameters parameters = 2;
+}
+
+// -----------------------------------------------------------------------------
+// Typed Response Messages
+// -----------------------------------------------------------------------------
+
+/**
+ * Represents the full result set of a SELECT query with typed values.
+ */
+message TypedSelectResult {
+  // The names of the columns returned by the query.
+  repeated string columns = 1;
+  // The resolved column affinities.
+  repeated ColumnAffinity column_affinities = 2;
+  // The declared types as specified in the schema.
+  repeated DeclaredType column_declared_types = 3;
+  // The raw type strings from the schema.
+  repeated string column_raw_types = 4;
+  // All rows with strongly-typed values.
+  repeated SqlRow rows = 5;
+}
+
+/**
+ * The response for typed unary RPCs (`TypedQuery`, `TypedTransactionQuery`).
+ */
+message TypedQueryResult {
+  oneof result {
+    TypedSelectResult select = 1;
+    DMLResult dml = 2;
+  }
+  ExecutionStats stats = 3;
+}
+
+/**
+ * Metadata about the columns in a typed result set (Streaming).
+ * Sent as the first message in a typed read stream.
+ */
+message TypedQueryResultHeader {
+  repeated string columns = 1;
+  repeated ColumnAffinity column_affinities = 2;
+  repeated DeclaredType column_declared_types = 3;
+  repeated string column_raw_types = 4;
+}
+
+/**
+ * A batch of typed rows in a streaming response.
+ */
+message TypedQueryResultRowBatch { repeated SqlRow rows = 1; }
+
+/**
+ * The response envelope for typed streaming RPCs.
+ * Stream protocol: [TypedHeader] -> [TypedBatch]* -> [Complete].
+ */
+message TypedQueryResponse {
+  oneof response {
+    // Sent once at the start to define columns.
+    TypedQueryResultHeader header = 1;
+    // Sent repeatedly containing chunks of typed rows.
+    TypedQueryResultRowBatch batch = 2;
+    // Sent once when the query successfully finishes.
+    QueryComplete complete = 3;
+    // Sent if the query was an INSERT/UPDATE/DELETE.
+    DMLResult dml = 4;
+    // Sent if an error occurs mid-stream.
+    ErrorResponse error = 5;
+  }
 }

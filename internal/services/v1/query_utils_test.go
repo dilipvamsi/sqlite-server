@@ -565,3 +565,294 @@ func TestStreamQueryResults_Coverage(t *testing.T) {
 		assert.Contains(t, err.Error(), "mock dml error")
 	})
 }
+
+// =============================================================================
+// TYPED API TESTS
+// =============================================================================
+
+func TestSqlValueToAny(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *dbv1.SqlValue
+		expected any
+	}{
+		{
+			name:     "Nil",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "Integer",
+			input:    &dbv1.SqlValue{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 42}},
+			expected: int64(42),
+		},
+		{
+			name:     "Real",
+			input:    &dbv1.SqlValue{Value: &dbv1.SqlValue_RealValue{RealValue: 3.14}},
+			expected: 3.14,
+		},
+		{
+			name:     "Text",
+			input:    &dbv1.SqlValue{Value: &dbv1.SqlValue_TextValue{TextValue: "hello"}},
+			expected: "hello",
+		},
+		{
+			name:     "Blob",
+			input:    &dbv1.SqlValue{Value: &dbv1.SqlValue_BlobValue{BlobValue: []byte{0xDE, 0xAD}}},
+			expected: []byte{0xDE, 0xAD},
+		},
+		{
+			name:     "Null",
+			input:    &dbv1.SqlValue{Value: &dbv1.SqlValue_NullValue{NullValue: true}},
+			expected: nil,
+		},
+		{
+			name:     "Empty SqlValue (no oneof set)",
+			input:    &dbv1.SqlValue{},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sqlValueToAny(tt.input)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestConvertTypedParameters(t *testing.T) {
+	tests := []struct {
+		name    string
+		sql     string
+		params  *dbv1.TypedParameters
+		wantLen int
+	}{
+		{
+			name:    "Nil params",
+			sql:     "SELECT 1",
+			params:  nil,
+			wantLen: 0,
+		},
+		{
+			name: "Positional only",
+			sql:  "SELECT ?, ?",
+			params: &dbv1.TypedParameters{
+				Positional: []*dbv1.SqlValue{
+					{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 1}},
+					{Value: &dbv1.SqlValue_TextValue{TextValue: "two"}},
+				},
+			},
+			wantLen: 2,
+		},
+		{
+			name: "Named only",
+			sql:  "SELECT :name",
+			params: &dbv1.TypedParameters{
+				Named: map[string]*dbv1.SqlValue{
+					"name": {Value: &dbv1.SqlValue_TextValue{TextValue: "Alice"}},
+				},
+			},
+			wantLen: 1,
+		},
+		{
+			name: "Mixed positional and named",
+			sql:  "SELECT ?, :id",
+			params: &dbv1.TypedParameters{
+				Positional: []*dbv1.SqlValue{
+					{Value: &dbv1.SqlValue_TextValue{TextValue: "test"}},
+				},
+				Named: map[string]*dbv1.SqlValue{
+					"id": {Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 42}},
+				},
+			},
+			wantLen: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := convertTypedParameters(tt.sql, tt.params)
+			require.NoError(t, err)
+			assert.Len(t, got, tt.wantLen)
+		})
+	}
+}
+
+func TestValuesToTypedProto(t *testing.T) {
+	// Test max safe integer boundary
+	safeInt := int64(1<<53 - 1)
+	unsafeInt := safeInt + 1
+
+	affinities := []dbv1.ColumnAffinity{
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_UNSPECIFIED,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, // NULL value
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, // Parse error
+	}
+
+	values := []sql.RawBytes{
+		[]byte(strconv.FormatInt(safeInt, 10)),   // 0: Safe Int
+		[]byte(strconv.FormatInt(unsafeInt, 10)), // 1: Unsafe Int (still int64 in typed)
+		[]byte("hello"),                          // 2: Text
+		[]byte("3.14"),                           // 3: Real
+		[]byte{0xDE, 0xAD, 0xBE, 0xEF},           // 4: Blob
+		[]byte("42"),                             // 5: Unspecified (guesses int)
+		nil,                                      // 6: NULL
+		[]byte("not_a_number"),                   // 7: Parse error -> text fallback
+	}
+
+	result := valuesToTypedProto(values, affinities)
+
+	// 0: Safe Int -> IntegerValue
+	assert.Equal(t, safeInt, result.Values[0].GetIntegerValue())
+
+	// 1: Unsafe Int -> Still IntegerValue (no precision loss in typed API!)
+	assert.Equal(t, unsafeInt, result.Values[1].GetIntegerValue())
+
+	// 2: Text -> TextValue
+	assert.Equal(t, "hello", result.Values[2].GetTextValue())
+
+	// 3: Real -> RealValue
+	assert.Equal(t, 3.14, result.Values[3].GetRealValue())
+
+	// 4: Blob -> BlobValue (raw bytes, no base64)
+	assert.Equal(t, []byte{0xDE, 0xAD, 0xBE, 0xEF}, result.Values[4].GetBlobValue())
+
+	// 5: Unspecified -> IntegerValue (guessed)
+	assert.Equal(t, int64(42), result.Values[5].GetIntegerValue())
+
+	// 6: NULL -> NullValue
+	assert.True(t, result.Values[6].GetNullValue())
+
+	// 7: Parse error -> TextValue fallback
+	assert.Equal(t, "not_a_number", result.Values[7].GetTextValue())
+}
+
+// Mock for TypedStreamWriter
+type mockTypedStreamWriter struct {
+	failHeader     bool
+	failBatch      bool
+	failDML        bool
+	headerReceived *dbv1.TypedQueryResultHeader
+	batchReceived  *dbv1.TypedQueryResultRowBatch
+}
+
+func (m *mockTypedStreamWriter) SendHeader(h *dbv1.TypedQueryResultHeader) error {
+	if m.failHeader {
+		return errors.New("mock typed header error")
+	}
+	m.headerReceived = h
+	return nil
+}
+
+func (m *mockTypedStreamWriter) SendRowBatch(b *dbv1.TypedQueryResultRowBatch) error {
+	if m.failBatch {
+		return errors.New("mock typed batch error")
+	}
+	m.batchReceived = b
+	return nil
+}
+
+func (m *mockTypedStreamWriter) SendDMLResult(r *dbv1.DMLResult) error {
+	if m.failDML {
+		return errors.New("mock typed dml error")
+	}
+	return nil
+}
+
+func (m *mockTypedStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
+	return nil
+}
+
+func TestTypedStreamQueryResults_Coverage(t *testing.T) {
+	_, server := setupTestServer(t)
+	db := server.Dbs["test"]
+	ctx := context.Background()
+
+	t.Run("Success SELECT", func(t *testing.T) {
+		writer := &mockTypedStreamWriter{}
+		err := typedStreamQueryResults(ctx, db, "SELECT id, name FROM users", nil, writer)
+		require.NoError(t, err)
+		assert.NotNil(t, writer.headerReceived)
+		assert.Equal(t, []string{"id", "name"}, writer.headerReceived.Columns)
+	})
+
+	t.Run("Success DML", func(t *testing.T) {
+		writer := &mockTypedStreamWriter{}
+		err := typedStreamQueryResults(ctx, db, "INSERT INTO users (name) VALUES ('TypedTest')", nil, writer)
+		require.NoError(t, err)
+	})
+
+	t.Run("Send Header Error", func(t *testing.T) {
+		writer := &mockTypedStreamWriter{failHeader: true}
+		err := typedStreamQueryResults(ctx, db, "SELECT 1", nil, writer)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mock typed header error")
+	})
+
+	t.Run("Send Batch Error", func(t *testing.T) {
+		writer := &mockTypedStreamWriter{failBatch: true}
+		err := typedStreamQueryResults(ctx, db, "SELECT 1", nil, writer)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mock typed batch error")
+	})
+
+	t.Run("DML Write Error", func(t *testing.T) {
+		writer := &mockTypedStreamWriter{failDML: true}
+		err := typedStreamQueryResults(ctx, db, "INSERT INTO users (name) VALUES ('err')", nil, writer)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mock typed dml error")
+	})
+
+	t.Run("DB Query Error", func(t *testing.T) {
+		writer := &mockTypedStreamWriter{}
+		err := typedStreamQueryResults(ctx, db, "SELECT * FROM missing_table", nil, writer)
+		assert.Error(t, err)
+	})
+}
+
+func TestTypedExecuteQueryAndBuffer_Coverage(t *testing.T) {
+	_, server := setupTestServer(t)
+	db := server.Dbs["test"]
+	ctx := context.Background()
+
+	t.Run("SELECT Success", func(t *testing.T) {
+		result, err := typedExecuteQueryAndBuffer(ctx, db, "SELECT id, name FROM users WHERE id = 1", nil)
+		require.NoError(t, err)
+		assert.NotNil(t, result.GetSelect())
+		assert.Len(t, result.GetSelect().Rows, 1)
+		// Check typed values
+		row := result.GetSelect().Rows[0]
+		assert.Equal(t, int64(1), row.Values[0].GetIntegerValue())
+		assert.Equal(t, "Alice", row.Values[1].GetTextValue())
+	})
+
+	t.Run("DML Success", func(t *testing.T) {
+		result, err := typedExecuteQueryAndBuffer(ctx, db, "INSERT INTO users (name) VALUES ('TypedBuffer')", nil)
+		require.NoError(t, err)
+		assert.NotNil(t, result.GetDml())
+		assert.Equal(t, int64(1), result.GetDml().RowsAffected)
+	})
+
+	t.Run("SELECT with Parameters", func(t *testing.T) {
+		params := &dbv1.TypedParameters{
+			Positional: []*dbv1.SqlValue{
+				{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 1}},
+			},
+		}
+		result, err := typedExecuteQueryAndBuffer(ctx, db, "SELECT name FROM users WHERE id = ?", params)
+		require.NoError(t, err)
+		assert.Len(t, result.GetSelect().Rows, 1)
+		assert.Equal(t, "Alice", result.GetSelect().Rows[0].Values[0].GetTextValue())
+	})
+
+	t.Run("Query Error", func(t *testing.T) {
+		_, err := typedExecuteQueryAndBuffer(ctx, db, "SELECT * FROM missing_table", nil)
+		assert.Error(t, err)
+	})
+}

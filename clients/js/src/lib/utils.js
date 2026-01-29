@@ -3,10 +3,7 @@
  * @description Helper functions for parameter marshalling and argument resolution.
  */
 
-const {
-  Struct,
-  ListValue,
-} = require("google-protobuf/google/protobuf/struct_pb");
+
 const grpc = require("@grpc/grpc-js");
 const db_service_pb = require("../protos/db/v1/db_service_pb");
 
@@ -38,59 +35,7 @@ function getAuthMetadata(authConfig) {
   return metadata;
 }
 
-/**
- * Converts JS data into the static Protobuf Parameters message.
- * Supports the non-oneof structure where both fields can be populated.
- *
- * @param {Array<any>} [positional] - Positional parameters (e.g. [1, "two"]).
- * @param {Object.<string, any>} [named] - Named parameters (e.g. { id: 1 }).
- * @param {{positional?: Object.<number, number>, named?: Object.<string, number>}} [hints] - Type hints.
- * @returns {db_service_pb.Parameters} The Protobuf message.
- */
-function toProtoParams(
-  positional = [],
-  named = {},
-  hints = { positional: {}, named: {} },
-) {
-  const protoParams = new db_service_pb.Parameters();
 
-  // console.log({ positional, named, hints });
-
-  // 1. Handle Positional
-  if (Array.isArray(positional) && positional.length > 0) {
-    protoParams.setPositional(ListValue.fromJavaScript(positional));
-
-    const pHintsMap = protoParams.getPositionalHintsMap();
-    const posHints = hints.positional || {};
-
-    for (const [idx, type] of Object.entries(posHints)) {
-      const key = parseInt(idx, 10);
-      const val = Number(type);
-
-      // Validation: Ensure we aren't setting NaN
-      if (!isNaN(key) && !isNaN(val)) {
-        pHintsMap.set(key, val);
-      }
-    }
-  }
-
-  // 2. Handle Named
-  if (named && Object.keys(named).length > 0) {
-    protoParams.setNamed(Struct.fromJavaScript(named));
-
-    const nHintsMap = protoParams.getNamedHintsMap();
-    const namedHints = hints.named || {};
-
-    for (const [key, type] of Object.entries(namedHints)) {
-      const val = Number(type);
-      if (!isNaN(val)) {
-        nHintsMap.set(key, val);
-      }
-    }
-  }
-
-  return protoParams;
-}
 
 /**
  * Converts a Protobuf ListValue (a row) into a native JavaScript Array.
@@ -105,168 +50,7 @@ function toProtoParams(
  * @param {string} [dateHandling='date'] - 'date' | 'string' | 'number'
  * @returns {any[]} A standard JS array containing hydrated types (Number, BigInt, Buffer, etc).
  */
-/**
- * Converts a Protobuf ListValue (a row) into a native JavaScript Array.
- *
- * This function performs "Type Promotion" by using the server-provided metadata
- * (columnTypes) to restore types lost during Protobuf/JSON serialization.
- *
- * @param {import('../protos/db/v1/db_service_pb').ListValue} listValue - The row data.
- * @param {number[]} affinities - Storage class affinities.
- * @param {number[]} declaredTypes - Semantic declared types.
- * @param {object} [typeParsers={}] - { bigint, json, blob, date }
- * @returns {any[]} A standard JS array containing hydrated types (Number, BigInt, Buffer, etc).
- */
-function fromProtoList(listValue, affinities = [], declaredTypes = [], typeParsers = {}) {
-  if (!listValue) return [];
 
-  // Default parsers (safeguard if {} passed)
-  const parseBigInt = typeParsers.bigint !== false;
-  const parseJson = typeParsers.json !== false;
-  const parseBlob = typeParsers.blob !== false;
-  const dateHandling = typeParsers.date || 'date';
-
-  // Get the array of Value objects from the ListValue wrapper
-  const values = listValue.getValuesList();
-
-  return values.map((v, i) => {
-    // Determine what kind of data is in this Protobuf Value (String, Number, Bool, etc.)
-    const kind = v.getKindCase();
-    const ValueCase = v.constructor.KindCase;
-
-    // Map the metadata for this specific column
-    const affinity = affinities[i];
-    const declaredType = declaredTypes[i];
-
-    switch (kind) {
-      case ValueCase.NULL_VALUE:
-        return null;
-
-      case ValueCase.NUMBER_VALUE:
-        // standard JS Number (float64)
-        return v.getNumberValue();
-
-      case ValueCase.BOOL_VALUE:
-        return v.getBoolValue();
-
-      case ValueCase.STRING_VALUE: {
-        const str = v.getStringValue();
-
-        /**
-         * LOGIC: BIGINT HYDRATION
-         * If the server metadata identifies this column as an INTEGER, but it
-         * arrived as a STRING, it means the value exceeds the 53-bit safe
-         * integer limit of float64 (2^53 - 1).
-         * We promote it to a native JS BigInt.
-         */
-        if (parseBigInt && affinity === db_service_pb.ColumnAffinity.COLUMN_AFFINITY_INTEGER) {
-          try {
-            // BigInt parsing is native in Node.js 10.4+
-            return BigInt(str);
-          } catch {
-            // Fallback to string if for some reason it's not a valid integer
-            return str;
-          }
-        }
-
-        // Explicitly check DeclaredType for BigInt (if affinity mismatch or explicit request)
-        if (parseBigInt && declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_BIGINT) {
-          try {
-            return BigInt(str);
-          } catch {
-            return str;
-          }
-        }
-
-        // Explicitly check DeclaredType for JSON
-        if (parseJson && declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_JSON) {
-          try {
-            return JSON.parse(str);
-          } catch {
-            return str;
-          }
-        }
-
-        /**
-         * LOGIC: BLOB HYDRATION
-         * Protobuf's 'Value' type does not support raw bytes. The server
-         * encodes BLOBs as Base64 strings. If metadata indicates a BLOB,
-         * we decode it back into a Node.js Buffer.
-         */
-        if (parseBlob && affinity === db_service_pb.ColumnAffinity.COLUMN_AFFINITY_BLOB) {
-          // console.log(str);
-          return Buffer.from(str, "base64");
-        }
-
-        /**
-         * LOGIC: DATE HYDRATION
-         * Hydrate based on user preference.
-         */
-        if (declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_DATE || declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_DATETIME) {
-          if (dateHandling === 'string') {
-            return str;
-          }
-          const date = new Date(str);
-          const timestamp = isNaN(date.getTime()) ? null : date.getTime();
-
-          if (timestamp === null) return str; // Invalid date string fallback
-
-          if (dateHandling === 'number') {
-            return timestamp;
-          }
-          // Default to Date object
-          return date;
-        }
-
-        // Default: Just a standard text string
-        return str;
-      }
-
-      case ValueCase.STRUCT_VALUE:
-        // Recursively convert nested JSON-like structures
-        return v.getStructValue().toJavaScript();
-
-      case ValueCase.LIST_VALUE:
-        // Recursively convert nested arrays
-        return v.getListValue().toJavaScript();
-
-      default:
-        // Handle unexpected types gracefully
-        return undefined;
-    }
-  });
-}
-
-/**
- * Combines column names and a row array into a Key-Value object.
- * @param {string[]} columns - Array of column names.
- * @param {any[]} row - Array of row values.
- * @param {number[]} declaredTypes - Semantic declared types.
- * @param {object} [typeParsers={}] - { bigint: boolean, json: boolean, blob: boolean }
- * @returns {object} mapped object { col1: val1, col2: val2 }
- */
-function toObject(columns, row, declaredTypes = [], typeParsers = {}) {
-  const obj = {};
-  const parseBigInt = typeParsers.bigint !== false;
-  const parseJson = typeParsers.json !== false;
-
-  for (let i = 0; i < columns.length; i++) {
-    let val = row[i];
-    // Optional: secondary check if toObject is used on raw data
-    if (parseBigInt && declaredTypes && declaredTypes[i] === db_service_pb.DeclaredType.DECLARED_TYPE_BIGINT) {
-      if (typeof val === 'string') {
-        try { val = BigInt(val); } catch (e) { console.warn('BigInt parse failed:', e); }
-      }
-    }
-    if (parseJson && declaredTypes && declaredTypes[i] === db_service_pb.DeclaredType.DECLARED_TYPE_JSON) {
-      if (typeof val === 'string') {
-        try { val = JSON.parse(val); } catch (e) { console.warn('JSON parse failed:', e); }
-      }
-    }
-    obj[columns[i]] = val;
-  }
-  return obj;
-}
 
 /**
  * Resolves overloaded arguments for query methods.
@@ -365,45 +149,222 @@ function resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull) {
   };
 }
 
+
+
+module.exports = {
+  resolveArgs,
+  getAuthMetadata,
+  jsToSqlValue,
+  toTypedProtoParams,
+  sqlValueToJs,
+  fromTypedProtoRow,
+  createTypedRowIterator,
+  createTypedBatchIterator,
+  mapTypedQueryResult,
+};
+
+// =============================================================================
+// TYPED API UTILITIES
+// =============================================================================
+
 /**
- * Creates an async generator that yields single rows from a batch iterator.
+ * Converts a JavaScript value to a SqlValue proto message.
  *
- * @param {AsyncIterable<any[]>} batchIterator - Yields lists of Proto-Values.
- * @param {number[]} columnAffinities - Enum values for hydration.
- * @param {number[]} columnDeclaredTypes - Enum values for hydration.
+ * @param {any} val - The JavaScript value to convert.
+ * @returns {db_service_pb.SqlValue} The SqlValue proto message.
+ */
+function jsToSqlValue(val) {
+  const sv = new db_service_pb.SqlValue();
+
+  if (val === null || val === undefined) {
+    sv.setNullValue(true);
+  } else if (typeof val === 'bigint') {
+    // BigInt -> integer_value (pass as string to preserve precision for int64)
+    sv.setIntegerValue(val.toString());
+  } else if (typeof val === 'number') {
+    if (Number.isInteger(val) && Number.isSafeInteger(val)) {
+      sv.setIntegerValue(val);
+    } else {
+      sv.setRealValue(val);
+    }
+  } else if (typeof val === 'string') {
+    sv.setTextValue(val);
+  } else if (Buffer.isBuffer(val)) {
+    // Send raw bytes directly
+    sv.setBlobValue(val);
+  } else if (val instanceof Uint8Array) {
+    sv.setBlobValue(val);
+  } else if (typeof val === 'boolean') {
+    sv.setIntegerValue(val ? 1 : 0);
+  } else if (val instanceof Date) {
+    sv.setTextValue(val.toISOString());
+  } else if (typeof val === 'object') {
+    // JSON objects -> text
+    sv.setTextValue(JSON.stringify(val));
+  } else {
+    // Fallback: convert to string
+    sv.setTextValue(String(val));
+  }
+
+  return sv;
+}
+
+/**
+ * Converts JavaScript parameters to TypedParameters proto message.
+ *
+ * @param {Array<any>} [positional=[]] - Positional parameters.
+ * @param {Object.<string, any>} [named={}] - Named parameters.
+ * @returns {db_service_pb.TypedParameters} The TypedParameters proto message.
+ */
+function toTypedProtoParams(positional = [], named = {}) {
+  const params = new db_service_pb.TypedParameters();
+
+  // Convert positional parameters
+  if (Array.isArray(positional) && positional.length > 0) {
+    for (const val of positional) {
+      params.addPositional(jsToSqlValue(val));
+    }
+  }
+
+  // Convert named parameters
+  if (named && Object.keys(named).length > 0) {
+    const namedMap = params.getNamedMap();
+    for (const [key, val] of Object.entries(named)) {
+      namedMap.set(key, jsToSqlValue(val));
+    }
+  }
+
+  return params;
+}
+
+/**
+ * Converts a SqlValue proto message to a JavaScript value.
+ *
+ * @param {db_service_pb.SqlValue} sv - The SqlValue proto message.
+ * @param {number} [declaredType] - The declared type for type promotion.
+ * @param {object} [typeParsers={}] - Type parser configuration.
+ * @returns {any} The JavaScript value.
+ */
+function sqlValueToJs(sv, declaredType, typeParsers = {}) {
+  const ValueCase = db_service_pb.SqlValue.ValueCase;
+  const valueCase = sv.getValueCase();
+
+  const parseBigInt = typeParsers.bigint !== false;
+  const parseJson = typeParsers.json !== false;
+  const parseBlob = typeParsers.blob !== false;
+  const dateHandling = typeParsers.date || 'date';
+
+  switch (valueCase) {
+    case ValueCase.NULL_VALUE:
+      return null;
+
+    case ValueCase.INTEGER_VALUE: {
+      const intVal = sv.getIntegerValue();
+      // Check if we should promote to BigInt based on declared type
+      if (declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_BIGINT) {
+        if (parseBigInt) {
+          return BigInt(intVal);
+        } else {
+          return String(intVal);
+        }
+      }
+      return intVal;
+    }
+
+    case ValueCase.REAL_VALUE:
+      return sv.getRealValue();
+
+    case ValueCase.TEXT_VALUE: {
+      const str = sv.getTextValue();
+
+      // JSON hydration
+      if (parseJson && declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_JSON) {
+        try {
+          return JSON.parse(str);
+        } catch {
+          return str;
+        }
+      }
+
+      // Date hydration
+      if (declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_DATE ||
+        declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_DATETIME) {
+        if (dateHandling === 'string') {
+          return str;
+        }
+        const date = new Date(str);
+        const timestamp = isNaN(date.getTime()) ? null : date.getTime();
+        if (timestamp === null) return str;
+        if (dateHandling === 'number') return timestamp;
+        return date;
+      }
+
+      return str;
+    }
+
+    case ValueCase.BLOB_VALUE: {
+      const bytes = sv.getBlobValue_asU8();
+      if (parseBlob) {
+        return Buffer.from(bytes);
+      } else {
+        return Buffer.from(bytes).toString('base64');
+      }
+    }
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Converts a SqlRow proto message to a JavaScript array.
+ *
+ * @param {db_service_pb.SqlRow} sqlRow - The SqlRow proto message.
+ * @param {number[]} [declaredTypes=[]] - Declared types for each column.
+ * @param {object} [typeParsers={}] - Type parser configuration.
+ * @returns {any[]} The JavaScript array of values.
+ */
+function fromTypedProtoRow(sqlRow, declaredTypes = [], typeParsers = {}) {
+  if (!sqlRow) return [];
+
+  const values = sqlRow.getValuesList();
+  return values.map((sv, i) => sqlValueToJs(sv, declaredTypes[i], typeParsers));
+}
+
+/**
+ * Creates an async generator that yields single rows from a typed batch iterator.
+ *
+ * @param {AsyncIterable<db_service_pb.SqlRow[]>} batchIterator - Yields lists of SqlRow.
+ * @param {number[]} columnDeclaredTypes - Declared types for hydration.
  * @param {object} [typeParsers={}] - Type parser config.
  */
-async function* createRowIterator(batchIterator, columnAffinities, columnDeclaredTypes, typeParsers = {}) {
+async function* createTypedRowIterator(batchIterator, columnDeclaredTypes, typeParsers = {}) {
   for await (const batch of batchIterator) {
     if (batch && batch.length > 0) {
-      // Destructively consume the batch array to free memory as we go
       while (batch.length > 0) {
         const row = batch.shift();
-        yield fromProtoList(row, columnAffinities, columnDeclaredTypes, typeParsers);
+        yield fromTypedProtoRow(row, columnDeclaredTypes, typeParsers);
       }
     }
   }
 }
 
 /**
- * Creates an async generator that yields custom-sized batches from a source batch iterator.
- * Buffer/Re-batch logic.
+ * Creates an async generator that yields custom-sized batches from a typed source iterator.
  *
- * @param {AsyncIterable<any[]>} batchIterator - Source iterator yielding raw proto batches.
- * @param {number[]} columnAffinities
+ * @param {AsyncIterable<db_service_pb.SqlRow[]>} batchIterator - Source iterator yielding typed batches.
  * @param {number[]} columnDeclaredTypes
  * @param {number} batchSize
  * @param {object} [typeParsers={}]
  */
-async function* createBatchIterator(batchIterator, columnAffinities, columnDeclaredTypes, batchSize, typeParsers = {}) {
+async function* createTypedBatchIterator(batchIterator, columnDeclaredTypes, batchSize, typeParsers = {}) {
   let buffer = [];
   for await (const batch of batchIterator) {
     if (batch && batch.length > 0) {
-      const mapped = batch.map(r => fromProtoList(r, columnAffinities, columnDeclaredTypes, typeParsers));
+      const mapped = batch.map(r => fromTypedProtoRow(r, columnDeclaredTypes, typeParsers));
       buffer.push(...mapped);
 
       while (buffer.length >= batchSize) {
-        // Destructively slice off the head
         yield buffer.splice(0, batchSize);
       }
     }
@@ -412,11 +373,10 @@ async function* createBatchIterator(batchIterator, columnAffinities, columnDecla
 }
 
 /**
- * Maps a Protobuf QueryResult to a standardized JS object.
+ * Maps a TypedQueryResult proto to a standardized JS object.
  *
- * @param {import('../protos/db/v1/db_service_pb').QueryResult} result - The result proto.
+ * @param {db_service_pb.TypedQueryResult} result - The TypedQueryResult proto.
  * @param {object} [typeParsers={}] - Type parser config.
- * @param {import('../protos/db/v1/db_service_pb').ExecutionStats} [statsPb] - Optional stats.
  * @returns {{
  *   type: 'SELECT'|'DML'|'UNKNOWN',
  *   rowsAffected?: number,
@@ -427,28 +387,23 @@ async function* createBatchIterator(batchIterator, columnAffinities, columnDecla
  *   columnRawTypes?: string[],
  *   rows?: any[],
  *   stats?: { duration_ms: number, rows_read: number, rows_written: number }
- * }} Standardized result object.
+ * }}
  */
-function mapQueryResult(result, typeParsers = {}, statsPb = null) {
+function mapTypedQueryResult(result, typeParsers = {}) {
   const resultType = result.getResultCase();
+  const statsPb = result.hasStats() ? result.getStats() : null;
   const stats = statsPb
     ? {
       duration_ms: statsPb.getDurationMs(),
       rows_read: statsPb.getRowsRead(),
       rows_written: statsPb.getRowsWritten(),
     }
-    : result.hasStats()
-      ? {
-        duration_ms: result.getStats().getDurationMs(),
-        rows_read: result.getStats().getRowsRead(),
-        rows_written: result.getStats().getRowsWritten(),
-      }
-      : null;
+    : null;
 
-  if (resultType === db_service_pb.QueryResult.ResultCase.SELECT) {
+  if (resultType === db_service_pb.TypedQueryResult.ResultCase.SELECT) {
     const select = result.getSelect();
-    const columnAffinities = select.getColumnAffinitiesList();
     const columnDeclaredTypes = select.getColumnDeclaredTypesList();
+    const columnAffinities = select.getColumnAffinitiesList();
     const columnRawTypes = select.getColumnRawTypesList();
 
     return {
@@ -457,36 +412,21 @@ function mapQueryResult(result, typeParsers = {}, statsPb = null) {
       columnAffinities,
       columnDeclaredTypes,
       columnRawTypes,
-      rows: select.getRowsList().map((r) => fromProtoList(r, columnAffinities, columnDeclaredTypes, typeParsers)),
+      rows: select.getRowsList().map((r) => fromTypedProtoRow(r, columnDeclaredTypes, typeParsers)),
       stats,
     };
-  } else {
-    // DML
-    if (resultType === db_service_pb.QueryResult.ResultCase.DML) {
-      const dml = result.getDml();
-      return {
-        type: "DML",
-        rowsAffected: Number(dml.getRowsAffected()),
-        lastInsertId: Number(dml.getLastInsertId()),
-        stats,
-      };
-    }
-
-    // Fallback/Empty
+  } else if (resultType === db_service_pb.TypedQueryResult.ResultCase.DML) {
+    const dml = result.getDml();
     return {
-      type: "UNKNOWN",
+      type: "DML",
+      rowsAffected: Number(dml.getRowsAffected()),
+      lastInsertId: Number(dml.getLastInsertId()),
       stats,
     };
   }
-}
 
-module.exports = {
-  toProtoParams,
-  fromProtoList,
-  toObject,
-  resolveArgs,
-  createRowIterator,
-  createBatchIterator,
-  mapQueryResult,
-  getAuthMetadata,
-};
+  return {
+    type: "UNKNOWN",
+    stats,
+  };
+}

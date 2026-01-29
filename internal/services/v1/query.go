@@ -59,11 +59,11 @@ func ValidateStatelessQuery(sql string) error {
 // Ideal for "Point Lookups" (e.g., GetUserByID) where the result is known to be small.
 //
 // BEHAVIOR:
-// 
-//   1. Traceability: Ensures an X-Request-Id exists (generating one if missing).
-//   2. Validation: Checks input constraints (SQL length, DB name format).
-//   3. Execution: Buffers ALL results into memory.
-//   4. Response: Returns the complete result set and echoes the Request ID in headers.
+//
+//  1. Traceability: Ensures an X-Request-Id exists (generating one if missing).
+//  2. Validation: Checks input constraints (SQL length, DB name format).
+//  3. Execution: Buffers ALL results into memory.
+//  4. Response: Returns the complete result set and echoes the Request ID in headers.
 //
 // WARNING:
 // Do not use for "SELECT * FROM LargeTable". It will cause high memory pressure.
@@ -116,7 +116,7 @@ func (s *DbServer) Query(ctx context.Context, req *connect.Request[dbv1.QueryReq
 //     send data in chunks (Header -> Batch... -> Complete).
 //
 // MEMORY SAFETY:
-// 
+//
 // This handler operates in O(1) memory space relative to the result size.
 func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.QueryRequest], stream *connect.ServerStream[dbv1.QueryResponse]) error {
 	// 1. Traceability
@@ -165,6 +165,104 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 		}
 
 		// 3. Return nil to close the stream gracefully.
+		return nil
+	}
+
+	return nil
+}
+
+// =============================================================================
+// TYPED QUERY HANDLERS
+// =============================================================================
+// These use SqlValue/SqlRow for explicit typing instead of ListValue.
+
+// typedStatelessStreamWriter adapts a TypedQueryStream ServerStream.
+type typedStatelessStreamWriter struct {
+	stream *connect.ServerStream[dbv1.TypedQueryResponse]
+}
+
+func (w *typedStatelessStreamWriter) SendHeader(h *dbv1.TypedQueryResultHeader) error {
+	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Header{Header: h}})
+}
+func (w *typedStatelessStreamWriter) SendRowBatch(b *dbv1.TypedQueryResultRowBatch) error {
+	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Batch{Batch: b}})
+}
+func (w *typedStatelessStreamWriter) SendDMLResult(r *dbv1.DMLResult) error {
+	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Dml{Dml: r}})
+}
+func (w *typedStatelessStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
+	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Complete{Complete: &dbv1.QueryComplete{Stats: s}}})
+}
+
+// TypedQuery handles the unary `TypedQuery` RPC.
+//
+// This is the typed variant of Query. It uses SqlValue/SqlRow for results
+// instead of ListValue, providing better type safety and wire efficiency.
+func (s *DbServer) TypedQuery(ctx context.Context, req *connect.Request[dbv1.TypedQueryRequest]) (*connect.Response[dbv1.TypedQueryResult], error) {
+	reqID := ensureRequestID(req.Header())
+
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		log.Printf("[%s] Validation failed for TypedQuery: %v", reqID, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := ValidateStatelessQuery(req.Msg.Sql); err != nil {
+		return nil, err
+	}
+
+	msg := req.Msg
+
+	db, ok := s.Dbs[msg.Database]
+	if !ok {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
+	}
+
+	result, err := typedExecuteQueryAndBuffer(ctx, db, msg.Sql, msg.Parameters)
+	if err != nil {
+		log.Printf("[%s] TypedQuery execution failed: %v", reqID, err)
+		return nil, makeUnaryError(err, msg.Sql)
+	}
+
+	res := connect.NewResponse(result)
+	res.Header().Set(headerRequestID, reqID)
+	return res, nil
+}
+
+// TypedQueryStream handles the server-streaming `TypedQueryStream` RPC.
+//
+// This is the typed variant of QueryStream. It uses SqlValue/SqlRow for results.
+func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[dbv1.TypedQueryRequest], stream *connect.ServerStream[dbv1.TypedQueryResponse]) error {
+	reqID := ensureRequestID(req.Header())
+	stream.ResponseHeader().Set(headerRequestID, reqID)
+
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		log.Printf("[%s] Validation failed for TypedQueryStream: %v", reqID, err)
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if err := ValidateStatelessQuery(req.Msg.Sql); err != nil {
+		return err
+	}
+
+	msg := req.Msg
+	db, ok := s.Dbs[msg.Database]
+	if !ok {
+		return connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
+	}
+
+	writer := &typedStatelessStreamWriter{stream: stream}
+
+	err := typedStreamQueryResults(ctx, db, msg.Sql, msg.Parameters, writer)
+	if err != nil {
+		log.Printf("[%s] TypedStream failed: %v", reqID, err)
+
+		errResp := makeStreamError(err, msg.Sql)
+		sendErr := stream.Send(&dbv1.TypedQueryResponse{
+			Response: &dbv1.TypedQueryResponse_Error{Error: errResp},
+		})
+
+		if sendErr != nil {
+			return connect.NewError(connect.CodeInternal, sendErr)
+		}
 		return nil
 	}
 

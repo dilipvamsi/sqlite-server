@@ -15,7 +15,7 @@ module.exports = [
         },
         rules: {
             "comma-dangle": ["error", "always-multiline"],
-            "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+            "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
         },
     },
     {
