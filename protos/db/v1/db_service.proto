@@ -571,6 +571,19 @@ message IntegrityCheckResponse {
 // -----------------------------------------------------------------------------
 
 /**
+ * Role defines the permission level for a user.
+ */
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  // Full access to everything.
+  ROLE_ADMIN = 1;
+  // Can Read and Write data, but cannot manage users/config.
+  ROLE_READ_WRITE = 2;
+  // Can only Read data.
+  ROLE_READ_ONLY = 3;
+}
+
+/**
  * Request to create a new database user.
  */
 message CreateUserRequest {
@@ -589,11 +602,7 @@ message CreateUserRequest {
       expression : "this.matches('.*[a-zA-Z].*') && this.matches('.*[0-9].*')"
     } ]
   } ];
-  string role = 3 [
-    (buf.validate.field).string.in = "admin",
-    (buf.validate.field).string.in = "read_write",
-    (buf.validate.field).string.in = "read_only"
-  ];
+  Role role = 3 [ (buf.validate.field).enum.defined_only = true ];
 }
 
 /**
@@ -731,7 +740,7 @@ message LogoutResponse { bool success = 1; }
 message User {
   int64 id = 1;
   string username = 2;
-  string role = 3;
+  Role role = 3;
 }
 
 /**

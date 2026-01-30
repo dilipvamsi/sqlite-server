@@ -42,7 +42,7 @@ func TestQueryStream_Coverage(t *testing.T) {
 		assert.True(t, stream.Receive())
 		msg := stream.Msg()
 		assert.NotNil(t, msg.GetError())
-		assert.Contains(t, msg.GetError().Message, "no such table")
+		assert.Contains(t, msg.GetError().GetMessage(), "no such table")
 	})
 
 	t.Run("Transaction Control Not Allowed", func(t *testing.T) {

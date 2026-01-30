@@ -46,17 +46,16 @@ GOBUILD_DYNAMIC := CGO_ENABLED=1 $(GOCMD) build -ldflags "$(LDFLAGS_COMMON)"
 all: proto build ## Generate Protobuf code and build the dynamic binary
 
 .PHONY: build
-build: studio-build build-dynamic ## Default build (alias for build-dynamic)
+build: studio-install studio-build build-dynamic ## Default build (alias for build-dynamic)
 
 .PHONY: studio-install
 studio-install: ## Install Studio dependencies
 	@echo "📦 Installing Studio dependencies..."
 	@cd studio && npm install
-	@cd studio && npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf
 	@echo "✅ Studio dependencies installed"
 
 .PHONY: studio-build
-studio-build: ## Build Studio assets
+studio-build: studio-install ## Build Studio assets
 	@echo "🏗️  Building Studio..."
 	@cd studio && npm run build
 	@echo "📂 Copying assets to internal/studio/dist..."

@@ -83,21 +83,21 @@ func (s *DbServer) Query(ctx context.Context, req *connect.Request[dbv1.QueryReq
 
 	msg := req.Msg
 
-	// 3. Routing: Find the correct DB pool
+	// 4. Routing: Find the correct DB pool
 	db, ok := s.Dbs[msg.Database]
 	if !ok {
 		// CodeNotFound (404) indicates client error (wrong DB name).
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
 	}
 
-	// 4. Execution (Buffered)
+	// 5. Execution (Buffered)
 	result, err := executeQueryAndBuffer(ctx, db, msg.Sql, msg.Parameters)
 	if err != nil {
 		log.Printf("[%s] Query execution failed: %v", reqID, err)
 		return nil, makeUnaryError(err, msg.Sql)
 	}
 
-	// 5. Response Construction
+	// 6. Response Construction
 	res := connect.NewResponse(result)
 	// Crucial: Return the ID so the client can correlate logs.
 	res.Header().Set(headerRequestID, reqID)
@@ -134,16 +134,28 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 		return err
 	}
 
+	// 3. Authorization Check
+	isWrite := IsWriteQuery(req.Msg.Sql)
+	if isWrite {
+		if err := AuthorizeWrite(ctx); err != nil {
+			return connect.NewError(connect.CodePermissionDenied, err)
+		}
+	} else {
+		if err := AuthorizeRead(ctx); err != nil {
+			return connect.NewError(connect.CodePermissionDenied, err)
+		}
+	}
+
 	msg := req.Msg
 	db, ok := s.Dbs[msg.Database]
 	if !ok {
 		return connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
 	}
 
-	// 3. Setup Adapter: Wrap the specific ServerStream in our generic interface.
+	// 4. Setup Adapter: Wrap the specific ServerStream in our generic interface.
 	writer := &statelessStreamWriter{stream: stream}
 
-	// 4. Execution (Streaming)
+	// 5. Execution (Streaming)
 	// This blocks until the query finishes or the client disconnects.
 	err := streamQueryResults(ctx, db, msg.Sql, msg.Parameters, writer)
 	if err != nil {
@@ -241,6 +253,18 @@ func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[db
 	}
 	if err := ValidateStatelessQuery(req.Msg.Sql); err != nil {
 		return err
+	}
+
+	// 3. Authorization Check
+	isWrite := IsWriteQuery(req.Msg.Sql)
+	if isWrite {
+		if err := AuthorizeWrite(ctx); err != nil {
+			return connect.NewError(connect.CodePermissionDenied, err)
+		}
+	} else {
+		if err := AuthorizeRead(ctx); err != nil {
+			return connect.NewError(connect.CodePermissionDenied, err)
+		}
 	}
 
 	msg := req.Msg

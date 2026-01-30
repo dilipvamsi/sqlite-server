@@ -16,9 +16,12 @@ import (
 
 func NewSqliteDb(config *dbv1.DatabaseConfig) (*sql.DB, error) {
 	// Resolve absolute path to avoid issues with relative paths in URI mode (file:...) via CGO
-	absPath, err := filepath.Abs(config.DbPath)
-	if err == nil {
-		config.DbPath = absPath
+	// Skip for in-memory databases.
+	if config.DbPath != ":memory:" {
+		absPath, err := filepath.Abs(config.DbPath)
+		if err == nil {
+			config.DbPath = absPath
+		}
 	}
 
 	// Construct the Data Source Name (DSN) with production-ready parameters.

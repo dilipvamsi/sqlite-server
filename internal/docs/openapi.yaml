@@ -1490,12 +1490,8 @@ components:
           pattern: ^[^\s]+$
           description: "Password MUST meet basic complexity requirements:\r\n 1. Length between 8 and 128 chars.\r\n 2. No whitespace allowed.\r\n 3. Must contain at least one letter and one number.\npassword_complexity // Password must contain at least one letter and one number\n"
         role:
-          type: string
           title: role
-          enum:
-            - admin
-            - read_write
-            - read_only
+          $ref: '#/components/schemas/db.v1.Role'
       title: CreateUserRequest
       additionalProperties: false
       description: "*\r\n Request to create a new database user."
@@ -2335,6 +2331,15 @@ components:
       title: RevokeApiKeyResponse
       additionalProperties: false
       description: "*\r\n Response indicating the success of the key revocation."
+    db.v1.Role:
+      type: string
+      title: Role
+      enum:
+        - ROLE_UNSPECIFIED
+        - ROLE_ADMIN
+        - ROLE_READ_WRITE
+        - ROLE_READ_ONLY
+      description: "*\r\n Role defines the permission level for a user."
     db.v1.RollbackResponse:
       type: object
       properties:
@@ -3103,8 +3108,8 @@ components:
           type: string
           title: username
         role:
-          type: string
           title: role
+          $ref: '#/components/schemas/db.v1.Role'
       title: User
       additionalProperties: false
       description: "*\r\n Basic user information."

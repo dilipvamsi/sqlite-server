@@ -361,7 +361,7 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 	}
 
 	// 2. Ensure user has admin access (or allowed role)
-	if user.Role != auth.RoleAdmin {
+	if user.Role != dbv1.Role_ROLE_ADMIN {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
 	}
 
@@ -386,7 +386,7 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 		User: &dbv1.User{
 			Id:       user.UserID,
 			Username: user.Username,
-			Role:     string(user.Role),
+			Role:     user.Role,
 		},
 	}), nil
 }

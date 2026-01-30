@@ -16,6 +16,8 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
+
+	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
 // hashPassword creates a salted SHA256 hash of the password
@@ -66,14 +68,53 @@ type DatabaseConfig struct {
 type UserClaims struct {
 	UserID   int64
 	Username string
-	Role     string
+	Role     dbv1.Role
+}
+
+// dbRole is the string representation of a role in the database
+type dbRole string
+
+// Role string constants for database storage
+const (
+	dbRoleAdmin       dbRole = "admin"
+	dbRoleReadWrite   dbRole = "read_write"
+	dbRoleReadOnly    dbRole = "read_only"
+	dbRoleUnspecified dbRole = "unspecified"
+)
+
+// Helper to convert DB string to Enum
+func ParseRole(roleStr dbRole) dbv1.Role {
+	switch roleStr {
+	case dbRoleAdmin:
+		return dbv1.Role_ROLE_ADMIN
+	case dbRoleReadWrite:
+		return dbv1.Role_ROLE_READ_WRITE
+	case dbRoleReadOnly:
+		return dbv1.Role_ROLE_READ_ONLY
+	default:
+		return dbv1.Role_ROLE_UNSPECIFIED
+	}
+}
+
+// Helper to convert Enum to DB string
+func FormatRole(role dbv1.Role) dbRole {
+	switch role {
+	case dbv1.Role_ROLE_ADMIN:
+		return dbRoleAdmin
+	case dbv1.Role_ROLE_READ_WRITE:
+		return dbRoleReadWrite
+	case dbv1.Role_ROLE_READ_ONLY:
+		return dbRoleReadOnly
+	default:
+		return dbRoleUnspecified
+	}
 }
 
 // ValidateUser checks username and password. Returns UserClaims if valid.
 func (s *MetaStore) ValidateUser(ctx context.Context, username, password string) (*UserClaims, error) {
 	var id int64
 	var hash string
-	var role string
+	var role dbRole
 
 	err := s.db.QueryRowContext(ctx, "SELECT id, password_hash, role FROM users WHERE username = ?", username).Scan(&id, &hash, &role)
 	if err == sql.ErrNoRows {
@@ -91,7 +132,7 @@ func (s *MetaStore) ValidateUser(ctx context.Context, username, password string)
 	return &UserClaims{
 		UserID:   id,
 		Username: username,
-		Role:     role,
+		Role:     ParseRole(role),
 	}, nil
 }
 
@@ -172,7 +213,7 @@ func (s *MetaStore) EnsureDefaultAdmin() (string, error) {
 	_, err = s.db.Exec(`
 		INSERT INTO users (username, password_hash, role)
 		VALUES (?, ?, ?)
-	`, "admin", passwordHash, RoleAdmin)
+	`, "admin", passwordHash, dbRoleAdmin)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to create admin user: %w", err)
@@ -204,19 +245,20 @@ func generateRandomPassword(n int) string {
 // ============================================================================
 
 // CreateUser creates a new user with the given credentials
-func (s *MetaStore) CreateUser(ctx context.Context, username, password, role string) (int64, error) {
+func (s *MetaStore) CreateUser(ctx context.Context, username, password string, role dbv1.Role) (int64, error) {
 	// Validate role
-	if role != RoleAdmin && role != RoleReadWrite && role != RoleReadOnly {
-		return 0, fmt.Errorf("invalid role: %s", role)
+	if role == dbv1.Role_ROLE_UNSPECIFIED {
+		return 0, fmt.Errorf("invalid role: UNSPECIFIED")
 	}
 
 	// Hash password (fast SHA256+salt)
 	passwordHash := hashPassword(password)
+	roleStr := FormatRole(role)
 
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO users (username, password_hash, role)
 		VALUES (?, ?, ?)
-	`, username, passwordHash, role)
+	`, username, passwordHash, roleStr)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -261,16 +303,18 @@ func (s *MetaStore) UpdatePassword(ctx context.Context, username, newPassword st
 // GetUserByUsername retrieves a user by username
 func (s *MetaStore) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	var user User
+	var role dbRole
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, username, password_hash, role, created_at, updated_at
 		FROM users WHERE username = ?
-	`, username).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+	`, username).Scan(&user.ID, &user.Username, &user.PasswordHash, &role, &user.CreatedAt, &user.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	user.Role = ParseRole(role)
 	return &user, nil
 }
 
@@ -383,7 +427,8 @@ func (s *MetaStore) ValidateApiKeyImpl(ctx context.Context, token string) (*User
 	}
 
 	// Get user details
-	var username, role string
+	var username string
+	var role dbRole
 	err = s.db.QueryRowContext(ctx, `
 		SELECT username, role FROM users WHERE id = ?
 	`, userID).Scan(&username, &role)
@@ -394,7 +439,7 @@ func (s *MetaStore) ValidateApiKeyImpl(ctx context.Context, token string) (*User
 	return &UserClaims{
 		UserID:   userID,
 		Username: username,
-		Role:     role,
+		Role:     ParseRole(role),
 	}, nil
 }
 

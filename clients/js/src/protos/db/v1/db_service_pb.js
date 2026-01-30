@@ -91,6 +91,7 @@ goog.exportSymbol('proto.db.v1.RestoreDatabaseRequest.PayloadCase', null, global
 goog.exportSymbol('proto.db.v1.RestoreDatabaseResponse', null, global);
 goog.exportSymbol('proto.db.v1.RevokeApiKeyRequest', null, global);
 goog.exportSymbol('proto.db.v1.RevokeApiKeyResponse', null, global);
+goog.exportSymbol('proto.db.v1.Role', null, global);
 goog.exportSymbol('proto.db.v1.RollbackResponse', null, global);
 goog.exportSymbol('proto.db.v1.SavepointAction', null, global);
 goog.exportSymbol('proto.db.v1.SavepointRequest', null, global);
@@ -3196,7 +3197,7 @@ proto.db.v1.CreateUserRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
 username: jspb.Message.getFieldWithDefault(msg, 1, ""),
 password: jspb.Message.getFieldWithDefault(msg, 2, ""),
-role: jspb.Message.getFieldWithDefault(msg, 3, "")
+role: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -3242,7 +3243,7 @@ proto.db.v1.CreateUserRequest.deserializeBinaryFromReader = function(msg, reader
       msg.setPassword(value);
       break;
     case 3:
-      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      var value = /** @type {!proto.db.v1.Role} */ (reader.readEnum());
       msg.setRole(value);
       break;
     default:
@@ -3289,8 +3290,8 @@ proto.db.v1.CreateUserRequest.serializeBinaryToWriter = function(message, writer
     );
   }
   f = message.getRole();
-  if (f.length > 0) {
-    writer.writeString(
+  if (f !== 0.0) {
+    writer.writeEnum(
       3,
       f
     );
@@ -3335,20 +3336,20 @@ proto.db.v1.CreateUserRequest.prototype.setPassword = function(value) {
 
 
 /**
- * optional string role = 3;
- * @return {string}
+ * optional Role role = 3;
+ * @return {!proto.db.v1.Role}
  */
 proto.db.v1.CreateUserRequest.prototype.getRole = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+  return /** @type {!proto.db.v1.Role} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
 };
 
 
 /**
- * @param {string} value
+ * @param {!proto.db.v1.Role} value
  * @return {!proto.db.v1.CreateUserRequest} returns this
  */
 proto.db.v1.CreateUserRequest.prototype.setRole = function(value) {
-  return jspb.Message.setProto3StringField(this, 3, value);
+  return jspb.Message.setProto3EnumField(this, 3, value);
 };
 
 
@@ -6203,7 +6204,7 @@ proto.db.v1.User.toObject = function(includeInstance, msg) {
   var f, obj = {
 id: jspb.Message.getFieldWithDefault(msg, 1, 0),
 username: jspb.Message.getFieldWithDefault(msg, 2, ""),
-role: jspb.Message.getFieldWithDefault(msg, 3, "")
+role: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -6249,7 +6250,7 @@ proto.db.v1.User.deserializeBinaryFromReader = function(msg, reader) {
       msg.setUsername(value);
       break;
     case 3:
-      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      var value = /** @type {!proto.db.v1.Role} */ (reader.readEnum());
       msg.setRole(value);
       break;
     default:
@@ -6296,8 +6297,8 @@ proto.db.v1.User.serializeBinaryToWriter = function(message, writer) {
     );
   }
   f = message.getRole();
-  if (f.length > 0) {
-    writer.writeString(
+  if (f !== 0.0) {
+    writer.writeEnum(
       3,
       f
     );
@@ -6342,20 +6343,20 @@ proto.db.v1.User.prototype.setUsername = function(value) {
 
 
 /**
- * optional string role = 3;
- * @return {string}
+ * optional Role role = 3;
+ * @return {!proto.db.v1.Role}
  */
 proto.db.v1.User.prototype.getRole = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+  return /** @type {!proto.db.v1.Role} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
 };
 
 
 /**
- * @param {string} value
+ * @param {!proto.db.v1.Role} value
  * @return {!proto.db.v1.User} returns this
  */
 proto.db.v1.User.prototype.setRole = function(value) {
-  return jspb.Message.setProto3StringField(this, 3, value);
+  return jspb.Message.setProto3EnumField(this, 3, value);
 };
 
 
@@ -20699,6 +20700,16 @@ proto.db.v1.CheckpointMode = {
   CHECKPOINT_MODE_FULL: 2,
   CHECKPOINT_MODE_RESTART: 3,
   CHECKPOINT_MODE_TRUNCATE: 4
+};
+
+/**
+ * @enum {number}
+ */
+proto.db.v1.Role = {
+  ROLE_UNSPECIFIED: 0,
+  ROLE_ADMIN: 1,
+  ROLE_READ_WRITE: 2,
+  ROLE_READ_ONLY: 3
 };
 
 /**

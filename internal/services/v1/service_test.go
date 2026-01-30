@@ -54,7 +54,11 @@ func setupTestServer(t *testing.T) (dbv1connect.DatabaseServiceClient, *DbServer
 	go server.runReaper()
 
 	mux := http.NewServeMux()
-	path, handler := dbv1connect.NewDatabaseServiceHandler(server, connect.WithInterceptors(LoggingInterceptor()))
+	// Add Mock Auth Interceptor to inject admin user for tests
+	path, handler := dbv1connect.NewDatabaseServiceHandler(server, connect.WithInterceptors(
+		LoggingInterceptor(),
+		&testAuthInterceptor{},
+	))
 	mux.Handle(path, handler)
 
 	// HTTP/2 Server with H2C (Cleartext)

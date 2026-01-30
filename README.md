@@ -124,11 +124,13 @@ The project uses a `Makefile` to automate common tasks.
 
 ```bash
 # Install all dependencies and build everything (Proto + Studio + Server)
+# This is required for the first-time setup as the Studio must be built for the dev server to run.
+make studio-install
 make build
 
 # Or build specific components:
 make gen-proto      # Generate Protobuf code
-make studio-build   # Build the Web Studio
+make studio-build   # Build the Web Studio (requires studio-install first)
 make build-dynamic  # Build only the server binary
 ```
 

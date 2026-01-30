@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"sqlite-server/internal/auth"
+	dbv1 "sqlite-server/internal/protos/db/v1"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func setupStore(t *testing.T) (*auth.MetaStore, string, string) {
 
 	ctx := context.Background()
 	// Create user
-	userID, err := store.CreateUser(ctx, "testuser", "password123", auth.RoleReadWrite)
+	userID, err := store.CreateUser(ctx, "testuser", "password123", dbv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	// Create API key
