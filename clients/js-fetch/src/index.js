@@ -3,7 +3,7 @@
  */
 const DatabaseClient = require('./DatabaseClient');
 const TransactionHandle = require('./TransactionHandle');
-const { SqliteCode, TransactionMode, ColumnAffinity, DeclaredType, SavepointAction } = require('./constants');
+const { SqliteCode, TransactionMode, ColumnAffinity, DeclaredType, SavepointAction, CheckpointMode } = require('./constants');
 const { toObject } = require('./utils');
 
 
@@ -41,6 +41,7 @@ module.exports = {
     ColumnAffinity,
     DeclaredType,
     SavepointAction,
+    CheckpointMode,
     toObject,
     SQL: SQL_Compatible
 };

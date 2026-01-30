@@ -2,6 +2,7 @@ const {
     TransactionMode,
     SavepointAction,
     TransactionType,
+    CheckpointMode,
 } = require("../src/lib/constants");
 const db_service_pb = require("../src/protos/db/v1/db_service_pb");
 
@@ -536,6 +537,10 @@ function runFunctionalTests(createClientFn) {
         describe(`${suiteName} Transaction Support`, () => {
             // 1. Basic Lifecycle
             test("Full ACID Workflow: Begin -> Savepoint -> Rollback -> Commit", async () => {
+                // Cleanup
+                await client.query("CREATE TABLE IF NOT EXISTS accounts (id INTEGER, balance INTEGER)");
+                await client.query("DELETE FROM accounts");
+
                 const tx = await client.beginTransaction(
                     TransactionMode.TRANSACTION_MODE_IMMEDIATE,
                     txType,
@@ -547,10 +552,6 @@ function runFunctionalTests(createClientFn) {
                 } else {
                     expect(tx.constructor.name).toBe("TransactionHandle");
                 }
-
-                // Cleanup
-                await client.query("CREATE TABLE IF NOT EXISTS accounts (id INTEGER, balance INTEGER)");
-                await client.query("DELETE FROM accounts");
 
                 // 1. Initial Insert
                 await tx.query("INSERT INTO accounts (id, balance) VALUES (999, 1000)");
@@ -631,6 +632,29 @@ function runFunctionalTests(createClientFn) {
 
     runCommonTransactionTests("Streaming (Bidirectional)", TransactionType.STREAMING);
     runCommonTransactionTests("Unary (ID-Based)", TransactionType.UNARY);
+
+    describe("Maintenance RPCs", () => {
+        test("VACUUM", async () => {
+            const res = await client.vacuum();
+            expect(res.success).toBe(true);
+        });
+
+        test("CHECKPOINT", async () => {
+            // Perform some writes
+            await client.query("CREATE TABLE IF NOT EXISTS cp_test (id INTEGER)");
+            await client.query("INSERT INTO cp_test (id) VALUES (1)");
+            // PASSIVE = 1
+            const res = await client.checkpoint(CheckpointMode.CHECKPOINT_MODE_PASSIVE);
+            expect(res.success).toBe(true);
+            expect(res.logCheckpoints).toBeDefined();
+        });
+
+        test("INTEGRITY_CHECK", async () => {
+            const res = await client.integrityCheck();
+            expect(res.success).toBe(true);
+            expect(res.errors).toEqual([]);
+        });
+    });
 }
 
 module.exports = { runFunctionalTests };

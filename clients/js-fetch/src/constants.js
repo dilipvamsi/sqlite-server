@@ -146,6 +146,17 @@ const RPC = {
     TRANSACTION_QUERY: 'db.v1.DatabaseService/TransactionQuery',
     TRANSACTION_QUERY_STREAM: 'db.v1.DatabaseService/TransactionQueryStream',
     EXPLAIN: 'db.v1.DatabaseService/Explain',
+    VACUUM: 'db.v1.DatabaseService/Vacuum',
+    CHECKPOINT: 'db.v1.DatabaseService/Checkpoint',
+    INTEGRITY_CHECK: 'db.v1.DatabaseService/IntegrityCheck',
+};
+
+const CheckpointMode = {
+    CHECKPOINT_MODE_UNSPECIFIED: 0,
+    CHECKPOINT_MODE_PASSIVE: 1,
+    CHECKPOINT_MODE_FULL: 2,
+    CHECKPOINT_MODE_RESTART: 3,
+    CHECKPOINT_MODE_TRUNCATE: 4,
 };
 
 module.exports = {
@@ -155,4 +166,5 @@ module.exports = {
     DeclaredType,
     SavepointAction,
     RPC,
+    CheckpointMode,
 };

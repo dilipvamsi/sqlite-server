@@ -573,6 +573,83 @@ class DatabaseClient {
       throw err; // Re-throw original error
     }
   }
+  /**
+   * Triggers a VACUUM command to rebuild the database file.
+   * @param {string} [intoFile] - Optional path to create a backup file (VACUUM INTO).
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  async vacuum(intoFile) {
+    return this._withRetry(async () => {
+      const req = new db_service_pb.VacuumRequest();
+      req.setDatabase(this.dbName);
+      if (intoFile) {
+        req.setIntoFile(intoFile);
+      }
+
+      return new Promise((resolve, reject) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.client.vacuum(req, metadata, (err, response) => {
+          if (err) return reject(err);
+          resolve({
+            success: response.getSuccess(),
+            message: response.getMessage(),
+          });
+        });
+      });
+    });
+  }
+
+  /**
+   * Manages WAL checkpoints.
+   * @param {number} mode - CheckpointMode enum value.
+   * @returns {Promise<{success: boolean, message: string, busyCheckpoints: number, logCheckpoints: number, checkpointedPages: number}>}
+   */
+  async checkpoint(mode) {
+    return this._withRetry(async () => {
+      const req = new db_service_pb.CheckpointRequest();
+      req.setDatabase(this.dbName);
+      req.setMode(mode);
+
+      return new Promise((resolve, reject) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.client.checkpoint(req, metadata, (err, response) => {
+          if (err) return reject(err);
+          resolve({
+            success: response.getSuccess(),
+            message: response.getMessage(),
+            busyCheckpoints: response.getBusyCheckpoints(),
+            logCheckpoints: response.getLogCheckpoints(),
+            checkpointedPages: response.getCheckpointedPages(),
+          });
+        });
+      });
+    });
+  }
+
+  /**
+   * Runs an integrity check on the database.
+   * @param {number} [maxErrors=100] - Max errors to report.
+   * @returns {Promise<{success: boolean, message: string, errors: string[]}>}
+   */
+  async integrityCheck(maxErrors = 100) {
+    return this._withRetry(async () => {
+      const req = new db_service_pb.IntegrityCheckRequest();
+      req.setDatabase(this.dbName);
+      req.setMaxErrors(maxErrors);
+
+      return new Promise((resolve, reject) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.client.integrityCheck(req, metadata, (err, response) => {
+          if (err) return reject(err);
+          resolve({
+            success: response.getSuccess(),
+            message: response.getMessage(),
+            errors: response.getErrorsList(),
+          });
+        });
+      });
+    });
+  }
 }
 
 module.exports = DatabaseClient;

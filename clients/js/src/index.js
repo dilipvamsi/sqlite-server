@@ -12,6 +12,7 @@ const {
   DeclaredType,
   SqliteCode,
   TransactionType,
+  CheckpointMode,
 } = require("./lib/constants");
 const { toObject } = require('./lib/utils');
 const SQL = require('sql-template-strings');
@@ -108,4 +109,10 @@ module.exports = {
    * @type {object}
    */
   TransactionType,
+
+  /**
+   * Enums for Checkpoint modes.
+   * @type {object}
+   */
+  CheckpointMode,
 };

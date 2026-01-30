@@ -140,6 +140,19 @@ const TransactionType = {
   UNARY: 2,
 };
 
+/**
+ * CheckpointMode defines the WAL checkpoint mode.
+ * @readonly
+ * @enum {number}
+ */
+const CheckpointMode = {
+  CHECKPOINT_MODE_UNSPECIFIED: 0,
+  CHECKPOINT_MODE_PASSIVE: 1,
+  CHECKPOINT_MODE_FULL: 2,
+  CHECKPOINT_MODE_RESTART: 3,
+  CHECKPOINT_MODE_TRUNCATE: 4,
+};
+
 module.exports = {
   SqliteCode,
   TransactionMode,
@@ -147,4 +160,5 @@ module.exports = {
   DeclaredType,
   SavepointAction,
   TransactionType,
+  CheckpointMode,
 };

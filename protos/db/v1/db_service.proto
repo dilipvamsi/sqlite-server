@@ -376,6 +376,24 @@ service DatabaseService {
    * Aggregates all tables with their complete schema information.
    */
   rpc GetDatabaseSchema(GetDatabaseSchemaRequest) returns (DatabaseSchema);
+
+  // --- Maintenance Operations ---
+
+  /**
+   * Triggers a VACUUM command to rebuild the database file.
+   * Can also perform VACUUM INTO to create a backup/copy.
+   */
+  rpc Vacuum(VacuumRequest) returns (VacuumResponse);
+
+  /**
+   * Manages WAL checkpoints (transferring WAL content to the main DB file).
+   */
+  rpc Checkpoint(CheckpointRequest) returns (CheckpointResponse);
+
+  /**
+   * Runs an integrity check on the database.
+   */
+  rpc IntegrityCheck(IntegrityCheckRequest) returns (IntegrityCheckResponse);
 }
 
 /**
@@ -487,6 +505,66 @@ service AdminService {
 // -----------------------------------------------------------------------------
 // Core Request Messages
 // -----------------------------------------------------------------------------
+
+// --- Maintenance Messages ---
+
+message VacuumRequest {
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+  // Optional: If set, performs VACUUM INTO 'into_file'.
+  // Relative/Absolute path handling depends on server configuration.
+  optional string into_file = 2;
+}
+
+message VacuumResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+enum CheckpointMode {
+  CHECKPOINT_MODE_UNSPECIFIED = 0;
+  CHECKPOINT_MODE_PASSIVE = 1;
+  CHECKPOINT_MODE_FULL = 2;
+  CHECKPOINT_MODE_RESTART = 3;
+  CHECKPOINT_MODE_TRUNCATE = 4;
+}
+
+message CheckpointRequest {
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+  CheckpointMode mode = 2 [ (buf.validate.field).enum.defined_only = true ];
+}
+
+message CheckpointResponse {
+  bool success = 1;
+  string message = 2;
+  // Number of checkpoints that were busy/blocked? Or internal SQLite return
+  // values. SQLite returns (busy, log, checkpointed) usually.
+  // PRAGMA wal_checkpoint returns (busy, log, checkpointed)
+  // Actually it returns: a single row with three integer columns:
+  // 1. 0 if successful, 1 if busy. (But this is the return code of the pragma,
+  // usually handled by error)
+  // Wait, PRAGMA wal_checkpoint(MODE) returns (Busy, Log, Checkpointed)? No.
+  // It returns: (0, N, M) where N is number of pages in WAL, M is number of
+  // pages checkpointed.
+  // Let's settle on:
+  int64 busy_checkpoints = 3; // usually 0 or 1
+  int64 log_checkpoints = 4;
+  int64 checkpointed_pages = 5;
+}
+
+message IntegrityCheckRequest {
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+  // Optional max errors to report. Defaults to 100 if not set.
+  optional int32 max_errors = 2;
+}
+
+message IntegrityCheckResponse {
+  bool success = 1;
+  string message = 2;
+  repeated string errors = 3;
+}
 
 // -----------------------------------------------------------------------------
 // Admin Messages

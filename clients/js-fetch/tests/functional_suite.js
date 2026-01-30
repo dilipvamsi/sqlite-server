@@ -4,7 +4,7 @@
  */
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { TransactionMode, SavepointAction, ColumnAffinity, DeclaredType, SQL } = require('../src/index');
+const { TransactionMode, SavepointAction, ColumnAffinity, DeclaredType, SQL, CheckpointMode } = require('../src/index');
 
 // --- Shim Jest 'expect' to node:assert ---
 function expect(actual) {
@@ -19,6 +19,7 @@ function expect(actual) {
             }
         },
         toBeDefined: () => assert.notStrictEqual(actual, undefined),
+        toBeUndefined: () => assert.strictEqual(actual, undefined),
         resolves: {
             toBe: async (expected) => assert.strictEqual(await actual, expected),
             toThrow: async (msg) => {
@@ -614,6 +615,35 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 expect(count).toBe(3);
 
                 await tx.commit();
+            });
+        });
+
+        describe("Maintenance RPCs", () => {
+            it("VACUUM", async () => {
+                const res = await client.vacuum();
+                expect(res.success).toBe(true);
+            });
+
+            it("CHECKPOINT", async () => {
+                // Perform some writes to ensure WAL activity
+                await client.query("CREATE TABLE IF NOT EXISTS cp_test (id INTEGER)");
+                await client.query("INSERT INTO cp_test (id) VALUES (1)");
+
+                // PASSIVE = 1
+                const res = await client.checkpoint(CheckpointMode.CHECKPOINT_MODE_PASSIVE);
+                expect(res.success).toBe(true);
+                // Depending on wal state, logCheckpoints might be > 0
+                expect(res.logCheckpoints).toBeDefined();
+            });
+
+            it("INTEGRITY_CHECK", async () => {
+                const res = await client.integrityCheck();
+                expect(res.success).toBe(true);
+                if (res.errors) {
+                    expect(res.errors.length).toBe(0);
+                } else {
+                    expect(res.errors).toBeUndefined();
+                }
             });
         });
     });

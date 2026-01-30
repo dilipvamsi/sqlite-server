@@ -116,6 +116,14 @@ const (
 	// DatabaseServiceGetDatabaseSchemaProcedure is the fully-qualified name of the DatabaseService's
 	// GetDatabaseSchema RPC.
 	DatabaseServiceGetDatabaseSchemaProcedure = "/db.v1.DatabaseService/GetDatabaseSchema"
+	// DatabaseServiceVacuumProcedure is the fully-qualified name of the DatabaseService's Vacuum RPC.
+	DatabaseServiceVacuumProcedure = "/db.v1.DatabaseService/Vacuum"
+	// DatabaseServiceCheckpointProcedure is the fully-qualified name of the DatabaseService's
+	// Checkpoint RPC.
+	DatabaseServiceCheckpointProcedure = "/db.v1.DatabaseService/Checkpoint"
+	// DatabaseServiceIntegrityCheckProcedure is the fully-qualified name of the DatabaseService's
+	// IntegrityCheck RPC.
+	DatabaseServiceIntegrityCheckProcedure = "/db.v1.DatabaseService/IntegrityCheck"
 	// AdminServiceCreateUserProcedure is the fully-qualified name of the AdminService's CreateUser RPC.
 	AdminServiceCreateUserProcedure = "/db.v1.AdminService/CreateUser"
 	// AdminServiceDeleteUserProcedure is the fully-qualified name of the AdminService's DeleteUser RPC.
@@ -240,6 +248,16 @@ type DatabaseServiceClient interface {
 	// Returns the full database schema for exports/migrations.
 	// Aggregates all tables with their complete schema information.
 	GetDatabaseSchema(context.Context, *connect.Request[v1.GetDatabaseSchemaRequest]) (*connect.Response[v1.DatabaseSchema], error)
+	// *
+	// Triggers a VACUUM command to rebuild the database file.
+	// Can also perform VACUUM INTO to create a backup/copy.
+	Vacuum(context.Context, *connect.Request[v1.VacuumRequest]) (*connect.Response[v1.VacuumResponse], error)
+	// *
+	// Manages WAL checkpoints (transferring WAL content to the main DB file).
+	Checkpoint(context.Context, *connect.Request[v1.CheckpointRequest]) (*connect.Response[v1.CheckpointResponse], error)
+	// *
+	// Runs an integrity check on the database.
+	IntegrityCheck(context.Context, *connect.Request[v1.IntegrityCheckRequest]) (*connect.Response[v1.IntegrityCheckResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the db.v1.DatabaseService service. By default,
@@ -367,6 +385,24 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("GetDatabaseSchema")),
 			connect.WithClientOptions(opts...),
 		),
+		vacuum: connect.NewClient[v1.VacuumRequest, v1.VacuumResponse](
+			httpClient,
+			baseURL+DatabaseServiceVacuumProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("Vacuum")),
+			connect.WithClientOptions(opts...),
+		),
+		checkpoint: connect.NewClient[v1.CheckpointRequest, v1.CheckpointResponse](
+			httpClient,
+			baseURL+DatabaseServiceCheckpointProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("Checkpoint")),
+			connect.WithClientOptions(opts...),
+		),
+		integrityCheck: connect.NewClient[v1.IntegrityCheckRequest, v1.IntegrityCheckResponse](
+			httpClient,
+			baseURL+DatabaseServiceIntegrityCheckProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("IntegrityCheck")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -391,6 +427,9 @@ type databaseServiceClient struct {
 	listTables                  *connect.Client[v1.ListTablesRequest, v1.ListTablesResponse]
 	getTableSchema              *connect.Client[v1.GetTableSchemaRequest, v1.TableSchema]
 	getDatabaseSchema           *connect.Client[v1.GetDatabaseSchemaRequest, v1.DatabaseSchema]
+	vacuum                      *connect.Client[v1.VacuumRequest, v1.VacuumResponse]
+	checkpoint                  *connect.Client[v1.CheckpointRequest, v1.CheckpointResponse]
+	integrityCheck              *connect.Client[v1.IntegrityCheckRequest, v1.IntegrityCheckResponse]
 }
 
 // Query calls db.v1.DatabaseService.Query.
@@ -488,6 +527,21 @@ func (c *databaseServiceClient) GetDatabaseSchema(ctx context.Context, req *conn
 	return c.getDatabaseSchema.CallUnary(ctx, req)
 }
 
+// Vacuum calls db.v1.DatabaseService.Vacuum.
+func (c *databaseServiceClient) Vacuum(ctx context.Context, req *connect.Request[v1.VacuumRequest]) (*connect.Response[v1.VacuumResponse], error) {
+	return c.vacuum.CallUnary(ctx, req)
+}
+
+// Checkpoint calls db.v1.DatabaseService.Checkpoint.
+func (c *databaseServiceClient) Checkpoint(ctx context.Context, req *connect.Request[v1.CheckpointRequest]) (*connect.Response[v1.CheckpointResponse], error) {
+	return c.checkpoint.CallUnary(ctx, req)
+}
+
+// IntegrityCheck calls db.v1.DatabaseService.IntegrityCheck.
+func (c *databaseServiceClient) IntegrityCheck(ctx context.Context, req *connect.Request[v1.IntegrityCheckRequest]) (*connect.Response[v1.IntegrityCheckResponse], error) {
+	return c.integrityCheck.CallUnary(ctx, req)
+}
+
 // DatabaseServiceHandler is an implementation of the db.v1.DatabaseService service.
 type DatabaseServiceHandler interface {
 	// *
@@ -575,6 +629,16 @@ type DatabaseServiceHandler interface {
 	// Returns the full database schema for exports/migrations.
 	// Aggregates all tables with their complete schema information.
 	GetDatabaseSchema(context.Context, *connect.Request[v1.GetDatabaseSchemaRequest]) (*connect.Response[v1.DatabaseSchema], error)
+	// *
+	// Triggers a VACUUM command to rebuild the database file.
+	// Can also perform VACUUM INTO to create a backup/copy.
+	Vacuum(context.Context, *connect.Request[v1.VacuumRequest]) (*connect.Response[v1.VacuumResponse], error)
+	// *
+	// Manages WAL checkpoints (transferring WAL content to the main DB file).
+	Checkpoint(context.Context, *connect.Request[v1.CheckpointRequest]) (*connect.Response[v1.CheckpointResponse], error)
+	// *
+	// Runs an integrity check on the database.
+	IntegrityCheck(context.Context, *connect.Request[v1.IntegrityCheckRequest]) (*connect.Response[v1.IntegrityCheckResponse], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -698,6 +762,24 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("GetDatabaseSchema")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceVacuumHandler := connect.NewUnaryHandler(
+		DatabaseServiceVacuumProcedure,
+		svc.Vacuum,
+		connect.WithSchema(databaseServiceMethods.ByName("Vacuum")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceCheckpointHandler := connect.NewUnaryHandler(
+		DatabaseServiceCheckpointProcedure,
+		svc.Checkpoint,
+		connect.WithSchema(databaseServiceMethods.ByName("Checkpoint")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceIntegrityCheckHandler := connect.NewUnaryHandler(
+		DatabaseServiceIntegrityCheckProcedure,
+		svc.IntegrityCheck,
+		connect.WithSchema(databaseServiceMethods.ByName("IntegrityCheck")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/db.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceQueryProcedure:
@@ -738,6 +820,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceGetTableSchemaHandler.ServeHTTP(w, r)
 		case DatabaseServiceGetDatabaseSchemaProcedure:
 			databaseServiceGetDatabaseSchemaHandler.ServeHTTP(w, r)
+		case DatabaseServiceVacuumProcedure:
+			databaseServiceVacuumHandler.ServeHTTP(w, r)
+		case DatabaseServiceCheckpointProcedure:
+			databaseServiceCheckpointHandler.ServeHTTP(w, r)
+		case DatabaseServiceIntegrityCheckProcedure:
+			databaseServiceIntegrityCheckHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -821,6 +909,18 @@ func (UnimplementedDatabaseServiceHandler) GetTableSchema(context.Context, *conn
 
 func (UnimplementedDatabaseServiceHandler) GetDatabaseSchema(context.Context, *connect.Request[v1.GetDatabaseSchemaRequest]) (*connect.Response[v1.DatabaseSchema], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.GetDatabaseSchema is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) Vacuum(context.Context, *connect.Request[v1.VacuumRequest]) (*connect.Response[v1.VacuumResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.Vacuum is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) Checkpoint(context.Context, *connect.Request[v1.CheckpointRequest]) (*connect.Response[v1.CheckpointResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.Checkpoint is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) IntegrityCheck(context.Context, *connect.Request[v1.IntegrityCheckRequest]) (*connect.Response[v1.IntegrityCheckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.IntegrityCheck is not implemented"))
 }
 
 // AdminServiceClient is a client for the db.v1.AdminService service.

@@ -104,6 +104,14 @@ export enum SavepointAction {
   SAVEPOINT_ACTION_ROLLBACK = 3,
 }
 
+export enum CheckpointMode {
+  CHECKPOINT_MODE_UNSPECIFIED = 0,
+  CHECKPOINT_MODE_PASSIVE = 1,
+  CHECKPOINT_MODE_FULL = 2,
+  CHECKPOINT_MODE_RESTART = 3,
+  CHECKPOINT_MODE_TRUNCATE = 4,
+}
+
 // --- Interfaces ---
 
 export interface SQLStatement {
@@ -177,6 +185,35 @@ export interface QueryRequestItem {
   hints?: QueryHints;
 }
 
+export interface TransactionResult {
+  success: boolean;
+}
+
+export interface SavepointResult {
+  success: boolean;
+  name: string;
+  action: SavepointAction;
+}
+
+export interface VacuumResult {
+  success: boolean;
+  message: string;
+}
+
+export interface CheckpointResult {
+  success: boolean;
+  message: string;
+  busyCheckpoints: number;
+  logCheckpoints: number;
+  checkpointedPages: number;
+}
+
+export interface IntegrityCheckResult {
+  success: boolean;
+  message: string;
+  errors: string[];
+}
+
 // --- Classes ---
 
 export class TransactionHandle {
@@ -223,13 +260,13 @@ export class TransactionHandle {
   savepoint(
     name: string,
     action: SavepointAction,
-  ): Promise<{ success: boolean; name: string; action: SavepointAction }>;
+  ): Promise<SavepointResult>;
 
   /** Commits the transaction and closes the stream. */
-  commit(): Promise<{ success: boolean }>;
+  commit(): Promise<TransactionResult>;
 
   /** Rolls back the transaction and closes the stream. */
-  rollback(): Promise<{ success: boolean }>;
+  rollback(): Promise<TransactionResult>;
 }
 
 export interface RetryConfig {
@@ -320,13 +357,13 @@ export class UnaryTransactionHandle {
   savepoint(
     name: string,
     action: SavepointAction,
-  ): Promise<{ success: boolean; name: string; action: SavepointAction }>;
+  ): Promise<SavepointResult>;
 
   /** Commits the transaction. */
-  commit(): Promise<{ success: boolean }>;
+  commit(): Promise<TransactionResult>;
 
   /** Rolls back the transaction. */
-  rollback(): Promise<{ success: boolean }>;
+  rollback(): Promise<TransactionResult>;
 }
 
 export class DatabaseClient {
@@ -394,6 +431,12 @@ export class DatabaseClient {
     type?: TransactionType,
     ...args: any[]
   ): Promise<any>;
+
+  vacuum(intoFile?: string): Promise<VacuumResult>;
+
+  checkpoint(mode: CheckpointMode): Promise<CheckpointResult>;
+
+  integrityCheck(maxErrors?: number): Promise<IntegrityCheckResult>;
 
   /** Helper to convert a row array into an object using column names. */
   static toObject(columns: string[], row: any[]): Record<string, any>;

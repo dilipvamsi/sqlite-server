@@ -524,6 +524,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.BeginTransactionResponse'
+  /db.v1.DatabaseService/Checkpoint:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Manages WAL checkpoints (transferring WAL content to the main DB file)."
+      description: "*\r\n Manages WAL checkpoints (transferring WAL content to the main DB file)."
+      operationId: db.v1.DatabaseService.Checkpoint
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.CheckpointRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.CheckpointResponse'
   /db.v1.DatabaseService/CommitTransaction:
     post:
       tags:
@@ -704,6 +740,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.TableSchema'
+  /db.v1.DatabaseService/IntegrityCheck:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Runs an integrity check on the database."
+      description: "*\r\n Runs an integrity check on the database."
+      operationId: db.v1.DatabaseService.IntegrityCheck
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.IntegrityCheckRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.IntegrityCheckResponse'
   /db.v1.DatabaseService/ListTables:
     post:
       tags:
@@ -997,6 +1069,42 @@ paths:
               schema:
                 $ref: '#/components/schemas/db.v1.TypedQueryResult'
   /db.v1.DatabaseService/TypedTransactionQueryStream: {}
+  /db.v1.DatabaseService/Vacuum:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Triggers a VACUUM command to rebuild the database file.\r  Can also perform VACUUM INTO to create a backup/copy."
+      description: "*\r\n Triggers a VACUUM command to rebuild the database file.\r\n Can also perform VACUUM INTO to create a backup/copy."
+      operationId: db.v1.DatabaseService.Vacuum
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.VacuumRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.VacuumResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -1165,6 +1273,57 @@ components:
       title: BeginTransactionResponse
       additionalProperties: false
       description: "*\r\n Response containing the transaction session token."
+    db.v1.CheckpointMode:
+      type: string
+      title: CheckpointMode
+      enum:
+        - CHECKPOINT_MODE_UNSPECIFIED
+        - CHECKPOINT_MODE_PASSIVE
+        - CHECKPOINT_MODE_FULL
+        - CHECKPOINT_MODE_RESTART
+        - CHECKPOINT_MODE_TRUNCATE
+    db.v1.CheckpointRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+        mode:
+          title: mode
+          $ref: '#/components/schemas/db.v1.CheckpointMode'
+      title: CheckpointRequest
+      additionalProperties: false
+    db.v1.CheckpointResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+        busyCheckpoints:
+          type:
+            - integer
+            - string
+          title: busy_checkpoints
+          format: int64
+          description: "Number of checkpoints that were busy/blocked? Or internal SQLite return\r\n values. SQLite returns (busy, log, checkpointed) usually.\r\n PRAGMA wal_checkpoint returns (busy, log, checkpointed)\r\n Actually it returns: a single row with three integer columns:\r\n 1. 0 if successful, 1 if busy. (But this is the return code of the pragma,\r\n usually handled by error)\r\n Wait, PRAGMA wal_checkpoint(MODE) returns (Busy, Log, Checkpointed)? No.\r\n It returns: (0, N, M) where N is number of pages in WAL, M is number of\r\n pages checkpointed.\r\n Let's settle on: usually 0 or 1"
+        logCheckpoints:
+          type:
+            - integer
+            - string
+          title: log_checkpoints
+          format: int64
+        checkpointedPages:
+          type:
+            - integer
+            - string
+          title: checkpointed_pages
+          format: int64
+      title: CheckpointResponse
+      additionalProperties: false
     db.v1.ColumnAffinity:
       type: string
       title: ColumnAffinity
@@ -1709,6 +1868,38 @@ components:
       title: IndexSchema
       additionalProperties: false
       description: "*\r\n Schema information for a single index.\r\n Derived from PRAGMA index_list() and index_info()."
+    db.v1.IntegrityCheckRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+        maxErrors:
+          type:
+            - integer
+            - "null"
+          title: max_errors
+          format: int32
+          description: Optional max errors to report. Defaults to 100 if not set.
+      title: IntegrityCheckRequest
+      additionalProperties: false
+    db.v1.IntegrityCheckResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+        errors:
+          type: array
+          items:
+            type: string
+          title: errors
+      title: IntegrityCheckResponse
+      additionalProperties: false
     db.v1.ListApiKeysRequest:
       type: object
       properties:
@@ -2917,6 +3108,32 @@ components:
       title: User
       additionalProperties: false
       description: "*\r\n Basic user information."
+    db.v1.VacuumRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+        intoFile:
+          type:
+            - string
+            - "null"
+          title: into_file
+          description: "Optional: If set, performs VACUUM INTO 'into_file'.\r\n Relative/Absolute path handling depends on server configuration."
+      title: VacuumRequest
+      additionalProperties: false
+    db.v1.VacuumResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: VacuumResponse
+      additionalProperties: false
     google.protobuf.Duration:
       type: string
       format: duration

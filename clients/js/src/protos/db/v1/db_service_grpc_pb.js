@@ -58,6 +58,28 @@ function deserialize_db_v1_BeginTransactionResponse(buffer_arg) {
   return db_v1_db_service_pb.BeginTransactionResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_CheckpointRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CheckpointRequest)) {
+    throw new Error('Expected argument of type db.v1.CheckpointRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CheckpointRequest(buffer_arg) {
+  return db_v1_db_service_pb.CheckpointRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_CheckpointResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.CheckpointResponse)) {
+    throw new Error('Expected argument of type db.v1.CheckpointResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_CheckpointResponse(buffer_arg) {
+  return db_v1_db_service_pb.CheckpointResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_CreateApiKeyRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.CreateApiKeyRequest)) {
     throw new Error('Expected argument of type db.v1.CreateApiKeyRequest');
@@ -243,6 +265,28 @@ function serialize_db_v1_GetTableSchemaRequest(arg) {
 
 function deserialize_db_v1_GetTableSchemaRequest(buffer_arg) {
   return db_v1_db_service_pb.GetTableSchemaRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_IntegrityCheckRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.IntegrityCheckRequest)) {
+    throw new Error('Expected argument of type db.v1.IntegrityCheckRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_IntegrityCheckRequest(buffer_arg) {
+  return db_v1_db_service_pb.IntegrityCheckRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_IntegrityCheckResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.IntegrityCheckResponse)) {
+    throw new Error('Expected argument of type db.v1.IntegrityCheckResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_IntegrityCheckResponse(buffer_arg) {
+  return db_v1_db_service_pb.IntegrityCheckResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_ListApiKeysRequest(arg) {
@@ -597,6 +641,28 @@ function deserialize_db_v1_UpdatePasswordResponse(buffer_arg) {
   return db_v1_db_service_pb.UpdatePasswordResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_VacuumRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.VacuumRequest)) {
+    throw new Error('Expected argument of type db.v1.VacuumRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_VacuumRequest(buffer_arg) {
+  return db_v1_db_service_pb.VacuumRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_VacuumResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.VacuumResponse)) {
+    throw new Error('Expected argument of type db.v1.VacuumResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_VacuumResponse(buffer_arg) {
+  return db_v1_db_service_pb.VacuumResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 
 // -----------------------------------------------------------------------------
 // Service Definition
@@ -901,6 +967,48 @@ getDatabaseSchema: {
     requestDeserialize: deserialize_db_v1_GetDatabaseSchemaRequest,
     responseSerialize: serialize_db_v1_DatabaseSchema,
     responseDeserialize: deserialize_db_v1_DatabaseSchema,
+  },
+  // --- Maintenance Operations ---
+//
+// *
+// Triggers a VACUUM command to rebuild the database file.
+// Can also perform VACUUM INTO to create a backup/copy.
+vacuum: {
+    path: '/db.v1.DatabaseService/Vacuum',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.VacuumRequest,
+    responseType: db_v1_db_service_pb.VacuumResponse,
+    requestSerialize: serialize_db_v1_VacuumRequest,
+    requestDeserialize: deserialize_db_v1_VacuumRequest,
+    responseSerialize: serialize_db_v1_VacuumResponse,
+    responseDeserialize: deserialize_db_v1_VacuumResponse,
+  },
+  // *
+// Manages WAL checkpoints (transferring WAL content to the main DB file).
+checkpoint: {
+    path: '/db.v1.DatabaseService/Checkpoint',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.CheckpointRequest,
+    responseType: db_v1_db_service_pb.CheckpointResponse,
+    requestSerialize: serialize_db_v1_CheckpointRequest,
+    requestDeserialize: deserialize_db_v1_CheckpointRequest,
+    responseSerialize: serialize_db_v1_CheckpointResponse,
+    responseDeserialize: deserialize_db_v1_CheckpointResponse,
+  },
+  // *
+// Runs an integrity check on the database.
+integrityCheck: {
+    path: '/db.v1.DatabaseService/IntegrityCheck',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.IntegrityCheckRequest,
+    responseType: db_v1_db_service_pb.IntegrityCheckResponse,
+    requestSerialize: serialize_db_v1_IntegrityCheckRequest,
+    requestDeserialize: deserialize_db_v1_IntegrityCheckRequest,
+    responseSerialize: serialize_db_v1_IntegrityCheckResponse,
+    responseDeserialize: deserialize_db_v1_IntegrityCheckResponse,
   },
 };
 

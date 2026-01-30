@@ -478,6 +478,56 @@ class DatabaseClient {
         }
     }
 
+    async getDatabaseSchema(database) {
+        const req = { database };
+        const res = await this._fetch('db.v1.DatabaseService/GetDatabaseSchema', req);
+        return res.json();
+    }
+
+    /**
+     * Triggers a VACUUM command to rebuild the database file.
+     * @param {string} [intoFile] - Optional path to create a backup file (VACUUM INTO).
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async vacuum(intoFile) {
+        const req = { database: this.database };
+        if (intoFile) {
+            req.intoFile = intoFile;
+        }
+        const res = await this._fetch(RPC.VACUUM, req);
+        return res.json();
+    }
+
+    /**
+     * Manages WAL checkpoints.
+     * @param {import('./constants').CheckpointMode} mode - The checkpoint mode.
+     * @returns {Promise<{success: boolean, message: string, busyCheckpoints: number, logCheckpoints: number, checkpointedPages: number}>}
+     */
+    async checkpoint(mode) {
+        const req = { database: this.database, mode };
+        const res = await this._fetch(RPC.CHECKPOINT, req);
+        const json = await res.json();
+        // Map Int64 to Number for easier usage in JS (assuming values fit in 53 bits)
+        return {
+            success: json.success,
+            message: json.message,
+            busyCheckpoints: Number(json.busyCheckpoints),
+            logCheckpoints: Number(json.logCheckpoints),
+            checkpointedPages: Number(json.checkpointedPages),
+        };
+    }
+
+    /**
+     * Runs an integrity check on the database.
+     * @param {number} [maxErrors=100] - Max errors to report.
+     * @returns {Promise<{success: boolean, message: string, errors: string[]}>}
+     */
+    async integrityCheck(maxErrors = 100) {
+        const req = { database: this.database, maxErrors };
+        const res = await this._fetch(RPC.INTEGRITY_CHECK, req);
+        return res.json();
+    }
+
     close() {
         // Nothing to close for fetch
     }
