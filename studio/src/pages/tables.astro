@@ -1,0 +1,351 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Tables">
+    <header class="header-nav">
+        <div class="logo">
+            <a href="/studio/" class="back-link">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path d="M19 12H5M12 19l-7-7 7-7"></path></svg
+                >
+            </a>
+            <span>Tables: <strong id="db-name-display">Loading...</strong></span
+            >
+        </div>
+        <div class="user-menu">
+            <button id="logout-btn" class="btn btn-ghost btn-sm">Logout</button>
+        </div>
+    </header>
+
+    <main class="console-layout">
+        <div class="tables-container" id="tables-container">
+            <div class="loading-state">Loading schema...</div>
+        </div>
+    </main>
+</Layout>
+
+<script>
+    import { getClient, getAuthHeaders, performLogout } from "../lib/client";
+    import { DatabaseService } from "../gen/db/v1/db_service_pb";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const dbName = urlParams.get("db");
+
+    if (!dbName) {
+        window.location.href = "/studio/";
+    }
+
+    const dbNameDisplay = document.getElementById("db-name-display");
+    if (dbNameDisplay) dbNameDisplay.textContent = dbName || "";
+
+    const container = document.getElementById("tables-container");
+
+    async function loadSchema() {
+        if (!container) return;
+
+        try {
+            const client = getClient(DatabaseService);
+            const headers = getAuthHeaders() as HeadersInit;
+
+            const response = await client.getDatabaseSchema(
+                {
+                    database: dbName!,
+                },
+                { headers },
+            );
+
+            renderTables(response.tables);
+        } catch (e: any) {
+            container.innerHTML = `<div class="error-msg">Failed to load schema: ${e.message}</div>`;
+        }
+    }
+
+    function renderTables(tables: any[]) {
+        if (!container) return;
+
+        if (tables.length === 0) {
+            container.innerHTML =
+                '<div class="empty-state">No tables found in this database.</div>';
+            return;
+        }
+
+        container.innerHTML = tables
+            .map((table) => {
+                // Build columns HTML
+                const columnsHtml = table.columns
+                    .map(
+                        (col: any) => `
+                <tr>
+                    <td class="col-name">${col.name} ${col.primaryKey ? "🔑" : ""}</td>
+                    <td class="col-type">${col.type}</td>
+                    <td class="col-meta">
+                        <div class="col-attributes">
+                            ${col.primaryKey ? '<span class="badge value">PRIMARY KEY</span>' : ""}
+                            ${col.notNull ? '<span class="badge">NOT NULL</span>' : ""}
+                            ${col.defaultValue ? `<span class="badge value">Default: ${col.defaultValue}</span>` : ""}
+                        </div>
+                    </td>
+                </tr>
+            `,
+                    )
+                    .join("");
+
+                return `
+            <div class="table-card">
+                <div class="table-header">
+                    <h3>${table.name}</h3>
+                    <button class="btn btn-sm btn-ghost toggle-sql-btn">Show SQL</button>
+                </div>
+                <div class="table-sql" style="display:none">
+                    <pre><code>${table.sql}</code></pre>
+                </div>
+                <div class="table-columns">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 30%">Column</th>
+                                <th style="width: 20%">Type</th>
+                                <th style="width: 50%">Attributes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${columnsHtml}
+                        </tbody>
+                    </table>
+                </div>
+                
+                ${
+                    table.indexes && table.indexes.length > 0
+                        ? `
+                <div class="table-indexes">
+                    <h4>Indexes</h4>
+                    <ul>
+                        ${table.indexes
+                            .map(
+                                (idx: any) => `
+                            <li>
+                                <span class="index-icon">${idx.unique ? "🔒" : "📑"}</span>
+                                <span class="index-name">${idx.name}</span>
+                                ${idx.unique ? '<span class="badge value">UNIQUE</span>' : ""}
+                                <span class="index-cols">(${idx.columns.join(", ")})</span>
+                            </li>
+                        `,
+                            )
+                            .join("")}
+                    </ul>
+                </div>
+                `
+                        : ""
+                }
+            </div>
+            `;
+            })
+            .join("");
+
+        // Attach listeners
+        container.querySelectorAll(".toggle-sql-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+                const target = e.target as HTMLElement;
+                const sqlDiv = target.closest(".table-header")
+                    ?.nextElementSibling as HTMLElement;
+                if (sqlDiv) {
+                    if (sqlDiv.style.display === "none") {
+                        sqlDiv.style.display = "block";
+                        target.textContent = "Hide SQL";
+                    } else {
+                        sqlDiv.style.display = "none";
+                        target.textContent = "Show SQL";
+                    }
+                }
+            });
+        });
+    }
+
+    // Logout functionality
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", async () => {
+            if (confirm("Are you sure you want to logout?")) {
+                await performLogout();
+            }
+        });
+    }
+
+    loadSchema();
+</script>
+
+<style is:global>
+    :root {
+        --card-bg: var(--bg-secondary);
+        --card-border: var(--border-color);
+    }
+
+    .console-layout {
+        width: 100%;
+        margin: 0;
+        padding: 2rem;
+        height: calc(100vh - 60px);
+        overflow-y: auto;
+        background: var(--bg-primary);
+    }
+
+    .tables-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .table-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .table-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: var(--accent-color);
+    }
+
+    .table-sql {
+        background: var(--bg-secondary);
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+    }
+
+    .table-sql pre {
+        margin: 0;
+        font-family: var(--mono-font);
+        font-size: 0.85rem;
+    }
+
+    .table-columns table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .table-columns th {
+        text-align: left;
+        padding: 0.5rem;
+        border-bottom: 2px solid var(--border-color);
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+
+    .table-columns td {
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .col-name {
+        font-family: var(--mono-font);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .col-type {
+        font-family: var(--mono-font);
+        color: var(--accent-color);
+    }
+
+    .col-attributes {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap; /* Add wrap for many attributes */
+        align-items: center; /* Vertically align items */
+    }
+
+    .table-indexes {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--border-color);
+    }
+
+    .table-indexes h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        color: var(--text-secondary);
+    }
+
+    .table-indexes ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .table-indexes li {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0;
+        font-size: 0.9rem;
+    }
+
+    .index-icon {
+        font-size: 1rem;
+        width: 20px;
+        text-align: center;
+    }
+
+    .index-name {
+        font-family: var(--mono-font);
+        font-weight: 600;
+    }
+
+    .index-cols {
+        color: var(--text-secondary);
+    }
+
+    .badge {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+    }
+
+    .badge.value {
+        background: rgba(59, 130, 246, 0.1);
+        color: var(--accent-color);
+        border-color: transparent;
+    }
+
+    .loading-state,
+    .error-msg,
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .error-msg {
+        color: var(--danger-color);
+    }
+</style>
