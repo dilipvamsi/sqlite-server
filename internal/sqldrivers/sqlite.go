@@ -3,6 +3,7 @@ package sqldrivers
 import (
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/mattn/go-sqlite3"
@@ -14,6 +15,12 @@ import (
 // const BuildType = "std"
 
 func NewSqliteDb(config *dbv1.DatabaseConfig) (*sql.DB, error) {
+	// Resolve absolute path to avoid issues with relative paths in URI mode (file:...) via CGO
+	absPath, err := filepath.Abs(config.DbPath)
+	if err == nil {
+		config.DbPath = absPath
+	}
+
 	// Construct the Data Source Name (DSN) with production-ready parameters.
 	// - _journal=WAL: Enables Write-Ahead Logging for vastly improved concurrency.
 	//   It allows multiple readers to operate while a single writer is active.

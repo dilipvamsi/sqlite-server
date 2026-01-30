@@ -303,7 +303,7 @@ tidy: ## Clean up and sync go.mod and go.sum
 clean: ## Remove binaries, database files, and coverage reports
 	rm -rf $(BUILD_DIR)
 	rm -rf $(TEST_DATA_DIR)
-	rm -rf _meta.db
+	rm -rf _meta.db _meta.db-shm _meta.db-wal
 	rm -f coverage.out coverage.raw.out coverage.html
 	@echo "Cleanup complete."
 

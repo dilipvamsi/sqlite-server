@@ -1,7 +1,7 @@
 import localforage from 'localforage';
 import { toJson } from "@bufbuild/protobuf";
 import { ValueSchema } from "@bufbuild/protobuf/wkt";
-import { DeclaredType } from "../gen/db/v1/db_service_pb";
+import { DeclaredType, type QueryPlanNode } from "../gen/db/v1/db_service_pb";
 
 export interface NotebookCard {
     id: string;
@@ -21,6 +21,7 @@ export interface NotebookCard {
     executionTimeMs?: string;
     status: 'idle' | 'running' | 'success' | 'error';
     readOnly?: boolean; // New: To lock successful transaction steps
+    explainResult?: QueryPlanNode[]; // For Explain mode
 }
 
 export type RunQueryCallback = (sql: string, params: string) => Promise<any>;
@@ -31,7 +32,7 @@ const STORE_NAME = 'sqlite-studio-data';
 export class NotebookManager {
     private store: LocalForage;
     private dbName: string;
-    private pageType: 'query' | 'transaction';
+    private pageType: 'query' | 'transaction' | 'explain';
     private cardContainer: HTMLElement;
     private resultContainer: HTMLElement;
     private runCallback: RunQueryCallback;
@@ -45,7 +46,7 @@ export class NotebookManager {
 
     constructor(
         dbName: string,
-        pageType: 'query' | 'transaction',
+        pageType: 'query' | 'transaction' | 'explain',
         cardContainer: HTMLElement,
         resultContainer: HTMLElement,
         runCallback: RunQueryCallback
@@ -64,6 +65,8 @@ export class NotebookManager {
         // Default Prefix
         if (this.pageType === 'query') {
             this.storagePrefix = `${this.dbName}/query/`;
+        } else if (this.pageType === 'explain') {
+            this.storagePrefix = `${this.dbName}/explain/`;
         } else {
             // For transaction, we start with a default or 'draft' scope until a Tx starts
             this.storagePrefix = `${this.dbName}/transaction/draft/query/`;
@@ -173,7 +176,7 @@ export class NotebookManager {
             if (this.cards.length === 0) {
                 // If context is specific Tx ID (not draft), maybe it's empty history? 
                 // Don't auto-add card for historical tx, only for new/draft or empty query console
-                if (this.pageType === 'query' || this.storagePrefix.includes('draft')) {
+                if (this.pageType === 'query' || this.pageType === 'explain' || this.storagePrefix.includes('draft')) {
                     this.addCard(false);
                 }
             } else {
@@ -184,7 +187,7 @@ export class NotebookManager {
             }
         } else {
             // Same logic, don't auto-add for history
-            if (this.pageType === 'query' || this.storagePrefix.includes('draft')) {
+            if (this.pageType === 'query' || this.pageType === 'explain' || this.storagePrefix.includes('draft')) {
                 this.addCard(false);
             } else {
                 this.cards = [];
@@ -369,19 +372,27 @@ export class NotebookManager {
                 card.executionTimeMs = result.stats.durationMs;
             }
 
-            if (result.result.case === 'select') {
-                card.result = {
-                    columns: result.result.value.columns,
-                    columnAffinities: result.result.value.columnAffinities,
-                    columnDeclaredTypes: result.result.value.columnDeclaredTypes,
-                    columnRawTypes: result.result.value.columnRawTypes,
-                    rows: result.result.value.rows,
-                };
-            } else if (result.result.case === 'dml') {
-                card.result = {
-                    rowsAffected: result.result.value.rowsAffected.toString(),
-                    lastInsertId: result.result.value.lastInsertId.toString()
-                };
+            if (this.pageType === 'explain') {
+                if (result.nodes) {
+                    // Explain Response
+                    card.explainResult = result.nodes;
+                }
+            } else {
+                // Query or Transaction Response
+                if (result.result.case === 'select') {
+                    card.result = {
+                        columns: result.result.value.columns,
+                        columnAffinities: result.result.value.columnAffinities,
+                        columnDeclaredTypes: result.result.value.columnDeclaredTypes,
+                        columnRawTypes: result.result.value.columnRawTypes,
+                        rows: result.result.value.rows,
+                    };
+                } else if (result.result.case === 'dml') {
+                    card.result = {
+                        rowsAffected: result.result.value.rowsAffected.toString(),
+                        lastInsertId: result.result.value.lastInsertId.toString()
+                    };
+                }
             }
 
             // Save everything
@@ -396,8 +407,8 @@ export class NotebookManager {
                 if (!hasEmptyCard) {
                     this.addCard(true, false);
                 }
-            } else if (this.pageType === 'query') {
-                // Query mode: auto-add a new card for convenience, keep selection on current result
+            } else if (this.pageType === 'query' || this.pageType === 'explain') {
+                // Query/Explain mode: auto-add a new card for convenience, keep selection on current result
                 if (!hasEmptyCard) {
                     this.addCard(true, false);
                 }
@@ -510,7 +521,9 @@ export class NotebookManager {
             content = `<div class="error-msg">${card.error}</div>`;
         } else if (card.result) {
             content = this.generateResultHTML(card);
-        } else if (card.status === 'success' && !card.result) {
+        } else if (card.explainResult) {
+            content = this.generateExplainHTML(card.explainResult);
+        } else if (card.status === 'success' && !card.result && !card.explainResult) {
             // Should theoretically be lazy loading, but if we got here and it's missing, it might be empty result or loading
             content = '<div class="loading-state">Loading result data...</div>';
         } else if (this.readOnly) {
@@ -646,5 +659,68 @@ export class NotebookManager {
             console.error(e);
             return String(val);
         }
+    }
+
+    private generateExplainHTML(nodes: QueryPlanNode[]): string {
+        if (!nodes || nodes.length === 0) return '<div class="empty-msg">No plan generated</div>';
+
+        // Build Tree structure from flat nodes
+        const nodeMap = new Map<number, QueryPlanNode>();
+        const childrenMap = new Map<number, number[]>();
+        const rootIds: number[] = [];
+
+        nodes.forEach(n => {
+            nodeMap.set(n.id, n);
+            childrenMap.set(n.id, []);
+        });
+
+        // Populate children and roots
+        nodes.forEach(n => {
+            if (n.parentId === 0) {
+                rootIds.push(n.id);
+            } else {
+                const siblings = childrenMap.get(n.parentId);
+                if (siblings) siblings.push(n.id);
+                else rootIds.push(n.id); // Orphaning fallback
+            }
+        });
+
+        // Actually parentId 0 might not be the only root indicator in SQLite explain plans.
+        // Sometimes it's hierarchical, sometimes just a list. 
+        // But usually parent=0 is root.
+
+        let html = '<div class="explain-tree"><ul>';
+        rootIds.forEach(id => {
+            html += this.generateExplainTree(id, nodeMap, childrenMap);
+        });
+        html += '</ul></div>';
+        return html;
+    }
+
+    private generateExplainTree(id: number, nodeMap: Map<number, QueryPlanNode>, childrenMap: Map<number, number[]>): string {
+        const node = nodeMap.get(id);
+        if (!node) return '';
+
+        const children = childrenMap.get(id) || [];
+
+        let html = `
+        <li>
+            <div class="explain-node">
+                <div class="explain-content">
+                    <span class="explain-id">#${node.id}</span>
+                    <span class="explain-detail">${node.detail}</span>
+                </div>
+            </div>`;
+
+        if (children.length > 0) {
+            html += '<ul>';
+            children.forEach(childId => {
+                html += this.generateExplainTree(childId, nodeMap, childrenMap);
+            });
+            html += '</ul>';
+        }
+
+        html += '</li>';
+        return html;
     }
 }

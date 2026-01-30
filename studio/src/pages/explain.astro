@@ -1,0 +1,442 @@
+---
+import Layout from "../layouts/Layout.astro";
+// No getStaticPaths needed
+---
+
+<Layout title="Explain Console">
+    <header class="header-nav">
+        <div class="logo">
+            <a href="/studio/" class="back-link">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path d="M19 12H5M12 19l-7-7 7-7"></path></svg
+                >
+            </a>
+            <span
+                >Explain: <strong id="db-name-display">Loading...</strong></span
+            >
+        </div>
+        <div class="user-menu">
+            <button id="logout-btn" class="btn btn-ghost btn-sm">Logout</button>
+        </div>
+    </header>
+
+    <main class="console-layout" id="main-layout">
+        <div class="cards-pane">
+            <div class="pane-header">
+                <h3>Explain Plan</h3>
+                <div class="pane-header-actions">
+                    <button
+                        id="clear-all-btn"
+                        class="btn btn-sm btn-ghost"
+                        style="color: var(--danger-color);">Clear All</button
+                    >
+                    <button id="add-card-btn" class="btn btn-sm btn-secondary"
+                        >+ Add</button
+                    >
+                </div>
+            </div>
+            <div id="notebook-container" class="notebook-container">
+                <!-- Cards injected here -->
+            </div>
+        </div>
+
+        <div id="resizer" class="resizer"></div>
+
+        <div class="results-pane">
+            <div id="active-result-container" class="active-result-container">
+                <div class="empty-state">
+                    Select a query to see the explain plan.
+                </div>
+            </div>
+        </div>
+    </main>
+</Layout>
+
+<script>
+    import { getClient, getAuthHeaders, performLogout } from "../lib/client";
+    import { DatabaseService } from "../gen/db/v1/db_service_pb";
+    import { NotebookManager } from "../lib/notebook";
+    import { fromJson } from "@bufbuild/protobuf";
+    import { ListValueSchema, StructSchema } from "@bufbuild/protobuf/wkt";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const dbName = urlParams.get("db");
+
+    if (!dbName) {
+        window.location.href = "/studio/";
+    }
+
+    const dbNameDisplay = document.getElementById("db-name-display");
+    if (dbNameDisplay) dbNameDisplay.textContent = dbName || "";
+
+    // --- Resizer Logic ---
+    const resizer = document.getElementById("resizer");
+
+    // Load saved width
+    const savedWidth = localStorage.getItem("studio-pane-width");
+    if (savedWidth) {
+        document.documentElement.style.setProperty(
+            "--left-pane-width",
+            `${savedWidth}px`,
+        );
+    }
+
+    if (resizer) {
+        let isResizing = false;
+
+        resizer.addEventListener("mousedown", (_e) => {
+            isResizing = true;
+            document.body.style.cursor = "col-resize";
+            resizer.classList.add("active");
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (!isResizing) return;
+            e.preventDefault();
+            const newWidth = e.clientX;
+            // Min/Max constraints
+            if (newWidth > 200 && newWidth < window.innerWidth - 300) {
+                document.documentElement.style.setProperty(
+                    "--left-pane-width",
+                    `${newWidth}px`,
+                );
+            }
+        });
+
+        document.addEventListener("mouseup", (_e) => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = "default";
+                resizer.classList.remove("active");
+                // Save width
+                const currentWidth = getComputedStyle(
+                    document.documentElement,
+                ).getPropertyValue("--left-pane-width");
+                localStorage.setItem(
+                    "studio-pane-width",
+                    parseFloat(currentWidth).toString(),
+                );
+            }
+        });
+    }
+
+    // Parse Parameters Helper
+    function parseParams(
+        input: string,
+    ): { positional?: any[]; named?: Record<string, any> } | null {
+        if (!input.trim()) return {};
+        try {
+            const parsed = JSON.parse(input);
+            if (Array.isArray(parsed)) return { positional: parsed };
+            if (typeof parsed === "object" && parsed !== null) {
+                const keys = Object.keys(parsed);
+                const possibleKeys = new Set(["positional", "named"]);
+                const isWrapper =
+                    keys.length > 0 && keys.every((k) => possibleKeys.has(k));
+
+                if (isWrapper) {
+                    return {
+                        positional: parsed.positional,
+                        named: parsed.named,
+                    };
+                }
+                return { named: parsed };
+            }
+            throw new Error("Parameters must be a JSON Array or Object");
+        } catch (e: any) {
+            throw new Error("Invalid JSON parameters: " + e.message);
+        }
+    }
+
+    // Initialize Notebook
+    const container = document.getElementById("notebook-container");
+    const resultContainer = document.getElementById("active-result-container");
+    const addBtn = document.getElementById("add-card-btn");
+    const clearBtn = document.getElementById("clear-all-btn");
+
+    if (container && resultContainer && addBtn && clearBtn) {
+        const notebook = new NotebookManager(
+            dbName!,
+            "explain", // explain mode
+            container,
+            resultContainer,
+            async (sql, paramsInput) => {
+                const client = getClient(DatabaseService);
+                const headers = getAuthHeaders() as HeadersInit;
+
+                // Parse params
+                const parsedParams = parseParams(paramsInput);
+                const parameters: any = {};
+                if (parsedParams?.positional) {
+                    parameters.positional = fromJson(
+                        ListValueSchema,
+                        parsedParams.positional,
+                    );
+                }
+                if (parsedParams?.named) {
+                    parameters.named = fromJson(
+                        StructSchema,
+                        parsedParams.named,
+                    );
+                }
+
+                // Execute Explain
+                // We use TypedExplain if available or fallback?
+                // The proto has 'explain' and 'typedExplain'. 'explain' takes QueryRequest.
+                return await client.explain(
+                    {
+                        database: dbName!,
+                        sql: sql,
+                        parameters: parameters,
+                    },
+                    { headers },
+                );
+            },
+        );
+
+        addBtn.addEventListener("click", () => notebook.addCard());
+        clearBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            notebook.clearAll();
+        });
+    }
+
+    // Logout functionality
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", async () => {
+            if (!confirm("Are you sure you want to logout?")) return;
+            await performLogout();
+        });
+    }
+</script>
+<style is:global>
+    /* Global styles for notebook components injected by JS */
+    :root {
+        --card-bg: var(--bg-secondary);
+        --card-border: var(--border-color);
+        --left-pane-width: 350px;
+    }
+
+    .console-layout {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        height: calc(100vh - 60px);
+        display: grid;
+        grid-template-columns: var(--left-pane-width) 4px 1fr;
+        overflow: hidden;
+    }
+
+    .resizer {
+        width: 4px;
+        background: var(--border-color);
+        cursor: col-resize;
+        transition: background 0.2s;
+        z-index: 10; /* Ensure on top */
+    }
+    .resizer:hover,
+    .resizer.active {
+        background: var(--accent-color);
+        width: 6px; /* Grow slightly on hover */
+        margin-left: -1px; /* Center growth */
+    }
+
+    .cards-pane {
+        border-right: none;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-secondary);
+        overflow: hidden;
+    }
+
+    .pane-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--bg-primary);
+    }
+    .pane-header h3 {
+        margin: 0;
+        font-size: 1rem;
+    }
+
+    .pane-header-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .notebook-container {
+        padding: 1rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-height: 100%;
+    }
+
+    .results-pane {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-primary);
+    }
+
+    .active-result-container {
+        padding: 0;
+        overflow: auto;
+        height: 100%;
+    }
+
+    .result-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+    }
+
+    .notebook-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        position: relative;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+
+    .notebook-card.active {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    }
+
+    .card-controls {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+
+    .card-inputs {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .input-group label {
+        display: block;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin-bottom: 0.2rem;
+    }
+
+    .notebook-card textarea {
+        width: 100%;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 0.5rem;
+        border-radius: 4px;
+        font-family: var(--mono-font);
+        resize: vertical;
+        font-size: 0.9rem;
+    }
+
+    .params-editor {
+        font-size: 0.8rem !important;
+        resize: none !important;
+    }
+
+    .card-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+
+    .duration {
+        font-size: 0.75rem;
+        color: var(--success-color);
+    }
+
+    /* Explained Tree Styles */
+    .explain-tree {
+        padding: 1rem;
+        font-family: var(--mono-font);
+        font-size: 0.9rem;
+    }
+
+    .explain-tree ul {
+        list-style: none;
+        padding-left: 1.5rem;
+        margin: 0;
+        border-left: 1px solid var(--border-color);
+    }
+
+    .explain-tree > ul {
+        padding-left: 0;
+        border-left: none;
+    }
+
+    .explain-node {
+        padding: 0.25rem 0;
+    }
+
+    .explain-content {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .explain-content:hover {
+        background: var(--bg-secondary);
+    }
+
+    .explain-id {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        min-width: 24px;
+    }
+
+    .explain-detail {
+        color: var(--text-primary);
+    }
+
+    /* Common Utility States */
+    .empty-msg,
+    .empty-state,
+    .loading-state {
+        color: var(--text-secondary);
+        padding: 2rem;
+        text-align: center;
+    }
+    .loading-state {
+        color: var(--accent-color);
+    }
+
+    .error-msg {
+        color: var(--danger-color);
+        padding: 1rem;
+        font-family: var(--mono-font);
+    }
+</style>
