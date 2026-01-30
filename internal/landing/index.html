@@ -402,6 +402,9 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.75rem;
             font-weight: 600;
+            min-width: 80px;
+            display: inline-flex;
+            justify-content: center;
         }
 
         .method.post {
@@ -583,6 +586,16 @@
                         <h3>Web Studio</h3>
                         <p>Built-in web UI for querying, managing transactions, and administering databases.</p>
                     </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔍</div>
+                        <h3>Introspection</h3>
+                        <p>Inspect schemas, list tables, and explain query plans for optimization.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🧹</div>
+                        <h3>Maintenance</h3>
+                        <p>Perform Vacuum, Checkpoint, and Integrity checks via API.</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -663,6 +676,21 @@ curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService
                         <span class="method post">POST</span>
                         <span class="endpoint-path">/db.v1.DatabaseService/ExecuteTransaction</span>
                         <span class="endpoint-desc">Execute atomic transaction script</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/GetDatabaseSchema</span>
+                        <span class="endpoint-desc">Get full database schema</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/Explain</span>
+                        <span class="endpoint-desc">Explain query plan</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/Vacuum</span>
+                        <span class="endpoint-desc">Run VACUUM command</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>

@@ -45,6 +45,21 @@ SQLite is dynamically typed, but gRPC/Protobuf is statically typed. To bridge th
 *   **UUIDv7:** Generates time-ordered unique identifiers for all requests, sessions, and API keys.
 *   **Error Fidelity:** Maps native C SQLite error codes (e.g., `SQLITE_BUSY`, `SQLITE_CONSTRAINT`) to a Protobuf Enum for programmatic error handling.
 
+### 7. Introspection & Schema
+Inspect the database structure programmatically:
+*   **Explain:** Get the query plan for performance analysis.
+*   **ListTables:** Get a lightweight list of all tables.
+*   **GetDatabaseSchema:** Get a full JSON representation of the database schema (tables, columns, indexes, triggers).
+
+### 8. Maintenance & Integrity
+Perform essential database maintenance tasks:
+*   **Vacuum:** Rebuilds the database file to reclaim space and reduce fragmentation.
+*   **Checkpoint:** Forces a WAL checkpoint to sync the write-ahead log to the main database file.
+*   **IntegrityCheck:** Runs a quick integrity check to detect corruption.
+
+### 9. Typed API
+A strictly typed alternative to the sparse hint system. Instead of generic `ListValue`, it uses specific Protobuf messages for each data type (`TypedQuery`, `TypedTransactionQuery`). This provides better wire efficiency and type safety at the cost of flexibility.
+
 ---
 
 ## 🏗 Architecture
@@ -287,6 +302,27 @@ This requires a gRPC or Connect client that supports bidirectional streaming.
 2.  Send `TransactionalQueryRequest` (Wait for response).
 3.  Send `TransactionalQueryRequest` (Wait for response).
 4.  Send `CommitRequest`.
+
+### 6. Explain Query Plan
+*Best for: Performance debugging.*
+
+**POST** `/db.v1.DatabaseService/Explain`
+```json
+{
+  "database": "primary",
+  "sql": "SELECT * FROM users WHERE email = ?",
+  "parameters": { "positional": ["test@example.com"] }
+}
+```
+*Response:* A hierarchical tree of query plan nodes (`ExplainResponse`).
+
+### 7. Maintenance (Vacuum)
+*Best for: optimizing storage.*
+
+**POST** `/db.v1.DatabaseService/Vacuum`
+```json
+{ "database": "primary" }
+```
 
 ---
 
