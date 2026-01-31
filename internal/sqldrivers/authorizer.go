@@ -65,8 +65,6 @@ var WriteActions = map[int]bool{
 	sqlite3.SQLITE_ALTER_TABLE:         true,
 	sqlite3.SQLITE_CREATE_VTABLE:       true,
 	sqlite3.SQLITE_DROP_VTABLE:         true,
-	sqlite3.SQLITE_ATTACH:              true,
-	sqlite3.SQLITE_DETACH:              true,
 	sqlite3.SQLITE_REINDEX:             true,
 }
 

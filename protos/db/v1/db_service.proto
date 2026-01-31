@@ -500,6 +500,13 @@ service AdminService {
    * - Mounted DBs: Returns error (protects external files).
    */
   rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
+
+  /**
+   * Updates an existing database configuration.
+   * Useful for changing settings like init_commands, max_open_conns, etc.
+   * This operation forces a reload of the database connections.
+   */
+  rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
 }
 
 // -----------------------------------------------------------------------------
@@ -1539,6 +1546,11 @@ message DatabaseConfig {
 
   // ConnMaxLifetimeMs sets how long a connection can be reused before closing.
   int32 conn_max_lifetime_ms = 10;
+
+  // InitCommands are SQL statements executed automatically when a new
+  // connection is opened. Useful for setting PRAGMAs or ATTACHing databases
+  // persistently.
+  repeated string init_commands = 11;
 }
 
 // =============================================================================
@@ -1693,4 +1705,41 @@ message TriggerSchema {
 message DatabaseSchema {
   // All tables in the database with full schema details.
   repeated TableSchema tables = 1;
+}
+
+/**
+ * Configuration fields that can be updated at runtime.
+ * Immutable fields: name, db_path, is_encrypted, key.
+ */
+message UpdateDatabaseConfig {
+  optional bool read_only = 1;
+  optional ExtensionList extensions = 2;
+  optional PragmaMap pragmas = 3;
+  optional int32 max_open_conns = 4;
+  optional int32 max_idle_conns = 5;
+  optional int32 conn_max_lifetime_ms = 6;
+  optional InitCommandList init_commands = 7;
+}
+
+message ExtensionList { repeated string values = 1; }
+
+message PragmaMap { map<string, string> values = 1; }
+
+message InitCommandList { repeated string values = 1; }
+
+/**
+ * Request to update an existing database configuration.
+ */
+message UpdateDatabaseRequest {
+  // The name of the database to update.
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+
+  // The new configuration settings.
+  UpdateDatabaseConfig config = 2;
+}
+
+message UpdateDatabaseResponse {
+  bool success = 1;
+  string message = 2;
 }

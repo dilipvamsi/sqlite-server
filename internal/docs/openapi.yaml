@@ -452,6 +452,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.UnMountDatabaseResponse'
+  /db.v1.AdminService/UpdateDatabase:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Updates an existing database configuration.\r  Useful for changing settings like init_commands, max_open_conns, etc.\r  This operation forces a reload of the database connections."
+      description: "*\r\n Updates an existing database configuration.\r\n Useful for changing settings like init_commands, max_open_conns, etc.\r\n This operation forces a reload of the database connections."
+      operationId: db.v1.AdminService.UpdateDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.UpdateDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.UpdateDatabaseResponse'
   /db.v1.AdminService/UpdatePassword:
     post:
       tags:
@@ -1583,6 +1619,12 @@ components:
           title: conn_max_lifetime_ms
           format: int32
           description: ConnMaxLifetimeMs sets how long a connection can be reused before closing.
+        initCommands:
+          type: array
+          items:
+            type: string
+          title: init_commands
+          description: "InitCommands are SQL statements executed automatically when a new\r\n connection is opened. Useful for setting PRAGMAs or ATTACHing databases\r\n persistently."
       title: DatabaseConfig
       additionalProperties: false
       description: "*\r\n DatabaseConfig defines the configuration for a single database.\r\n Used for both static configuration (config.json) and dynamic management."
@@ -1784,6 +1826,16 @@ components:
       title: ExplainResponse
       additionalProperties: false
       description: "*\r\n Response containing the structured EXPLAIN QUERY PLAN output.\r\n The nodes form a tree via the parent_id references."
+    db.v1.ExtensionList:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            type: string
+          title: values
+      title: ExtensionList
+      additionalProperties: false
     db.v1.ForeignKeySchema:
       type: object
       properties:
@@ -1864,6 +1916,16 @@ components:
       title: IndexSchema
       additionalProperties: false
       description: "*\r\n Schema information for a single index.\r\n Derived from PRAGMA index_list() and index_info()."
+    db.v1.InitCommandList:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            type: string
+          title: values
+      title: InitCommandList
+      additionalProperties: false
     db.v1.IntegrityCheckRequest:
       type: object
       properties:
@@ -2093,6 +2155,28 @@ components:
           title: value
           $ref: '#/components/schemas/db.v1.ColumnAffinity'
       title: PositionalHintsEntry
+      additionalProperties: false
+    db.v1.PragmaMap:
+      type: object
+      properties:
+        values:
+          type: object
+          title: values
+          additionalProperties:
+            type: string
+            title: value
+      title: PragmaMap
+      additionalProperties: false
+    db.v1.PragmaMap.ValuesEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          type: string
+          title: value
+      title: ValuesEntry
       additionalProperties: false
     db.v1.QueryComplete:
       type: object
@@ -3066,6 +3150,70 @@ components:
           type: string
           title: message
       title: UnMountDatabaseResponse
+      additionalProperties: false
+    db.v1.UpdateDatabaseConfig:
+      type: object
+      properties:
+        readOnly:
+          type:
+            - boolean
+            - "null"
+          title: read_only
+        extensions:
+          title: extensions
+          $ref: '#/components/schemas/db.v1.ExtensionList'
+        pragmas:
+          title: pragmas
+          $ref: '#/components/schemas/db.v1.PragmaMap'
+        maxOpenConns:
+          type:
+            - integer
+            - "null"
+          title: max_open_conns
+          format: int32
+        maxIdleConns:
+          type:
+            - integer
+            - "null"
+          title: max_idle_conns
+          format: int32
+        connMaxLifetimeMs:
+          type:
+            - integer
+            - "null"
+          title: conn_max_lifetime_ms
+          format: int32
+        initCommands:
+          title: init_commands
+          $ref: '#/components/schemas/db.v1.InitCommandList'
+      title: UpdateDatabaseConfig
+      additionalProperties: false
+      description: "*\r\n Configuration fields that can be updated at runtime.\r\n Immutable fields: name, db_path, is_encrypted, key."
+    db.v1.UpdateDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: The name of the database to update.
+        config:
+          title: config
+          description: The new configuration settings.
+          $ref: '#/components/schemas/db.v1.UpdateDatabaseConfig'
+      title: UpdateDatabaseRequest
+      additionalProperties: false
+      description: "*\r\n Request to update an existing database configuration."
+    db.v1.UpdateDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: UpdateDatabaseResponse
       additionalProperties: false
     db.v1.UpdatePasswordRequest:
       type: object

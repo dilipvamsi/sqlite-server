@@ -619,6 +619,28 @@ function deserialize_db_v1_UnMountDatabaseResponse(buffer_arg) {
   return db_v1_db_service_pb.UnMountDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_UpdateDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UpdateDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.UpdateDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UpdateDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.UpdateDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_UpdateDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UpdateDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.UpdateDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UpdateDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.UpdateDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_UpdatePasswordRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.UpdatePasswordRequest)) {
     throw new Error('Expected argument of type db.v1.UpdatePasswordRequest');
@@ -1220,6 +1242,21 @@ deleteDatabase: {
     requestDeserialize: deserialize_db_v1_DeleteDatabaseRequest,
     responseSerialize: serialize_db_v1_DeleteDatabaseResponse,
     responseDeserialize: deserialize_db_v1_DeleteDatabaseResponse,
+  },
+  // *
+// Updates an existing database configuration.
+// Useful for changing settings like init_commands, max_open_conns, etc.
+// This operation forces a reload of the database connections.
+updateDatabase: {
+    path: '/db.v1.AdminService/UpdateDatabase',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.UpdateDatabaseRequest,
+    responseType: db_v1_db_service_pb.UpdateDatabaseResponse,
+    requestSerialize: serialize_db_v1_UpdateDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_UpdateDatabaseRequest,
+    responseSerialize: serialize_db_v1_UpdateDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_UpdateDatabaseResponse,
   },
 };
 

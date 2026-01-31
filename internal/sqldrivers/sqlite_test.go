@@ -2,6 +2,7 @@ package sqldrivers
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -212,5 +213,45 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 		if err == nil {
 			db.Close()
 		}
+	})
+
+	// 10. Init Commands
+	t.Run("executes init commands (pragma & attach)", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create a secondary DB for attaching
+		attachPath := filepath.Join(tmpDir, "secondary.db")
+		{
+			db, _ := sql.Open("sqlite3", attachPath)
+			db.Exec("CREATE TABLE attached_table (id INT)")
+			db.Close()
+		}
+
+		dbPath := filepath.Join(tmpDir, "init_cmd.db")
+
+		config := &dbv1.DatabaseConfig{
+			Name:   "test_init",
+			DbPath: dbPath,
+			InitCommands: []string{
+				"PRAGMA user_version = 42",
+				fmt.Sprintf("ATTACH DATABASE '%s' AS attached_alias", attachPath),
+			},
+		}
+
+		db, err := NewSqliteDb(config, false)
+		require.NoError(t, err)
+		defer db.Close()
+
+		// Verify PRAGMA
+		var userVersion int
+		err = db.QueryRow("PRAGMA user_version").Scan(&userVersion)
+		require.NoError(t, err)
+		assert.Equal(t, 42, userVersion)
+
+		// Verify ATTACH
+		// We can try to read from the attached table
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM attached_alias.attached_table").Scan(&count)
+		require.NoError(t, err, "Should be able to query tables in attached database")
 	})
 }

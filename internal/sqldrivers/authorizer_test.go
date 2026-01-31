@@ -53,10 +53,6 @@ func TestReadOnlyAuthorizer(t *testing.T) {
 		assert.Equal(t, sqlite3.SQLITE_DENY, result)
 	})
 
-	t.Run("denies ATTACH", func(t *testing.T) {
-		result := ReadOnlyAuthorizer(sqlite3.SQLITE_ATTACH, "other.db", "", "", "")
-		assert.Equal(t, sqlite3.SQLITE_DENY, result)
-	})
 }
 
 func TestWriteActionsMap(t *testing.T) {

@@ -159,6 +159,9 @@ const (
 	// AdminServiceDeleteDatabaseProcedure is the fully-qualified name of the AdminService's
 	// DeleteDatabase RPC.
 	AdminServiceDeleteDatabaseProcedure = "/db.v1.AdminService/DeleteDatabase"
+	// AdminServiceUpdateDatabaseProcedure is the fully-qualified name of the AdminService's
+	// UpdateDatabase RPC.
+	AdminServiceUpdateDatabaseProcedure = "/db.v1.AdminService/UpdateDatabase"
 )
 
 // DatabaseServiceClient is a client for the db.v1.DatabaseService service.
@@ -973,6 +976,11 @@ type AdminServiceClient interface {
 	// - Managed DBs: Deleted from disk and metadata.
 	// - Mounted DBs: Returns error (protects external files).
 	DeleteDatabase(context.Context, *connect.Request[v1.DeleteDatabaseRequest]) (*connect.Response[v1.DeleteDatabaseResponse], error)
+	// *
+	// Updates an existing database configuration.
+	// Useful for changing settings like init_commands, max_open_conns, etc.
+	// This operation forces a reload of the database connections.
+	UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error)
 }
 
 // NewAdminServiceClient constructs a client for the db.v1.AdminService service. By default, it uses
@@ -1064,6 +1072,12 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("DeleteDatabase")),
 			connect.WithClientOptions(opts...),
 		),
+		updateDatabase: connect.NewClient[v1.UpdateDatabaseRequest, v1.UpdateDatabaseResponse](
+			httpClient,
+			baseURL+AdminServiceUpdateDatabaseProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("UpdateDatabase")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1082,6 +1096,7 @@ type adminServiceClient struct {
 	mountDatabase   *connect.Client[v1.DatabaseConfig, v1.MountDatabaseResponse]
 	unMountDatabase *connect.Client[v1.UnMountDatabaseRequest, v1.UnMountDatabaseResponse]
 	deleteDatabase  *connect.Client[v1.DeleteDatabaseRequest, v1.DeleteDatabaseResponse]
+	updateDatabase  *connect.Client[v1.UpdateDatabaseRequest, v1.UpdateDatabaseResponse]
 }
 
 // CreateUser calls db.v1.AdminService.CreateUser.
@@ -1149,6 +1164,11 @@ func (c *adminServiceClient) DeleteDatabase(ctx context.Context, req *connect.Re
 	return c.deleteDatabase.CallUnary(ctx, req)
 }
 
+// UpdateDatabase calls db.v1.AdminService.UpdateDatabase.
+func (c *adminServiceClient) UpdateDatabase(ctx context.Context, req *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error) {
+	return c.updateDatabase.CallUnary(ctx, req)
+}
+
 // AdminServiceHandler is an implementation of the db.v1.AdminService service.
 type AdminServiceHandler interface {
 	// *
@@ -1199,6 +1219,11 @@ type AdminServiceHandler interface {
 	// - Managed DBs: Deleted from disk and metadata.
 	// - Mounted DBs: Returns error (protects external files).
 	DeleteDatabase(context.Context, *connect.Request[v1.DeleteDatabaseRequest]) (*connect.Response[v1.DeleteDatabaseResponse], error)
+	// *
+	// Updates an existing database configuration.
+	// Useful for changing settings like init_commands, max_open_conns, etc.
+	// This operation forces a reload of the database connections.
+	UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error)
 }
 
 // NewAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1286,6 +1311,12 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("DeleteDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceUpdateDatabaseHandler := connect.NewUnaryHandler(
+		AdminServiceUpdateDatabaseProcedure,
+		svc.UpdateDatabase,
+		connect.WithSchema(adminServiceMethods.ByName("UpdateDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/db.v1.AdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminServiceCreateUserProcedure:
@@ -1314,6 +1345,8 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceUnMountDatabaseHandler.ServeHTTP(w, r)
 		case AdminServiceDeleteDatabaseProcedure:
 			adminServiceDeleteDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceUpdateDatabaseProcedure:
+			adminServiceUpdateDatabaseHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1373,4 +1406,8 @@ func (UnimplementedAdminServiceHandler) UnMountDatabase(context.Context, *connec
 
 func (UnimplementedAdminServiceHandler) DeleteDatabase(context.Context, *connect.Request[v1.DeleteDatabaseRequest]) (*connect.Response[v1.DeleteDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.DeleteDatabase is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.UpdateDatabase is not implemented"))
 }

@@ -140,6 +140,34 @@ func (m *DbManager) Mount(config *dbv1.DatabaseConfig) error {
 	return nil
 }
 
+// UpdateDatabase updates an existing database configuration and invalidates cached connections.
+func (m *DbManager) UpdateDatabase(config *dbv1.DatabaseConfig) error {
+	m.muConfigs.Lock()
+	if _, exists := m.configs[config.Name]; !exists {
+		m.muConfigs.Unlock()
+		return fmt.Errorf("database '%s' not found", config.Name)
+	}
+
+	// Persist the update
+	m.configs[config.Name] = config
+	m.muConfigs.Unlock()
+
+	// Invalidate Cache to force reload on next access
+	log.Printf("Invalidating connection cache for updated database: %s", config.Name)
+
+	// 1. Close and remove RW connection
+	if val, ok := m.cacheRW.LoadAndDelete(config.Name); ok {
+		val.(*cachedConnection).db.Close()
+	}
+
+	// 2. Close and remove RO connection
+	if val, ok := m.cacheRO.LoadAndDelete(config.Name); ok {
+		val.(*cachedConnection).db.Close()
+	}
+
+	return nil
+}
+
 // Unmount removes a database configuration and closes active connections.
 func (m *DbManager) Unmount(name string) error {
 	m.muConfigs.Lock()

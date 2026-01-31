@@ -431,5 +431,82 @@ func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[dbv1.Logo
 	}), nil
 }
 
+// UpdateDatabase updates an existing database configuration
+func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[dbv1.UpdateDatabaseRequest]) (*connect.Response[dbv1.UpdateDatabaseResponse], error) {
+	if err := AuthorizeAdmin(ctx); err != nil {
+		return nil, err
+	}
+
+	name := req.Msg.Name
+	updates := req.Msg.Config
+
+	// 1. Fetch existing config metadata
+	existingAuthConfig, err := s.store.GetDatabaseConfig(ctx, name)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if existingAuthConfig == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("database config not found"))
+	}
+
+	// 2. Unmarshal existing settings from JSON
+	// The store only saves the JSON blob in 'Settings', so we must parse it to get current values
+	currentConfig := &dbv1.DatabaseConfig{}
+	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
+	}
+
+	// 3. Merge updates	// 3. Merge updates (Mutable fields only)
+	if updates.ReadOnly != nil {
+		currentConfig.ReadOnly = *updates.ReadOnly
+	}
+
+	if updates.Extensions != nil {
+		currentConfig.Extensions = updates.Extensions.Values
+	}
+	if updates.Pragmas != nil {
+		currentConfig.Pragmas = updates.Pragmas.Values
+	}
+
+	if updates.MaxOpenConns != nil {
+		currentConfig.MaxOpenConns = *updates.MaxOpenConns
+	}
+	if updates.MaxIdleConns != nil {
+		currentConfig.MaxIdleConns = *updates.MaxIdleConns
+	}
+	if updates.ConnMaxLifetimeMs != nil {
+		currentConfig.ConnMaxLifetimeMs = *updates.ConnMaxLifetimeMs
+	}
+
+	if updates.InitCommands != nil {
+		currentConfig.InitCommands = updates.InitCommands.Values
+	}
+
+	// 4. Persist updated config
+	jsonBytes, err := protojson.Marshal(currentConfig)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
+	}
+
+	// Upsert using the updated JSON
+	if err := s.store.UpsertDatabaseConfig(ctx, name, existingAuthConfig.Path, existingAuthConfig.IsManaged, string(jsonBytes)); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 5. Reload in DbServer (with the updated proto object)
+	if err := s.dbServer.UpdateDatabase(currentConfig); err != nil {
+		// Log error (config persists but runtime reload failed)
+		log.Printf("ERROR: Failed to reload database '%s' after update: %v", name, err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("config saved but reload failed: %w", err))
+	}
+
+	log.Printf("Updated configuration for database '%s'", name)
+
+	return connect.NewResponse(&dbv1.UpdateDatabaseResponse{
+		Success: true,
+		Message: fmt.Sprintf("Database '%s' updated successfully", name),
+	}), nil
+}
+
 // BackupDatabase and RestoreDatabase are not implemented yet
 // They will use the UnimplementedAdminServiceHandler defaults

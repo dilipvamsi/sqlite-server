@@ -95,6 +95,11 @@ func (s *DbServer) MountDatabase(config *dbv1.DatabaseConfig) error {
 	return s.dbManager.Mount(config)
 }
 
+// UpdateDatabase updates an existing database configuration.
+func (s *DbServer) UpdateDatabase(config *dbv1.DatabaseConfig) error {
+	return s.dbManager.UpdateDatabase(config)
+}
+
 // UnmountDatabase closes and removes a database from the server.
 func (s *DbServer) UnmountDatabase(name string) error {
 	return s.dbManager.Unmount(name)

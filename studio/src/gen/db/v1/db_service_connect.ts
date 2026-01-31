@@ -29,7 +29,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DatabaseSchema, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, ListTablesRequest, ListTablesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TableSchema, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
+import { BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DatabaseSchema, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, ListTablesRequest, ListTablesResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TableSchema, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdateDatabaseRequest, UpdateDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -515,6 +515,20 @@ export const AdminService = {
       name: "DeleteDatabase",
       I: DeleteDatabaseRequest,
       O: DeleteDatabaseResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Updates an existing database configuration.
+     * Useful for changing settings like init_commands, max_open_conns, etc.
+     * This operation forces a reload of the database connections.
+     *
+     * @generated from rpc db.v1.AdminService.UpdateDatabase
+     */
+    updateDatabase: {
+      name: "UpdateDatabase",
+      I: UpdateDatabaseRequest,
+      O: UpdateDatabaseResponse,
       kind: MethodKind.Unary,
     },
   }
