@@ -568,7 +568,8 @@
                     <div class="feature-card">
                         <div class="feature-icon">🔐</div>
                         <h3>Authentication</h3>
-                        <p>Built-in API key and Basic Auth support with role-based access control.</p>
+                        <p>Built-in API key and Basic Auth support. Enforce strict <strong>ReadOnly</strong> mode for
+                            safe public access.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon">🛡️</div>
@@ -595,6 +596,23 @@
                         <div class="feature-icon">🧹</div>
                         <h3>Maintenance</h3>
                         <p>Perform Vacuum, Checkpoint, and Integrity checks via API.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">👁️</div>
+                        <h3>Observability</h3>
+                        <p>Request tracing, UUIDv7 identifiers, and native SQLite error code mapping.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Typed API</h3>
+                        <p>Strictly typed alternative to sparse hints using specific Protobuf messages for efficiency.
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚖️</div>
+                        <h3>Dual Pools</h3>
+                        <p>Dedicated connection pools ensure that read-only users are restricted to safe, read-only
+                            connections.</p>
                     </div>
                 </div>
             </div>

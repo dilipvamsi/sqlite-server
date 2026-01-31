@@ -20,7 +20,10 @@ Access the Studio at `http://localhost:50051/studio/`
 Secure your server with built-in authentication:
 *   **API Key Authentication:** SHA256-hashed API keys for programmatic access.
 *   **Basic Auth:** Username/password with salted SHA256 hashing.
-*   **Role-Based Access Control:** `admin`, `read_write`, and `read_only` roles.
+*   **Role-Based Access Control:**
+    *   `admin`: Full access to all data and system configuration.
+    *   `read_write`: Can read and modify data (INSERT, UPDATE, DELETE).
+    *   `read_only`: Strictly limits access to `SELECT` queries only. Use this for reporting dashboards or public-facing read replicas. Attempts to write will return a permission error.
 *   **Session Management:** UUID v7-based session keys with automatic expiry.
 
 ### 3. Hybrid Transaction Models
@@ -38,6 +41,7 @@ SQLite is dynamically typed, but gRPC/Protobuf is statically typed. To bridge th
 ### 5. Safety & Performance
 *   **Chunked Streaming:** Large result sets are streamed in batches (default: 500 rows), ensuring constant $O(1)$ memory usage regardless of table size.
 *   **Zombie Protection:** A background "Reaper" process automatically rolls back ID-based transactions that have timed out.
+*   **Dual Connection Pools:** Maintains separate pools for Read-Write and Read-Only connections, ensuring that `read_only` users are served by strictly read-only connections for enhanced security.
 *   **Graceful Shutdown:** Ensures ongoing queries complete and active transactions are rolled back cleanly before the server exits.
 
 ### 6. Observability
@@ -461,7 +465,7 @@ See the `clients/` directory for usage examples and API documentation.
 
 ---
 
-## � Development Reference (Makefile)
+## 💻 Development Reference (Makefile)
 
 The `Makefile` is the source of truth for all development workflows. Run `make help` to see all available targets.
 
@@ -477,6 +481,6 @@ The `Makefile` is the source of truth for all development workflows. Run `make h
 
 ---
 
-## �📄 License
+## 📄 License
 
 MIT License - See [LICENSE](LICENSE) for details.
