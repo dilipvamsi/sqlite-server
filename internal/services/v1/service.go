@@ -42,16 +42,11 @@
 package servicesv1
 
 import (
-	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"time"
 
-	"connectrpc.com/connect"
-
 	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/sqldrivers"
 )
 
 // headerRequestID is the standard HTTP header key used for distributed tracing.
@@ -77,28 +72,12 @@ const reaperInterval = 5 * time.Second
 //     It is better to crash at startup than to run in a partially broken state.
 //     It is better to crash at startup than to run in a partially broken state.
 func NewDbServer(configs []*dbv1.DatabaseConfig) *DbServer {
-	dbPools := make(map[string]*sql.DB)
+	// Initialize DbManager
+	mgr := NewDbManager(configs)
 
-	for _, config := range configs {
-		db, err := sqldrivers.NewSqliteDb(config)
-		if err != nil {
-			log.Printf("Error: failed to open db '%s': %v", config.Name, err)
-			continue
-		}
-
-		// Ping verifies the connection is actually usable.
-		if err := db.Ping(); err != nil {
-			log.Printf("Error: failed to connect to db '%s': %v", config.Name, err)
-			continue
-		}
-
-		log.Printf("Successfully opened and connected to database '%s'", config.Name)
-		dbPools[config.Name] = db
-	}
-
-	log.Printf("sqlite-server ready. Managing %d database(s).", len(dbPools))
+	log.Printf("sqlite-server ready. Managed by DbManager.")
 	db := &DbServer{
-		Dbs:        dbPools,
+		dbManager:  mgr,
 		txRegistry: make(map[string]*TxSession),
 		shutdownCh: make(chan struct{}),
 	}
@@ -112,63 +91,24 @@ func NewDbServer(configs []*dbv1.DatabaseConfig) *DbServer {
 
 // MountDatabase adds a new database to the server at runtime.
 func (s *DbServer) MountDatabase(config *dbv1.DatabaseConfig) error {
-	s.dbMu.Lock()
-	defer s.dbMu.Unlock()
-
-	if _, exists := s.Dbs[config.Name]; exists {
-		return fmt.Errorf("database '%s' already mounted", config.Name)
-	}
-
-	db, err := sqldrivers.NewSqliteDb(config)
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
-	}
-
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Log is handled by the caller (AdminService) to distinguish between "Created" and "Mounted"
-	s.Dbs[config.Name] = db
-	return nil
+	// Delegate to DbManager
+	return s.dbManager.Mount(config)
 }
 
 // UnmountDatabase closes and removes a database from the server.
 func (s *DbServer) UnmountDatabase(name string) error {
-	s.dbMu.Lock()
-	defer s.dbMu.Unlock()
-
-	db, exists := s.Dbs[name]
-	if !exists {
-		return fmt.Errorf("database '%s' not found", name)
-	}
-
-	// Close the connection pool
-	if err := db.Close(); err != nil {
-		log.Printf("Warning: error closing database '%s': %v", name, err)
-	}
-
-	delete(s.Dbs, name)
-	// Log is handled by the caller
-	return nil
+	return s.dbManager.Unmount(name)
 }
 
 // GetDatabaseNames returns a list of all currently mounted databases.
 func (s *DbServer) GetDatabaseNames() []string {
-	s.dbMu.RLock()
-	defer s.dbMu.RUnlock()
-
-	names := make([]string, 0, len(s.Dbs))
-	for name := range s.Dbs {
-		names = append(names, name)
-	}
-	return names
+	return s.dbManager.List()
 }
 
 // Stop signals the background reaper to exit, preventing goroutine leaks during shutdown.
 func (s *DbServer) Stop() {
 	close(s.shutdownCh)
+	s.dbManager.Stop()
 }
 
 /**
@@ -203,43 +143,25 @@ func (s *DbServer) runReaper() {
  *    b. Deletes the entry from the map to free Go memory.
  */
 func (s *DbServer) cleanupExpiredTransactions() {
-	s.txMu.Lock()
-	defer s.txMu.Unlock()
+	var toRollback []*sql.Tx
 
+	s.txMu.Lock()
 	now := time.Now()
 	for id, session := range s.txRegistry {
 		if now.After(session.Expiry) {
 			log.Printf("[Reaper] Rolling back expired transaction %s (DB: %s)", id, session.DBName)
-			// We ignore the error here because the most likely error is "Tx already closed",
-			// which is a success state for us.
-			_ = session.Tx.Rollback()
+			toRollback = append(toRollback, session.Tx)
 			delete(s.txRegistry, id)
 		}
+	}
+	s.txMu.Unlock()
+
+	// Perform rollbacks outside of the lock to prevent deadlocks
+	for _, tx := range toRollback {
+		_ = tx.Rollback()
 	}
 }
 
 // ===================================================================================
 // Interceptors
 // ===================================================================================
-
-func LoggingInterceptor() connect.UnaryInterceptorFunc {
-	return func(next connect.UnaryFunc) connect.UnaryFunc {
-		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			start := time.Now()
-
-			// Execute the handler
-			resp, err := next(ctx, req)
-
-			duration := time.Since(start)
-			status := "OK"
-			if err != nil {
-				status = "ERROR"
-			}
-
-			// Log: [OK] /db.v1.DatabaseService/Query (12ms)
-			log.Printf("[%s] %s (%v)", status, req.Spec().Procedure, duration)
-
-			return resp, err
-		}
-	}
-}

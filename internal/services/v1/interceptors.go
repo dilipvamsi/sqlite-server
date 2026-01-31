@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"log"
+	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
@@ -12,13 +16,62 @@ import (
 	"connectrpc.com/connect"
 )
 
+// AuthCacheInvalidator defines methods to clear the authentication cache
+type AuthCacheInvalidator interface {
+	ClearCache()
+}
+
 // AuthInterceptor implements connect.Interceptor for authentication and authorization
 type AuthInterceptor struct {
 	store *auth.MetaStore
+	// authCache maps AuthHeader string -> *authCacheItem
+	authCache sync.Map
+}
+
+type authCacheItem struct {
+	user      *auth.UserClaims
+	timestamp int64
 }
 
 func NewAuthInterceptor(store *auth.MetaStore) *AuthInterceptor {
 	return &AuthInterceptor{store: store}
+}
+
+// ClearCache clears all cached authentication entries
+func (a *AuthInterceptor) ClearCache() {
+	a.authCache.Range(func(key, value any) bool {
+		a.authCache.Delete(key)
+		return true
+	})
+	log.Println("[AUTH] Cache invalidated")
+}
+
+// LoggingInterceptor creates a connect.UnaryInterceptorFunc that logs request details.
+// Logging can be disabled by setting the environment variable SQLITE_SERVER_DISABLE_REQUEST_LOGGING to "true".
+func LoggingInterceptor() connect.UnaryInterceptorFunc {
+	loggingEnabled := os.Getenv("SQLITE_SERVER_DISABLE_REQUEST_LOGGING") != "true"
+	return func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			if !loggingEnabled {
+				return next(ctx, req)
+			}
+			start := time.Now()
+
+			// Execute the handler
+			resp, err := next(ctx, req)
+
+			duration := time.Since(start)
+			status := "OK"
+			if err != nil {
+				status = "ERROR"
+			}
+
+			// Log: [OK] /db.v1.DatabaseService/Query (12ms)
+			log.Printf("[%s] %s (%v)", status, req.Spec().Procedure, duration)
+
+			return resp, err
+		}
+	}
 }
 
 // WrapUnary implements connect.Interceptor
@@ -38,35 +91,53 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 		var user *auth.UserClaims
 		var err error
 
-		if strings.HasPrefix(authHeader, "Basic ") {
-			payload, decodeErr := base64.StdEncoding.DecodeString(strings.TrimPrefix(authHeader, "Basic "))
-			if decodeErr != nil {
-				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
+		// CHECK CACHE
+		if val, ok := authInterceptor.authCache.Load(authHeader); ok {
+			item := val.(*authCacheItem)
+			if time.Now().Unix()-item.timestamp < 60 { // 60s TTL
+				user = item.user
+			} else {
+				authInterceptor.authCache.Delete(authHeader)
 			}
-			parts := strings.SplitN(string(payload), ":", 2)
-			if len(parts) != 2 {
-				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
-			}
-			user, err = authInterceptor.store.ValidateUser(ctx, parts[0], parts[1])
-		} else if strings.HasPrefix(authHeader, "Bearer ") {
-			token := strings.TrimPrefix(authHeader, "Bearer ")
-			user, err = authInterceptor.store.ValidateApiKeyImpl(ctx, token)
-		} else {
-			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unsupported auth scheme"))
 		}
 
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
 		if user == nil {
-			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+			// CACHE MISS or EXPIRED
+			if strings.HasPrefix(authHeader, "Basic ") {
+				payload, decodeErr := base64.StdEncoding.DecodeString(strings.TrimPrefix(authHeader, "Basic "))
+				if decodeErr != nil {
+					return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
+				}
+				parts := strings.SplitN(string(payload), ":", 2)
+				if len(parts) != 2 {
+					return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
+				}
+				user, err = authInterceptor.store.ValidateUser(ctx, parts[0], parts[1])
+			} else if strings.HasPrefix(authHeader, "Bearer ") {
+				token := strings.TrimPrefix(authHeader, "Bearer ")
+				user, err = authInterceptor.store.ValidateApiKeyImpl(ctx, token)
+			} else {
+				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unsupported auth scheme"))
+			}
+
+			if err != nil {
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
+			if user == nil {
+				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+			}
+
+			// STORE IN CACHE
+			authInterceptor.authCache.Store(authHeader, &authCacheItem{
+				user:      user,
+				timestamp: time.Now().Unix(),
+			})
 		}
 
 		// Set Context
 		ctx = auth.NewContext(ctx, user)
 
 		// 3. Authorization (Check Permissions)
-
 		// AdminService Check
 		if strings.HasPrefix(req.Spec().Procedure, "/db.v1.AdminService/") {
 			if user.Role != dbv1.Role_ROLE_ADMIN {
@@ -192,28 +263,47 @@ func (authInterceptor *AuthInterceptor) WrapStreamingHandler(next connect.Stream
 		var user *auth.UserClaims
 		var err error
 
-		if strings.HasPrefix(authHeader, "Basic ") {
-			payload, decodeErr := base64.StdEncoding.DecodeString(strings.TrimPrefix(authHeader, "Basic "))
-			if decodeErr != nil {
-				return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
+		// CHECK CACHE
+		if val, ok := authInterceptor.authCache.Load(authHeader); ok {
+			item := val.(*authCacheItem)
+			if time.Now().Unix()-item.timestamp < 60 { // 60s TTL
+				user = item.user
+			} else {
+				authInterceptor.authCache.Delete(authHeader)
 			}
-			parts := strings.SplitN(string(payload), ":", 2)
-			if len(parts) != 2 {
-				return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
-			}
-			user, err = authInterceptor.store.ValidateUser(ctx, parts[0], parts[1])
-		} else if strings.HasPrefix(authHeader, "Bearer ") {
-			token := strings.TrimPrefix(authHeader, "Bearer ")
-			user, err = authInterceptor.store.ValidateApiKeyImpl(ctx, token)
-		} else {
-			return connect.NewError(connect.CodeUnauthenticated, errors.New("unsupported auth scheme"))
 		}
 
-		if err != nil {
-			return connect.NewError(connect.CodeInternal, err)
-		}
 		if user == nil {
-			return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+			// CACHE MISS or EXPIRED
+			if strings.HasPrefix(authHeader, "Basic ") {
+				payload, decodeErr := base64.StdEncoding.DecodeString(strings.TrimPrefix(authHeader, "Basic "))
+				if decodeErr != nil {
+					return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
+				}
+				parts := strings.SplitN(string(payload), ":", 2)
+				if len(parts) != 2 {
+					return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid basic auth format"))
+				}
+				user, err = authInterceptor.store.ValidateUser(ctx, parts[0], parts[1])
+			} else if strings.HasPrefix(authHeader, "Bearer ") {
+				token := strings.TrimPrefix(authHeader, "Bearer ")
+				user, err = authInterceptor.store.ValidateApiKeyImpl(ctx, token)
+			} else {
+				return connect.NewError(connect.CodeUnauthenticated, errors.New("unsupported auth scheme"))
+			}
+
+			if err != nil {
+				return connect.NewError(connect.CodeInternal, err)
+			}
+			if user == nil {
+				return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+			}
+
+			// STORE IN CACHE
+			authInterceptor.authCache.Store(authHeader, &authCacheItem{
+				user:      user,
+				timestamp: time.Now().Unix(),
+			})
 		}
 
 		ctx = auth.NewContext(ctx, user)
@@ -230,4 +320,39 @@ func (authInterceptor *AuthInterceptor) WrapStreamingHandler(next connect.Stream
 // WrapStreamingClient implements connect.Interceptor
 func (authInterceptor *AuthInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return next
+}
+
+// NoAuthInterceptor injects an admin context for every request when auth is disabled.
+type NoAuthInterceptor struct{}
+
+func NewNoAuthInterceptor() *NoAuthInterceptor {
+	return &NoAuthInterceptor{}
+}
+
+func (i *NoAuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		// Inject Admin User
+		admin := &auth.UserClaims{
+			Username: "anonymous-admin",
+			Role:     dbv1.Role_ROLE_ADMIN,
+		}
+		ctx = auth.NewContext(ctx, admin)
+		return next(ctx, req)
+	}
+}
+
+func (i *NoAuthInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
+	return next
+}
+
+func (i *NoAuthInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
+	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		// Inject Admin User
+		admin := &auth.UserClaims{
+			Username: "anonymous-admin",
+			Role:     dbv1.Role_ROLE_ADMIN,
+		}
+		ctx = auth.NewContext(ctx, admin)
+		return next(ctx, conn)
+	}
 }

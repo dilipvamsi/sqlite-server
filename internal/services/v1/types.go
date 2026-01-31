@@ -51,14 +51,8 @@ type DbServer struct {
 	// ensures the server code still compiles, returning "Unimplemented" by default.
 	dbv1connect.UnimplementedDatabaseServiceHandler
 
-	// Dbs is a map registry of managed database connection pools.
-	// Key: Logical database name (e.g., "users", "analytics").
-	// Value: Thread-safe connection pool (*sql.DB).
-	//
-	// CONCURRENCY SAFETY:
-	// Protected by dbMu (RWMutex) to allow dynamic mounting/unmounting of databases.
-	Dbs  map[string]*sql.DB
-	dbMu sync.RWMutex
+	// dbManager handles connection lifecycle, lazy loading, and LRU eviction.
+	dbManager *DbManager
 
 	// txRegistry maps a client-provided UUID to an active TxSession.
 	// CONCURRENCY: Protected by txMu (RWMutex) to allow parallel reads (queries)

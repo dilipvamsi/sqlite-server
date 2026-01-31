@@ -2,8 +2,10 @@ package servicesv1
 
 import (
 	"context"
+	"fmt"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
@@ -104,6 +106,14 @@ func TestTypedExplain_Coverage(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
+	t.Run("Invalid SQL", func(t *testing.T) {
+		_, err := client.TypedExplain(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+			Database: "test",
+			Sql:      "SELECT * FROM non_existent_table",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no such table")
+	})
 }
 
 // =============================================================================
@@ -128,6 +138,25 @@ func TestListTables_Coverage(t *testing.T) {
 		}))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("Context Cancelled", func(t *testing.T) {
+		// Create a separate client/server to avoid race with other tests
+		_, srv := setupTestServer(t)
+		srv.MountDatabase(&dbv1.DatabaseConfig{Name: "list_err", DbPath: ":memory:"})
+
+		// Prime connection
+		_, _ = srv.dbManager.GetConnection(ctx, "list_err", ModeRO)
+
+		// Cancel context
+		cCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		_, err := srv.ListTables(cCtx, connect.NewRequest(&dbv1.ListTablesRequest{
+			Database: "list_err",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "canceled")
 	})
 }
 
@@ -229,17 +258,16 @@ func TestGetTableSchema_ComplexSchema(t *testing.T) {
 	client, server := setupTestServer(t)
 
 	// Get the test database and add more complex schema
-	server.dbMu.RLock()
-	db := server.Dbs["test"]
-	server.dbMu.RUnlock()
+	db, err := server.dbManager.GetConnection(ctx, "test", ModeRW)
+	require.NoError(t, err)
 
 	// Create tables with foreign keys, indexes, and triggers
-	_, err := db.Exec(`
+	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS categories (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE
 		);
-		
+
 		CREATE TABLE IF NOT EXISTS products (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -247,10 +275,10 @@ func TestGetTableSchema_ComplexSchema(t *testing.T) {
 			price REAL DEFAULT 0.0,
 			FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE ON UPDATE SET NULL
 		);
-		
+
 		CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 		CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
-		
+
 		CREATE TRIGGER IF NOT EXISTS trg_products_audit
 		AFTER INSERT ON products
 		BEGIN
@@ -329,4 +357,61 @@ func TestGetTableSchema_ComplexSchema(t *testing.T) {
 		assert.True(t, tableNames["categories"])
 		assert.True(t, tableNames["products"])
 	})
+}
+
+func TestListTables_ContextCancel(t *testing.T) {
+	_, dbServer := setupTestServer(t)
+	ctx := context.Background()
+
+	// 1. Setup DB with many tables
+	config := &dbv1.DatabaseConfig{Name: "list_cancel", DbPath: ":memory:"}
+	err := dbServer.MountDatabase(config)
+	require.NoError(t, err)
+
+	db, err := dbServer.dbManager.GetConnection(ctx, "list_cancel", ModeRW)
+	require.NoError(t, err)
+
+	// Create 500 tables to make iteration take some time
+	for i := 0; i < 500; i++ {
+		_, err = db.Exec(fmt.Sprintf("CREATE TABLE t%d (id int)", i))
+		require.NoError(t, err)
+	}
+
+	// 2. Race: Cancel context during iteration
+	ctx, cancel := context.WithCancel(ctx)
+
+	// Start a goroutine to cancel after a tiny delay
+	go func() {
+		time.Sleep(100 * time.Microsecond)
+		cancel()
+	}()
+
+	req := connect.NewRequest(&dbv1.ListTablesRequest{Database: "list_cancel"})
+	_, err = dbServer.ListTables(ctx, req)
+
+	if err == nil {
+		t.Logf("ListTables finished before context cancel. Coverage might not increase.")
+	} else {
+		assert.Contains(t, err.Error(), "canceled")
+	}
+}
+
+func TestGetDatabaseSchema_QueryError(t *testing.T) {
+	_, dbServer := setupTestServer(t)
+	ctx := context.Background()
+
+	// Setup DB
+	dbServer.MountDatabase(&dbv1.DatabaseConfig{Name: "schema_fail", DbPath: ":memory:"})
+
+	// Prime cache
+	_, err := dbServer.dbManager.GetConnection(ctx, "schema_fail", ModeRO)
+	require.NoError(t, err)
+
+	// Cancel context to force error
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	req := connect.NewRequest(&dbv1.GetDatabaseSchemaRequest{Database: "schema_fail"})
+	_, err = dbServer.GetDatabaseSchema(ctx, req)
+	require.Error(t, err)
 }

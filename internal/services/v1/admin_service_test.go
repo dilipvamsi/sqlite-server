@@ -36,7 +36,7 @@ func setupAdminTestServer(t *testing.T) (*AdminServer, *auth.MetaStore, *DbServe
 		t.Cleanup(func() { os.RemoveAll("databases") })
 	}
 
-	return NewAdminServer(store, dbServer), store, dbServer
+	return NewAdminServer(store, dbServer, nil), store, dbServer
 }
 
 func adminContext(role dbv1.Role) context.Context {
@@ -581,4 +581,145 @@ func TestAdminServer_Logout(t *testing.T) {
 		}
 		assert.False(t, found, "Key should be revoked/deleted from list")
 	})
+}
+
+func TestAdminServer_Logout_Errors(t *testing.T) {
+	server, _, _ := setupAdminTestServer(t)
+	ctx := context.Background() // No auth
+
+	t.Run("logout fails for unauthenticated user", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.LogoutRequest{
+			KeyId: "some-key",
+		})
+		_, err := server.Logout(ctx, req)
+		require.Error(t, err)
+		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+	})
+
+	t.Run("logout fails for non-admin user", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.LogoutRequest{
+			KeyId: "some-key",
+		})
+		nonAdminCtx := adminContext(dbv1.Role_ROLE_READ_WRITE)
+		_, err := server.Logout(nonAdminCtx, req)
+		require.Error(t, err)
+		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	})
+}
+
+func TestAdminServer_UpdatePassword_Errors(t *testing.T) {
+	server, _, _ := setupAdminTestServer(t)
+	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+
+	t.Run("returns not found for non-existent user", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.UpdatePasswordRequest{
+			Username:    "ghost",
+			NewPassword: "pass",
+		})
+		_, err := server.UpdatePassword(ctx, req)
+		require.Error(t, err)
+		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	})
+}
+
+func TestAdminServer_CreateApiKey_Errors(t *testing.T) {
+	server, store, _ := setupAdminTestServer(t)
+	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+
+	userID, err := store.CreateUser(context.Background(), "user", "pass", dbv1.Role_ROLE_READ_WRITE)
+	require.NoError(t, err)
+
+	t.Run("fails with invalid timestamp", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.CreateApiKeyRequest{
+			UserId:    userID,
+			Name:      "Bad Key",
+			ExpiresAt: &timestamppb.Timestamp{Seconds: -1000000000000}, // Invalid
+		})
+		_, err := server.CreateApiKey(ctx, req)
+		require.Error(t, err)
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+	})
+}
+
+func TestAdminServer_CRUD_Errors(t *testing.T) {
+	server, store, _ := setupAdminTestServer(t)
+	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+
+	// Close store DB to force failures
+	store.GetDB().Close()
+
+	t.Run("CreateUser fails on db error", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.CreateUserRequest{
+			Username: "failuser",
+			Password: "password",
+			Role:     dbv1.Role_ROLE_READ_ONLY,
+		})
+		_, err := server.CreateUser(ctx, req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "internal")
+	})
+
+	t.Run("DeleteUser fails on db error", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+			Username: "failuser",
+		})
+		_, err := server.DeleteUser(ctx, req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not_found") // Logic wraps all errors in NotFound currently
+	})
+
+	t.Run("UpdatePassword fails on db error", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.UpdatePasswordRequest{
+			Username:    "failuser",
+			NewPassword: "newpassword",
+		})
+		_, err := server.UpdatePassword(ctx, req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not_found") // Logic wraps all errors in NotFound currently
+	})
+
+	t.Run("ListApiKeys fails on db error", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.ListApiKeysRequest{UserId: 1})
+		_, err := server.ListApiKeys(ctx, req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "internal")
+	})
+}
+
+func TestAdminServer_Auth_Coverage(t *testing.T) {
+	server, _, _ := setupAdminTestServer(t)
+
+	// Scenarios
+	tests := []struct {
+		name string
+		ctx  context.Context
+		code connect.Code
+	}{
+		{"Unauthenticated", context.Background(), connect.CodeUnauthenticated},
+		{"NonAdmin", adminContext(dbv1.Role_ROLE_READ_WRITE), connect.CodePermissionDenied},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// DeleteUser
+			_, err := server.DeleteUser(tt.ctx, connect.NewRequest(&dbv1.DeleteUserRequest{}))
+			assert.Equal(t, tt.code, connect.CodeOf(err))
+
+			// UpdatePassword
+			_, err = server.UpdatePassword(tt.ctx, connect.NewRequest(&dbv1.UpdatePasswordRequest{}))
+			assert.Equal(t, tt.code, connect.CodeOf(err))
+
+			// ListApiKeys
+			_, err = server.ListApiKeys(tt.ctx, connect.NewRequest(&dbv1.ListApiKeysRequest{}))
+			assert.Equal(t, tt.code, connect.CodeOf(err))
+
+			// RevokeApiKey
+			_, err = server.RevokeApiKey(tt.ctx, connect.NewRequest(&dbv1.RevokeApiKeyRequest{}))
+			assert.Equal(t, tt.code, connect.CodeOf(err))
+
+			// CreateApiKey
+			_, err = server.CreateApiKey(tt.ctx, connect.NewRequest(&dbv1.CreateApiKeyRequest{}))
+			assert.Equal(t, tt.code, connect.CodeOf(err))
+		})
+	}
 }

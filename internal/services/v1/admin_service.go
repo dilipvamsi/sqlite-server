@@ -23,13 +23,15 @@ type AdminServer struct {
 	dbv1connect.UnimplementedAdminServiceHandler
 	store    *auth.MetaStore
 	dbServer *DbServer
+	cache    AuthCacheInvalidator
 }
 
 // NewAdminServer creates a new AdminServer instance
-func NewAdminServer(store *auth.MetaStore, dbServer *DbServer) *AdminServer {
+func NewAdminServer(store *auth.MetaStore, dbServer *DbServer, cache AuthCacheInvalidator) *AdminServer {
 	return &AdminServer{
 		store:    store,
 		dbServer: dbServer,
+		cache:    cache,
 	}
 }
 
@@ -43,6 +45,11 @@ func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.
 	userID, err := s.store.CreateUser(ctx, req.Msg.Username, req.Msg.Password, req.Msg.Role)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Invalidate cache (new user might try to login immediately)
+	if s.cache != nil {
+		s.cache.ClearCache()
 	}
 
 	return connect.NewResponse(&dbv1.CreateUserResponse{
@@ -63,6 +70,11 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
+	// Invalidate cache immediately to revoke access
+	if s.cache != nil {
+		s.cache.ClearCache()
+	}
+
 	return connect.NewResponse(&dbv1.DeleteUserResponse{
 		Success: true,
 	}), nil
@@ -78,6 +90,11 @@ func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[d
 	err := s.store.UpdatePassword(ctx, req.Msg.Username, req.Msg.NewPassword)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+
+	// Invalidate cache to force re-authentication check
+	if s.cache != nil {
+		s.cache.ClearCache()
 	}
 
 	return connect.NewResponse(&dbv1.UpdatePasswordResponse{

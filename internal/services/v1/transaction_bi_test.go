@@ -115,6 +115,14 @@ func TestBiDiTransaction_Coverage(t *testing.T) {
 		_, err := stream.Receive()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "manual transaction control")
+
+		// CLEANUP
+		stream.CloseRequest()
+		for {
+			if _, err := stream.Receive(); err != nil {
+				break
+			}
+		}
 	})
 
 	t.Run("Savepoint Flow", func(t *testing.T) {
@@ -145,6 +153,15 @@ func TestBiDiTransaction_Coverage(t *testing.T) {
 		}})
 		res, err = stream.Receive()
 		assert.True(t, res.GetSavepoint().Success)
+
+		// CLEANUP: Close stream to release DB lock for next tests
+		stream.CloseRequest()
+		for {
+			_, err := stream.Receive()
+			if err != nil {
+				break
+			}
+		}
 	})
 
 	t.Run("Savepoint Errors", func(t *testing.T) {
@@ -180,6 +197,14 @@ func TestBiDiTransaction_Coverage(t *testing.T) {
 		res, err = stream.Receive()
 		require.NoError(t, err)
 		assert.NotNil(t, res.GetQueryResult())
+
+		// CLEANUP
+		stream.CloseRequest()
+		for {
+			if _, err := stream.Receive(); err != nil {
+				break
+			}
+		}
 	})
 
 	t.Run("Nil Tx Checks", func(t *testing.T) {
@@ -392,6 +417,14 @@ func TestBiDiTransaction_TypedQuery(t *testing.T) {
 		res, err = stream.Receive()
 		require.NoError(t, err)
 		assert.NotNil(t, res.GetTypedQueryResult())
+
+		// CLEANUP
+		stream.CloseRequest()
+		for {
+			if _, err := stream.Receive(); err != nil {
+				break
+			}
+		}
 	})
 
 	t.Run("TypedQuery With Parameters", func(t *testing.T) {
@@ -541,5 +574,13 @@ func TestBiDiTransaction_TypedQueryStream(t *testing.T) {
 		res, err = stream.Receive()
 		require.NoError(t, err)
 		assert.NotNil(t, res.GetTypedStreamResult().GetHeader())
+
+		// CLEANUP
+		stream.CloseRequest()
+		for {
+			if _, err := stream.Receive(); err != nil {
+				break
+			}
+		}
 	})
 }

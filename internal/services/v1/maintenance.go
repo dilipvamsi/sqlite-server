@@ -15,12 +15,9 @@ func (s *DbServer) Vacuum(ctx context.Context, req *connect.Request[dbv1.VacuumR
 	dbName := req.Msg.Database
 	intoFile := req.Msg.IntoFile
 
-	s.dbMu.RLock()
-	db, exists := s.Dbs[dbName]
-	s.dbMu.RUnlock()
-
-	if !exists {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", dbName))
+	db, err := s.dbManager.GetConnection(ctx, dbName, ModeRW)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	var query string
@@ -51,12 +48,9 @@ func (s *DbServer) Checkpoint(ctx context.Context, req *connect.Request[dbv1.Che
 	dbName := req.Msg.Database
 	mode := req.Msg.Mode
 
-	s.dbMu.RLock()
-	db, exists := s.Dbs[dbName]
-	s.dbMu.RUnlock()
-
-	if !exists {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", dbName))
+	db, err := s.dbManager.GetConnection(ctx, dbName, ModeRW)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	modeStr := "PASSIVE"
@@ -99,12 +93,9 @@ func (s *DbServer) IntegrityCheck(ctx context.Context, req *connect.Request[dbv1
 		maxErrors = *req.Msg.MaxErrors
 	}
 
-	s.dbMu.RLock()
-	db, exists := s.Dbs[dbName]
-	s.dbMu.RUnlock()
-
-	if !exists {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", dbName))
+	db, err := s.dbManager.GetConnection(ctx, dbName, ModeRW)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	query := fmt.Sprintf("PRAGMA integrity_check(%d)", maxErrors)

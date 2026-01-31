@@ -44,7 +44,7 @@ func main() {
 	_ = os.Remove(config.DbPath + "-shm")
 
 	log.Printf("Creating test database: %s", config.DbPath)
-	db, err := sqldrivers.NewSqliteDb(config)
+	db, err := sqldrivers.NewSqliteDb(config, false)
 	if err != nil {
 		log.Fatalf("Fatal: failed to open db: %v", err)
 	}

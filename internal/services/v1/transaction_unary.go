@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log"
+	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"time"
 
@@ -34,9 +34,13 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	db, ok := s.Dbs[msg.Database]
-	if !ok {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
+	mode := ModeRW
+	if auth.IsReadOnly(ctx) {
+		mode = ModeRO
+	}
+	db, err := s.dbManager.GetConnection(ctx, msg.Database, mode)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	// 1. Parse Timeout (Defaults to 30s if invalid/empty)
@@ -59,7 +63,7 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 
 	// The transaction must survive the end of this HTTP request.
 	// Its lifecycle is managed by the s.txRegistry and the Background Reaper.
-	var err error
+
 	tx, err := db.BeginTx(context.Background(), txOpts) // Use BeginTx instead of Begin
 	if err != nil {
 		log.Printf("[%s] BeginTransaction failed: %v", reqID, err)
@@ -280,12 +284,18 @@ func (s *DbServer) RollbackTransaction(ctx context.Context, req *connect.Request
 
 	s.txMu.Lock()
 	session, exists := s.txRegistry[msg.TransactionId]
+	var tx *sql.Tx
 	if exists {
 		// Clean up memory and DB connection
 		delete(s.txRegistry, msg.TransactionId)
-		_ = session.Tx.Rollback()
+		tx = session.Tx
 	}
 	s.txMu.Unlock()
+
+	// Rollback outside the lock
+	if tx != nil {
+		_ = tx.Rollback()
+	}
 
 	return connect.NewResponse(&dbv1.TransactionControlResponse{Success: true}), nil
 }

@@ -10,6 +10,7 @@ import (
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
 
+	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
@@ -73,10 +74,15 @@ func (s *DbServer) ExecuteTransaction(ctx context.Context, req *connect.Request[
 				return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: transaction already active"))
 			}
 
-			db, ok := s.Dbs[cmd.Begin.Database]
-			if !ok {
-				return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", cmd.Begin.Database))
+			mode := ModeRW
+			if auth.IsReadOnly(ctx) {
+				mode = ModeRO
 			}
+			dbVal, errConn := s.dbManager.GetConnection(ctx, cmd.Begin.Database, mode)
+			if errConn != nil {
+				return nil, connect.NewError(connect.CodeNotFound, errConn)
+			}
+			db := dbVal
 
 			// Configure Locking Mode
 			txOpts := &sql.TxOptions{ReadOnly: false}

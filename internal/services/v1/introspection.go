@@ -43,9 +43,9 @@ func (s *DbServer) Explain(
 	}
 
 	// Get database connection
-	db, err := s.getDB(req.Msg.Database)
+	db, err := s.dbManager.GetConnection(ctx, req.Msg.Database, ModeRO)
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	// Execute EXPLAIN QUERY PLAN
@@ -101,9 +101,9 @@ func (s *DbServer) TypedExplain(
 	}
 
 	// Get database connection
-	db, err := s.getDB(req.Msg.Database)
+	db, err := s.dbManager.GetConnection(ctx, req.Msg.Database, ModeRO)
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	// Execute EXPLAIN QUERY PLAN
@@ -160,9 +160,9 @@ func (s *DbServer) ListTables(
 	}
 
 	// Get database connection
-	db, err := s.getDB(req.Msg.Database)
+	db, err := s.dbManager.GetConnection(ctx, req.Msg.Database, ModeRO)
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	// Query sqlite_schema for table names
@@ -206,9 +206,9 @@ func (s *DbServer) GetTableSchema(
 	}
 
 	// Get database connection
-	db, err := s.getDB(req.Msg.Database)
+	db, err := s.dbManager.GetConnection(ctx, req.Msg.Database, ModeRO)
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	schema, err := s.buildTableSchema(ctx, db, req.Msg.TableName)
@@ -234,9 +234,9 @@ func (s *DbServer) GetDatabaseSchema(
 	}
 
 	// Get database connection
-	db, err := s.getDB(req.Msg.Database)
+	db, err := s.dbManager.GetConnection(ctx, req.Msg.Database, ModeRO)
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	// Get all table names first
@@ -362,25 +362,40 @@ func (s *DbServer) getTableColumns(ctx context.Context, db *sql.DB, tableName st
 
 // getTableIndexes returns index information using PRAGMA index_list and index_info.
 func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName string) ([]*dbv1.IndexSchema, error) {
-	// Get list of indexes
+	// 1. Get list of indexes first and collect into slice to avoid connection pool exhaustion
 	listRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_list(%q)", tableName))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	defer listRows.Close()
 
-	var indexes []*dbv1.IndexSchema
+	type indexMeta struct {
+		name   string
+		unique bool
+	}
+	var metas []indexMeta
 	for listRows.Next() {
 		var seq int
 		var name, origin string
-		var unique, partial int
+		var unique int
+		var partial int
 
 		if err := listRows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+			listRows.Close()
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
+		metas = append(metas, indexMeta{name: name, unique: unique != 0})
+	}
+	listRows.Close()
 
+	if err := listRows.Err(); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 2. Fetch details for each index
+	var indexes []*dbv1.IndexSchema
+	for _, meta := range metas {
 		// Get columns in this index
-		infoRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_info(%q)", name))
+		infoRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_info(%q)", meta.name))
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -402,17 +417,17 @@ func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName st
 		// Get the CREATE INDEX SQL (if available)
 		var sqlStmt sql.NullString
 		_ = db.QueryRowContext(ctx,
-			"SELECT sql FROM sqlite_schema WHERE type='index' AND name = ?", name).Scan(&sqlStmt)
+			"SELECT sql FROM sqlite_schema WHERE type='index' AND name = ?", meta.name).Scan(&sqlStmt)
 
 		indexes = append(indexes, &dbv1.IndexSchema{
-			Name:    name,
-			Unique:  unique != 0,
+			Name:    meta.name,
+			Unique:  meta.unique,
 			Columns: columnNames,
 			Sql:     sqlStmt.String,
 		})
 	}
 
-	return indexes, listRows.Err()
+	return indexes, nil
 }
 
 // getTableForeignKeys returns foreign key information using PRAGMA foreign_key_list.
@@ -470,16 +485,4 @@ func (s *DbServer) getTableTriggers(ctx context.Context, db *sql.DB, tableName s
 	}
 
 	return triggers, rows.Err()
-}
-
-// getDB retrieves the database connection from the registry.
-func (s *DbServer) getDB(name string) (*sql.DB, error) {
-	s.dbMu.RLock()
-	defer s.dbMu.RUnlock()
-
-	db, ok := s.Dbs[name]
-	if !ok {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database %q not found", name))
-	}
-	return db, nil
 }

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,6 +58,41 @@ func TestNewMetaStore(t *testing.T) {
 		err = store2.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 		assert.NoError(t, err)
 	})
+
+	t.Run("fails migration on database lock", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		dbPath := filepath.Join(tmpDir, "locked.db")
+
+		// 1. Create a valid db and hold an EXCLUSIVE lock
+		db, err := sql.Open("sqlite3", dbPath)
+		require.NoError(t, err)
+		defer db.Close()
+
+		tx, err := db.Begin()
+		require.NoError(t, err)
+		_, err = tx.Exec("CREATE TABLE lock (id INTEGER)")
+		require.NoError(t, err)
+		// Leave the transaction open to keep the lock
+
+		// 2. NewMetaStore should fail during migration because it can't get a lock
+		// Wait 5 seconds since NewMetaStore hardcodes 5000ms timeout
+		_, err = NewMetaStore(dbPath)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "database is locked")
+	})
+}
+
+func TestMetaStore_Migrate_Error(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "migrate_fail.db")
+	db, err := sql.Open("sqlite3", dbPath)
+	require.NoError(t, err)
+	db.Close() // Force error
+
+	store := &MetaStore{db: db}
+	err = store.migrate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "migration failed")
 }
 
 func TestMetaStore_EnsureDefaultAdmin(t *testing.T) {
@@ -486,6 +522,17 @@ func TestMetaStore_ValidateApiKey_Placeholder(t *testing.T) {
 	assert.Nil(t, claims)
 }
 
+func TestMetaStore_NewMetaStore_PingError(t *testing.T) {
+	tmpDir := t.TempDir()
+	dirPath := filepath.Join(tmpDir, "is_a_dir")
+	err := os.Mkdir(dirPath, 0755)
+	require.NoError(t, err)
+
+	_, err = NewMetaStore(dirPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to ping meta db")
+}
+
 func TestMetaStore_GetDB(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test_get_db.db")
@@ -496,7 +543,7 @@ func TestMetaStore_GetDB(t *testing.T) {
 	assert.NotNil(t, store.GetDB())
 }
 
-func TestMetaStore_NewMetaStore_Errors(t *testing.T) {
+func TestMetaStore_NewMetaStore_TotalErrors(t *testing.T) {
 	t.Run("fails with invalid db path", func(t *testing.T) {
 		// Use a directory as file path to cause failure
 		tmpDir := t.TempDir()
@@ -504,6 +551,7 @@ func TestMetaStore_NewMetaStore_Errors(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, store)
 	})
+
 }
 
 func TestMetaStore_ValidateUser_Errors(t *testing.T) {
@@ -610,4 +658,66 @@ func TestMetaStore_DatabaseConfig(t *testing.T) {
 		err := store.RemoveDatabaseConfig(ctx, "nonexistent")
 		require.NoError(t, err)
 	})
+}
+
+// ... existing tests ...
+
+func TestMetaStore_RemoveDatabaseConfig_Errors(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "remove_error.db")
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+	defer store.Close()
+
+	ctx := context.Background()
+	// Force error by closing DB
+	store.db.Close()
+
+	err = store.RemoveDatabaseConfig(ctx, "testdb")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to remove database config")
+}
+
+// ============================================================================
+// Role Parsing Tests
+// ============================================================================
+
+func TestParseRole(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    dbRole
+		expected dbv1.Role
+	}{
+		{"Admin", dbRoleAdmin, dbv1.Role_ROLE_ADMIN},
+		{"ReadWrite", dbRoleReadWrite, dbv1.Role_ROLE_READ_WRITE},
+		{"ReadOnly", dbRoleReadOnly, dbv1.Role_ROLE_READ_ONLY},
+		{"Unspecified", dbRoleUnspecified, dbv1.Role_ROLE_UNSPECIFIED},
+		{"Unknown", "invalid_role", dbv1.Role_ROLE_UNSPECIFIED},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, ParseRole(tt.input))
+		})
+	}
+}
+
+func TestFormatRole(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    dbv1.Role
+		expected dbRole
+	}{
+		{"Admin", dbv1.Role_ROLE_ADMIN, dbRoleAdmin},
+		{"ReadWrite", dbv1.Role_ROLE_READ_WRITE, dbRoleReadWrite},
+		{"ReadOnly", dbv1.Role_ROLE_READ_ONLY, dbRoleReadOnly},
+		{"Unspecified", dbv1.Role_ROLE_UNSPECIFIED, dbRoleUnspecified},
+		{"Unknown", dbv1.Role(999), dbRoleUnspecified},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, FormatRole(tt.input))
+		})
+	}
 }

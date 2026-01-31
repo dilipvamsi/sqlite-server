@@ -27,7 +27,10 @@ func TestMaintenanceRPCs(t *testing.T) {
 	defer server.Stop()
 
 	// Pre-populate DB
-	db := server.Dbs[dbName]
+	db, err := server.dbManager.GetConnection(context.Background(), dbName, ModeRW)
+	if err != nil {
+		t.Fatalf("Failed to get connection: %v", err)
+	}
 	if _, err := db.Exec("CREATE TABLE test (id INTEGER PRIMARY KEY, val TEXT)"); err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -65,7 +68,7 @@ func TestMaintenanceRPCs(t *testing.T) {
 		}
 
 		// Verify backup exists and is valid
-		backupDB, err := sqldrivers.NewSqliteDb(&dbv1.DatabaseConfig{Name: "backup", DbPath: backupFile})
+		backupDB, err := sqldrivers.NewSqliteDb(&dbv1.DatabaseConfig{Name: "backup", DbPath: backupFile}, false)
 		if err != nil {
 			t.Fatalf("Failed to open backup DB: %v", err)
 		}
@@ -133,4 +136,31 @@ func TestMaintenanceRPCs(t *testing.T) {
 			t.Errorf("Expected CodeNotFound, got %v", connect.CodeOf(err))
 		}
 	})
+}
+
+func TestIntegrityCheck_QueryError(t *testing.T) {
+	_, dbServer := setupTestServer(t)
+	ctx := context.Background()
+
+	// 1. Mount DB
+	if err := dbServer.MountDatabase(&dbv1.DatabaseConfig{Name: "integrity_fail", DbPath: ":memory:"}); err != nil {
+		t.Fatalf("MountDatabase failed: %v", err)
+	}
+
+	if _, err := dbServer.dbManager.GetConnection(ctx, "integrity_fail", ModeRW); err != nil {
+		t.Fatalf("GetConnection failed: %v", err)
+	}
+
+	// 2. Cancel context to force error
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	// 3. Run Integrity Check
+	checkReq := connect.NewRequest(&dbv1.IntegrityCheckRequest{
+		Database: "integrity_fail",
+	})
+	_, err := dbServer.IntegrityCheck(ctx, checkReq)
+	if err == nil {
+		t.Fatal("Expected error due to context cancellation, got nil")
+	}
 }

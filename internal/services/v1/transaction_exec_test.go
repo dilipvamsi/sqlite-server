@@ -206,3 +206,81 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 		assert.True(t, res.Msg.Responses[1].GetRollback().Success)
 	})
 }
+
+func TestExecuteTransaction_Typed(t *testing.T) {
+	client, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	t.Run("Typed Query Success", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
+			Requests: []*dbv1.TransactionRequest{
+				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
+				{Command: &dbv1.TransactionRequest_TypedQuery{TypedQuery: &dbv1.TypedTransactionalQueryRequest{
+					Sql: "SELECT 'typed'",
+				}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		require.Len(t, res.Msg.Responses, 3)
+
+		// Validate Typed Result
+		typedRes := res.Msg.Responses[1].GetTypedQueryResult()
+		require.NotNil(t, typedRes)
+		require.NotNil(t, typedRes.GetSelect())
+		assert.Equal(t, "typed", typedRes.GetSelect().Rows[0].Values[0].GetTextValue())
+	})
+
+	t.Run("Typed Query with Parameters", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
+			Requests: []*dbv1.TransactionRequest{
+				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
+				{Command: &dbv1.TransactionRequest_TypedQuery{TypedQuery: &dbv1.TypedTransactionalQueryRequest{
+					Sql: "SELECT ?",
+					Parameters: &dbv1.TypedParameters{
+						Positional: []*dbv1.SqlValue{{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 99}}},
+					},
+				}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+
+		typedRes := res.Msg.Responses[1].GetTypedQueryResult()
+		assert.Equal(t, int64(99), typedRes.GetSelect().Rows[0].Values[0].GetIntegerValue())
+	})
+
+	t.Run("Typed Query Stream (Buffered)", func(t *testing.T) {
+		// Even for Stream, ExecuteTransaction buffers it
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
+			Requests: []*dbv1.TransactionRequest{
+				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
+				{Command: &dbv1.TransactionRequest_TypedQueryStream{TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{
+					Sql: "SELECT 1 UNION SELECT 2",
+				}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+
+		typedRes := res.Msg.Responses[1].GetTypedQueryResult()
+		// Should have 2 rows
+		assert.Len(t, typedRes.GetSelect().Rows, 2)
+	})
+
+	t.Run("Typed Query Error", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
+			Requests: []*dbv1.TransactionRequest{
+				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
+				{Command: &dbv1.TransactionRequest_TypedQuery{TypedQuery: &dbv1.TypedTransactionalQueryRequest{
+					Sql: "SELECT * FROM broken_table",
+				}}},
+				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		// Should stop after error
+		require.Len(t, res.Msg.Responses, 2)
+		assert.NotNil(t, res.Msg.Responses[1].GetError())
+	})
+}

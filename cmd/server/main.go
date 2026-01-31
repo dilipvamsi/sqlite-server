@@ -57,6 +57,7 @@ func main() {
 
 	var interceptors connect.HandlerOption
 	var authStore *auth.MetaStore
+	var authInterceptor *servicesv1.AuthInterceptor
 
 	activeConfigs := configs
 
@@ -75,7 +76,7 @@ func main() {
 		syncedNames := make(map[string]bool)
 		for _, cfg := range configs {
 			// Validate connectivity
-			db, err := sqldrivers.NewSqliteDb(cfg)
+			db, err := sqldrivers.NewSqliteDb(cfg, false)
 			if err != nil {
 				log.Fatalf("Fatal: config.json database '%s' failed to open: %v", cfg.Name, err)
 			}
@@ -123,18 +124,19 @@ func main() {
 		}
 
 		// Chain Logging and Auth interceptors
-		authInterceptor := servicesv1.NewAuthInterceptor(authStore)
+		authInterceptor = servicesv1.NewAuthInterceptor(authStore)
 		interceptors = connect.WithInterceptors(
 			servicesv1.LoggingInterceptor(),
 			authInterceptor,
 		)
 		log.Println("[AUTH] Authentication ENABLED")
 	} else {
-		// No auth, just logging
+		// No auth, just logging AND inject Admin Context for bypassing checks
 		interceptors = connect.WithInterceptors(
 			servicesv1.LoggingInterceptor(),
+			servicesv1.NewNoAuthInterceptor(),
 		)
-		log.Println("[AUTH] Authentication DISABLED (SQLITE_SERVER_AUTH_ENABLED=false)")
+		log.Println("[AUTH] Authentication DISABLED (SQLITE_SERVER_AUTH_ENABLED=false) - Running in Anonymous Admin Mode")
 	}
 
 	// NewDbServer starts the background 'Reaper' goroutine.
@@ -148,7 +150,7 @@ func main() {
 
 	// Register AdminService (only if auth is enabled)
 	if authEnabled && authStore != nil {
-		adminServer := servicesv1.NewAdminServer(authStore, dbServer)
+		adminServer := servicesv1.NewAdminServer(authStore, dbServer, authInterceptor)
 		adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
 		mux.Handle(adminPath, adminHandler)
 	}

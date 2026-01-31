@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/mattn/go-sqlite3"
@@ -12,26 +14,43 @@ import (
 	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
+var (
+	registeredDrivers   = make(map[string]bool)
+	registeredDriversMu sync.Mutex
+)
+
 // const BuildType = "std"
 
-func NewSqliteDb(config *dbv1.DatabaseConfig) (*sql.DB, error) {
+func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, error) {
 	// Resolve absolute path to avoid issues with relative paths in URI mode (file:...) via CGO
-	// Skip for in-memory databases.
-	if config.DbPath != ":memory:" {
+	// Skip for in-memory databases and pre-formatted URIs.
+	if config.DbPath != ":memory:" && !strings.HasPrefix(config.DbPath, "file:") {
 		absPath, err := filepath.Abs(config.DbPath)
 		if err == nil {
 			config.DbPath = absPath
 		}
 	}
 
-	// Construct the Data Source Name (DSN) with production-ready parameters.
-	// - _journal=WAL: Enables Write-Ahead Logging for vastly improved concurrency.
-	//   It allows multiple readers to operate while a single writer is active.
-	// - _busy_timeout=10000: Tells SQLite to wait up to 10000ms (10 seconds) if the
-	//   database is locked by another write operation, instead of failing immediately.
-	//   This makes the server resilient to short bursts of write contention.
-	// _foreign_keys=on: Ensures that INSERT/UPDATE checks constraints immediately.
-	dsn := fmt.Sprintf("file:%s?_journal=WAL&_busy_timeout=10000&_foreign_keys=on", config.DbPath)
+	// Construct the Data Source Name (DSN)
+	var dsn string
+	if strings.HasPrefix(config.DbPath, "file:") {
+		dsn = config.DbPath
+	} else {
+		dsn = fmt.Sprintf("file:%s", config.DbPath)
+	}
+
+	// Helper to append params safely
+	addParam := func(key, val string) {
+		sep := "?"
+		if strings.Contains(dsn, "?") {
+			sep = "&"
+		}
+		dsn += fmt.Sprintf("%s%s=%s", sep, key, val)
+	}
+
+	addParam("_journal", "WAL")
+	addParam("_busy_timeout", "10000")
+	addParam("_foreign_keys", "on")
 
 	if config.IsEncrypted {
 		key := config.Key
@@ -42,7 +61,7 @@ func NewSqliteDb(config *dbv1.DatabaseConfig) (*sql.DB, error) {
 	}
 
 	// Handle Read-Only mode
-	if config.ReadOnly {
+	if config.ReadOnly || readOnlySecured {
 		// mode=ro forces the connection to be read-only.
 		dsn += "&mode=ro"
 	}
@@ -55,15 +74,33 @@ func NewSqliteDb(config *dbv1.DatabaseConfig) (*sql.DB, error) {
 	// If extensions are specified, we must create and register a unique driver instance
 	// for this database configuration because extensions are a property of the driver/connection,
 	// not just the DSN.
-	if len(config.Extensions) > 0 {
+	if len(config.Extensions) > 0 || readOnlySecured {
 		// Generate a unique driver name for this specific DB configuration to avoid collisions.
-		// e.g., "sqlite3_ext_primary_db"
-		driverName = fmt.Sprintf("sqlite3_ext_%s", config.Name)
+		// e.g., "sqlite3_ext_primary_db" or "sqlite3_ext_primary_db_ro"
+		suffix := ""
+		if readOnlySecured {
+			suffix = "_ro"
+		}
+		driverName = fmt.Sprintf("sqlite3_ext_%s%s", config.Name, suffix)
 
-		// Register the custom driver
-		sql.Register(driverName, &sqlite3.SQLiteDriver{
-			Extensions: config.Extensions,
-		})
+		// Register the custom driver ONLY if it hasn't been registered yet.
+		registeredDriversMu.Lock()
+		if !registeredDrivers[driverName] {
+			sql.Register(driverName, &sqlite3.SQLiteDriver{
+				Extensions: config.Extensions,
+				ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+					if readOnlySecured {
+						// Register Authorizer to deny writes
+						conn.RegisterAuthorizer(func(action int, arg1, arg2, arg3 string) int {
+							return ReadOnlyAuthorizer(action, arg1, arg2, arg3, "")
+						})
+					}
+					return nil
+				},
+			})
+			registeredDrivers[driverName] = true
+		}
+		registeredDriversMu.Unlock()
 	}
 
 	// Loop over the map and append to DSN

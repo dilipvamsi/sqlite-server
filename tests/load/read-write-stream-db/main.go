@@ -295,7 +295,7 @@ func verifyDataIntegrity() {
 			DbPath: dbPath,
 		}
 	}
-	db, err := sqldrivers.NewSqliteDb(config)
+	db, err := sqldrivers.NewSqliteDb(config, false)
 	if err != nil {
 		log.Fatalf("Verification failed: could not open db: %v", err)
 	}

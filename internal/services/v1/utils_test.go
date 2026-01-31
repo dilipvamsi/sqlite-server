@@ -2,6 +2,7 @@ package servicesv1
 
 import (
 	"encoding/base64"
+	"net/http"
 	"testing"
 
 	dbv1 "sqlite-server/internal/protos/db/v1"
@@ -115,4 +116,11 @@ func TestGenerateSavepointSQL(t *testing.T) {
 	// Invalid Name
 	_, err = generateSavepointSQL(&dbv1.SavepointRequest{Name: "", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE})
 	assert.Error(t, err)
+}
+
+func TestEnsureRequestID_PreExisting(t *testing.T) {
+	header := http.Header{}
+	header.Set("X-Request-Id", "existing-id-123")
+	id := ensureRequestID(header)
+	assert.Equal(t, "existing-id-123", id)
 }

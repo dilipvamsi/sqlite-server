@@ -3,11 +3,10 @@ package servicesv1
 import (
 	"context"
 	"crypto/tls"
-	"database/sql"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 )
@@ -27,31 +27,30 @@ import (
 // --- Helper Setup ---
 
 func setupTestServer(t *testing.T) (dbv1connect.DatabaseServiceClient, *DbServer) {
-	// Setup In-Memory DB
-	// Generate a unique DB name for each test to prevent collisions
-	// when running tests in parallel or sequentially within the same process.
-	uniqueName := fmt.Sprintf("val_%d", time.Now().UnixNano())
-	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", uniqueName)
+	// Setup File-Based DB to avoid memory/URI issues in test suite
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_setup.db")
+	// No need for 'file:' prefix or params, NewSqliteDb will handle path and defaults.
 
-	db, err := sql.Open("sqlite3", dsn)
+	config := &dbv1.DatabaseConfig{
+		Name:         "test",
+		DbPath:       dbPath,
+		MaxOpenConns: 1,
+	}
+
+	server := NewDbServer([]*dbv1.DatabaseConfig{config})
+
+	// Seed Data via Manager
+	// We use ModeRW to seed data.
+	db, err := server.dbManager.GetConnection(context.Background(), "test", ModeRW)
 	require.NoError(t, err)
 
-	// Seed Data
 	_, err = db.Exec(`
 		CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER, avatar BLOB, active BOOLEAN);
 		INSERT INTO users (id, name, age, avatar, active) VALUES (1, 'Alice', 30, x'DEADBEEF', 1);
 		INSERT INTO users (id, name, age, avatar, active) VALUES (2, 'Bob', 40, NULL, 0);
 	`)
 	require.NoError(t, err)
-
-	server := &DbServer{
-		Dbs:        map[string]*sql.DB{"test": db},
-		txRegistry: make(map[string]*TxSession),
-		shutdownCh: make(chan struct{}),
-	}
-
-	// Start Reaper in background (for coverage)
-	go server.runReaper()
 
 	mux := http.NewServeMux()
 	// Add Mock Auth Interceptor to inject admin user for tests
@@ -69,12 +68,9 @@ func setupTestServer(t *testing.T) (dbv1connect.DatabaseServiceClient, *DbServer
 	t.Cleanup(func() {
 		server.Stop()
 		ts.Close()
-		db.Close()
 	})
 
 	// FIXED: Configure Client Transport for H2C (HTTP/2 over TCP)
-	// Standard httptest client only speaks HTTP/1.1 or HTTPS.
-	// We need to force HTTP/2 cleartext for gRPC to work.
 	httpClient := &http.Client{
 		Transport: &http2.Transport{
 			AllowHTTP: true,
@@ -316,6 +312,45 @@ func TestNewDbServer_Constructor(t *testing.T) {
 	}
 	server := NewDbServer(configs)
 	assert.NotNil(t, server)
-	assert.NotNil(t, server.Dbs["mem1"])
+	// Access DbManager via private field for test
+	assert.NotNil(t, server.dbManager)
+
+	// Basic check
+	conn, err := server.dbManager.GetConnection(context.Background(), "mem1", ModeRW)
+	assert.NoError(t, err)
+	assert.NotNil(t, conn)
+
 	server.Stop()
+}
+
+// --- Test Helpers (Moved from service_test_helper.go) ---
+
+type testAuthInterceptor struct{}
+
+func (i *testAuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		claims := &auth.UserClaims{
+			UserID:   1,
+			Username: "admin",
+			Role:     dbv1.Role_ROLE_ADMIN,
+		}
+		ctx = auth.NewContext(ctx, claims)
+		return next(ctx, req)
+	}
+}
+
+func (i *testAuthInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
+	return next
+}
+
+func (i *testAuthInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
+	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		claims := &auth.UserClaims{
+			UserID:   1,
+			Username: "admin",
+			Role:     dbv1.Role_ROLE_ADMIN,
+		}
+		ctx = auth.NewContext(ctx, claims)
+		return next(ctx, conn)
+	}
 }

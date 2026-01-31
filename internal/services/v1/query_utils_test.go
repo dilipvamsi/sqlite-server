@@ -174,6 +174,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 
 	tests := []struct {
 		name    string
+		sql     string // Added SQL field
 		params  *dbv1.Parameters
 		want    []any
 		wantErr bool
@@ -185,6 +186,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 		},
 		{
 			name: "Positional Basic",
+			sql:  "SELECT ?, ?, ?",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("a"), numVal(1), boolVal(true)}},
 			},
@@ -192,6 +194,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 		},
 		{
 			name: "Positional Hints - Blob",
+			sql:  "SELECT ?",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("SGVsbG8=")}}, // "Hello" in Base64
 				PositionalHints: map[int32]dbv1.ColumnAffinity{
@@ -202,6 +205,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 		},
 		{
 			name: "Positional Hints - Integer",
+			sql:  "SELECT ?, ?",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("123"), numVal(456)}},
 				PositionalHints: map[int32]dbv1.ColumnAffinity{
@@ -213,9 +217,9 @@ func TestConvertParameters_Pure(t *testing.T) {
 		},
 		{
 			name: "Positional Hints - Boolean",
+			sql:  "SELECT ?, ?",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{boolVal(true), boolVal(false)}},
-				// Note: Boolean is usually stored as INTEGER (0/1) in SQLite
 				PositionalHints: map[int32]dbv1.ColumnAffinity{
 					0: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
 					1: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
@@ -225,6 +229,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 		},
 		{
 			name: "Positional Hints - Float",
+			sql:  "SELECT ?",
 			params: &dbv1.Parameters{
 				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("3.14")}},
 				PositionalHints: map[int32]dbv1.ColumnAffinity{
@@ -235,6 +240,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 		},
 		{
 			name: "Named Basic",
+			sql:  "SELECT :a",
 			params: &dbv1.Parameters{
 				Named: &structpb.Struct{Fields: map[string]*structpb.Value{
 					":a": strVal("val"),
@@ -244,6 +250,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 		},
 		{
 			name: "Named Hints - Integer",
+			sql:  "SELECT @id",
 			params: &dbv1.Parameters{
 				Named: &structpb.Struct{Fields: map[string]*structpb.Value{
 					"@id": strVal("999"),
@@ -254,11 +261,43 @@ func TestConvertParameters_Pure(t *testing.T) {
 			},
 			want: []any{sql.Named("id", int64(999))},
 		},
+		{
+			name: "Leftover Positional Params",
+			sql:  "SELECT ?",
+			params: &dbv1.Parameters{
+				Positional: &structpb.ListValue{Values: []*structpb.Value{strVal("a"), strVal("b")}},
+			},
+			want: []any{"a", "b"}, // a from regex(?), b from leftovers
+		},
+		{
+			name: "Leftover Named Params",
+			sql:  "SELECT :used",
+			params: &dbv1.Parameters{
+				Named: &structpb.Struct{Fields: map[string]*structpb.Value{
+					":used":   strVal("used"),
+					":unused": strVal("unused"),
+				}},
+			},
+			// :used consumed by regex. :unused appended as leftover.
+			want: []any{sql.Named("used", "used"), sql.Named("unused", "unused")},
+		},
+		{
+			name: "Mixed and Interleaved",
+			sql:  "SELECT :a, ?, :b",
+			params: &dbv1.Parameters{
+				Positional: &structpb.ListValue{Values: []*structpb.Value{numVal(1)}},
+				Named: &structpb.Struct{Fields: map[string]*structpb.Value{
+					":a": strVal("A"),
+					":b": strVal("B"),
+				}},
+			},
+			want: []any{sql.Named("a", "A"), 1.0, sql.Named("b", "B")},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := convertParameters("", tt.params)
+			got, err := convertParameters(tt.sql, tt.params) // Use tt.sql
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -512,7 +551,8 @@ func (m *mockStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
 
 func TestStreamQueryResults_Coverage(t *testing.T) {
 	_, server := setupTestServer(t)
-	db := server.Dbs["test"]
+	db, err := server.dbManager.GetConnection(context.Background(), "test", ModeRW)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	t.Run("Convert Parameters Error", func(t *testing.T) {
@@ -771,7 +811,8 @@ func (m *mockTypedStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
 
 func TestTypedStreamQueryResults_Coverage(t *testing.T) {
 	_, server := setupTestServer(t)
-	db := server.Dbs["test"]
+	db, err := server.dbManager.GetConnection(context.Background(), "test", ModeRW)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	t.Run("Success SELECT", func(t *testing.T) {
@@ -818,7 +859,8 @@ func TestTypedStreamQueryResults_Coverage(t *testing.T) {
 
 func TestTypedExecuteQueryAndBuffer_Coverage(t *testing.T) {
 	_, server := setupTestServer(t)
-	db := server.Dbs["test"]
+	db, err := server.dbManager.GetConnection(context.Background(), "test", ModeRW)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	t.Run("SELECT Success", func(t *testing.T) {

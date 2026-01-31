@@ -3,10 +3,11 @@ package servicesv1
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"regexp"
 	dbv1 "sqlite-server/internal/protos/db/v1"
+
+	"sqlite-server/internal/auth"
 
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
@@ -84,10 +85,14 @@ func (s *DbServer) Query(ctx context.Context, req *connect.Request[dbv1.QueryReq
 	msg := req.Msg
 
 	// 4. Routing: Find the correct DB pool
-	db, ok := s.Dbs[msg.Database]
-	if !ok {
-		// CodeNotFound (404) indicates client error (wrong DB name).
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
+
+	mode := ModeRW
+	if auth.IsReadOnly(ctx) {
+		mode = ModeRO
+	}
+	db, err := s.dbManager.GetConnection(ctx, msg.Database, mode)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	// 5. Execution (Buffered)
@@ -146,10 +151,15 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 		}
 	}
 
-	msg := req.Msg
-	db, ok := s.Dbs[msg.Database]
-	if !ok {
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
+	reqMsg := req.Msg
+
+	mode := ModeRW
+	if auth.IsReadOnly(ctx) {
+		mode = ModeRO
+	}
+	db, err := s.dbManager.GetConnection(ctx, reqMsg.Database, mode)
+	if err != nil {
+		return connect.NewError(connect.CodeNotFound, err)
 	}
 
 	// 4. Setup Adapter: Wrap the specific ServerStream in our generic interface.
@@ -157,14 +167,14 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 
 	// 5. Execution (Streaming)
 	// This blocks until the query finishes or the client disconnects.
-	err := streamQueryResults(ctx, db, msg.Sql, msg.Parameters, writer)
+	err = streamQueryResults(ctx, db, reqMsg.Sql, reqMsg.Parameters, writer)
 	if err != nil {
 		log.Printf("[%s] Stream failed: %v", reqID, err)
 
 		// Instead of returning a gRPC error (which kills the stream with headers),
 
 		// 1. Create the proto error message
-		errResp := makeStreamError(err, msg.Sql)
+		errResp := makeStreamError(err, reqMsg.Sql)
 
 		// 2. Send it
 		sendErr := stream.Send(&dbv1.QueryResponse{
@@ -224,9 +234,13 @@ func (s *DbServer) TypedQuery(ctx context.Context, req *connect.Request[dbv1.Typ
 
 	msg := req.Msg
 
-	db, ok := s.Dbs[msg.Database]
-	if !ok {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
+	mode := ModeRW
+	if auth.IsReadOnly(ctx) {
+		mode = ModeRO
+	}
+	db, err := s.dbManager.GetConnection(ctx, msg.Database, mode)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
 	result, err := typedExecuteQueryAndBuffer(ctx, db, msg.Sql, msg.Parameters)
@@ -268,14 +282,19 @@ func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[db
 	}
 
 	msg := req.Msg
-	db, ok := s.Dbs[msg.Database]
-	if !ok {
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", msg.Database))
+
+	mode := ModeRW
+	if auth.IsReadOnly(ctx) {
+		mode = ModeRO
+	}
+	db, err := s.dbManager.GetConnection(ctx, msg.Database, mode)
+	if err != nil {
+		return connect.NewError(connect.CodeNotFound, err)
 	}
 
 	writer := &typedStatelessStreamWriter{stream: stream}
 
-	err := typedStreamQueryResults(ctx, db, msg.Sql, msg.Parameters, writer)
+	err = typedStreamQueryResults(ctx, db, msg.Sql, msg.Parameters, writer)
 	if err != nil {
 		log.Printf("[%s] TypedStream failed: %v", reqID, err)
 

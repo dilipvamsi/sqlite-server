@@ -125,7 +125,7 @@ test-coverage: ## Run tests and generate coverage report (excluding protos and l
 
 	# 2. Filter out generated proto files AND load tests using grep -E (extended regex)
 	@echo "🧹 Filtering generated code and load tests..."
-	@grep -vE "internal/protos|tests/load|cmd/server" coverage.raw.out > coverage.out
+	@grep -vE "internal/protos|tests/load|cmd/server|internal/docs|internal/landing|scripts" coverage.raw.out > coverage.out
 
 	# 3. Display function-level coverage summary in terminal
 	@echo "📊 Coverage Summary:"

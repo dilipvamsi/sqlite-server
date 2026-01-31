@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"io"
 	"log"
+	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"time"
 
@@ -220,10 +220,19 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: transaction already active"))
 			}
 			transactionDB = cmd.Begin.Database
-			db, ok := s.Dbs[transactionDB]
-			if !ok {
-				return connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", transactionDB))
+
+			mode := ModeRW
+			if auth.IsReadOnly(ctx) {
+				mode = ModeRO
 			}
+			dbVal, errConn := s.dbManager.GetConnection(ctx, transactionDB, mode)
+			if errConn != nil {
+				return connect.NewError(connect.CodeNotFound, errConn)
+			}
+			// Variable renaming to avoid shadowing if necessary, but 'db' usage follows.
+			// The original code used 'db, ok := ...'.
+			// We can use 'db := dbVal'.
+			db := dbVal
 
 			// Configure Locking Mode
 			// SQLite "IMMEDIATE" and "EXCLUSIVE" help avoid busy loops in write-heavy scenarios.

@@ -11,6 +11,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAuthorizeRead(t *testing.T) {
+	t.Run("unauthenticated context returns error", func(t *testing.T) {
+		ctx := context.Background()
+		err := AuthorizeRead(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthenticated")
+	})
+
+	t.Run("unspecified role is denied", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID:   1,
+			Username: "guest",
+			Role:     dbv1.Role_ROLE_UNSPECIFIED,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+
+		err := AuthorizeRead(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "permission_denied")
+	})
+
+	t.Run("read_only user is allowed", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID: 2,
+			Role:   dbv1.Role_ROLE_READ_ONLY,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+		assert.NoError(t, AuthorizeRead(ctx))
+	})
+
+	t.Run("admin user is allowed", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID: 3,
+			Role:   dbv1.Role_ROLE_ADMIN,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+		assert.NoError(t, AuthorizeRead(ctx))
+	})
+}
+
 func TestAuthorizeWrite(t *testing.T) {
 	t.Run("unauthenticated context returns error", func(t *testing.T) {
 		ctx := context.Background()
@@ -105,6 +145,8 @@ func TestIsWriteQuery(t *testing.T) {
 		"REPLACE INTO users VALUES (1, 'test')",
 		"ATTACH DATABASE 'foo.db' AS foo",
 		"DETACH DATABASE foo",
+		"VACUUM",
+		"UPSERT INTO users VALUES (1, 2)", // Not valid SQL per se but checks keyword
 	}
 
 	for _, query := range writeQueries {
