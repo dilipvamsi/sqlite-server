@@ -44,7 +44,12 @@ import Layout from "../layouts/Layout.astro";
 </Layout>
 
 <script>
-  import { getClient, AUTH_KEY, AUTH_KEY_ID } from "../lib/client";
+  import {
+    getClient,
+    AUTH_KEY,
+    AUTH_KEY_ID,
+    AUTH_USER_ID,
+  } from "../lib/client";
   import { AdminService } from "../gen/db/v1/db_service_pb";
 
   const form = document.getElementById("login-form");
@@ -76,6 +81,10 @@ import Layout from "../layouts/Layout.astro";
         "sqlite-server-user",
         response.user?.username || username,
       );
+      if (response.user?.id) {
+        localStorage.setItem(AUTH_USER_ID, response.user.id.toString());
+        localStorage.setItem("userRole", response.user.role.toString());
+      }
 
       window.location.href = "/studio/";
     } catch (err) {

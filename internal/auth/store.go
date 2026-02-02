@@ -318,6 +318,52 @@ func (s *MetaStore) GetUserByUsername(ctx context.Context, username string) (*Us
 	return &user, nil
 }
 
+// ListUsers retrieves all users
+func (s *MetaStore) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, username, role, created_at
+		FROM users ORDER BY id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		var role dbRole
+		if err := rows.Scan(&user.ID, &user.Username, &role, &user.CreatedAt); err != nil {
+			return nil, err
+		}
+		user.Role = ParseRole(role)
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+// UpdateUserRole updates a user's role
+func (s *MetaStore) UpdateUserRole(ctx context.Context, username string, role dbv1.Role) error {
+	if role == dbv1.Role_ROLE_UNSPECIFIED {
+		return fmt.Errorf("invalid role: UNSPECIFIED")
+	}
+	roleStr := FormatRole(role)
+
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE username = ?
+	`, roleStr, username)
+	if err != nil {
+		return fmt.Errorf("failed to update user role: %w", err)
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", username)
+	}
+	return nil
+}
+
 // ============================================================================
 // API Key Operations
 // ============================================================================
@@ -399,6 +445,15 @@ func (s *MetaStore) RevokeApiKey(ctx context.Context, keyID string) error {
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
 		return fmt.Errorf("api key not found: %s", keyID)
+	}
+	return nil
+}
+
+// RevokeAllApiKeysForUser deletes all API keys for a specific user
+func (s *MetaStore) RevokeAllApiKeysForUser(ctx context.Context, userID int64) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM api_keys WHERE user_id = ?", userID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke api keys for user: %w", err)
 	}
 	return nil
 }

@@ -64,6 +64,12 @@ studio-build: studio-install ## Build Studio assets
 	@cp -r studio/dist/* internal/studio/dist/
 	@echo "✅ Studio built and embedded"
 
+.PHONY: run-studio
+run-studio: ## Run standalone studio (BACKEND_URL env var, defaults to /)
+	@echo "🚀 Starting Studio (Standalone)..."
+	@echo "   Backend URL: $(or $(BACKEND_URL),/)"
+	@cd studio && PUBLIC_SQLITE_SERVER_URL=$(or $(BACKEND_URL),/) npm run dev
+
 .PHONY: build-dynamic
 build-dynamic: ## Build a dynamically linked binary
 	@echo "Building dynamic binary: $(BINARY_OUT)"
@@ -87,7 +93,7 @@ run: build ## Build and run the server with default config
 .PHONY: run-dev
 run-dev: ## Run directly using 'go run' (fast development)
 	@echo "Starting server in dev mode..."
-	CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(DEFAULT_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(DEFAULT_CONFIG)
 
 # ==============================================================================
 # Protocol Buffers
@@ -183,13 +189,13 @@ run-load-test-setup-auth: build-load-test-setup build ## Setup DBs and run serve
 .PHONY: run-load-test-dev
 run-load-test-dev: build-load-test-setup ## Setup DBs and run server with loadtest config (NO AUTH) using go run
 	@echo "🚀 Starting server (DEV) with LOADTEST config (AUTH DISABLED)..."
-	SQLITE_SERVER_AUTH_ENABLED=false CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_AUTH_ENABLED=false CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-auth-dev
 run-load-test-auth-dev: build-load-test-setup ## Setup DBs and run server WITH auth enabled using go run
 	@echo "🔐 Starting server (DEV) with LOADTEST config (AUTH ENABLED)..."
 	@echo "   Credentials: admin / admin"
-	SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-setup-cipher
 run-load-test-setup-cipher: build-load-test-setup-cipher build ## Setup encrypted DBs and run server with cipher config

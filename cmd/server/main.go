@@ -144,6 +144,11 @@ func main() {
 	dbServer := servicesv1.NewDbServer(activeConfigs)
 
 	// 3. HTTP Server Setup
+	corsOrigin := os.Getenv("SQLITE_SERVER_CORS_ORIGIN")
+	if corsOrigin != "" {
+		log.Printf("[CORS] Enabled for origin: %s", corsOrigin)
+	}
+
 	path, handler := dbv1connect.NewDatabaseServiceHandler(dbServer, interceptors)
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
@@ -168,7 +173,7 @@ func main() {
 	srv := &http.Server{
 		Addr: ":50051",
 		// h2c is required for gRPC over cleartext (no TLS).
-		Handler: h2c.NewHandler(mux, &http2.Server{}),
+		Handler: h2c.NewHandler(newCORSHandler(mux, corsOrigin), &http2.Server{}),
 		// Good practice: Set timeouts to prevent slowloris attacks
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -206,4 +211,27 @@ func main() {
 	dbServer.Stop()
 
 	log.Println("Server exited properly.")
+}
+
+// newCORSHandler wraps the mux with CORS middleware if an origin is specified.
+func newCORSHandler(h http.Handler, allowedOrigin string) http.Handler {
+	if allowedOrigin == "" {
+		return h
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, CONNECT")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Connect-Protocol-Version, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "7200") // 2 hours
+
+		// Handle preflight requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		h.ServeHTTP(w, r)
+	})
 }

@@ -436,6 +436,18 @@ service AdminService {
   rpc ListApiKeys(ListApiKeysRequest) returns (ListApiKeysResponse);
 
   /**
+   * Retrieves all active users.
+   * Requires admin privileges.
+   */
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
+  /**
+   * Updates the role of a specific user.
+   * Requires admin privileges.
+   */
+  rpc UpdateUserRole(UpdateUserRoleRequest) returns (UpdateUserRoleResponse);
+
+  /**
    * Lists all available databases.
    */
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
@@ -653,6 +665,30 @@ message UpdatePasswordRequest {
  * Response indicating the success of the password update.
  */
 message UpdatePasswordResponse { bool success = 1; }
+
+/**
+ * Request to list all users.
+ */
+message ListUsersRequest {}
+
+/**
+ * Response containing a list of users.
+ */
+message ListUsersResponse { repeated User users = 1; }
+
+/**
+ * Request to update a user's role.
+ */
+message UpdateUserRoleRequest {
+  string username = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
+  Role role = 2 [ (buf.validate.field).enum.defined_only = true ];
+}
+
+/**
+ * Response indicating success of role update.
+ */
+message UpdateUserRoleResponse { bool success = 1; }
 
 /**
  * Request to generate a new API key for a user.

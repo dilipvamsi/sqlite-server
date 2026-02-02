@@ -355,6 +355,28 @@ function deserialize_db_v1_ListTablesResponse(buffer_arg) {
   return db_v1_db_service_pb.ListTablesResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_ListUsersRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListUsersRequest)) {
+    throw new Error('Expected argument of type db.v1.ListUsersRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListUsersRequest(buffer_arg) {
+  return db_v1_db_service_pb.ListUsersRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListUsersResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListUsersResponse)) {
+    throw new Error('Expected argument of type db.v1.ListUsersResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListUsersResponse(buffer_arg) {
+  return db_v1_db_service_pb.ListUsersResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_LoginRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.LoginRequest)) {
     throw new Error('Expected argument of type db.v1.LoginRequest');
@@ -661,6 +683,28 @@ function serialize_db_v1_UpdatePasswordResponse(arg) {
 
 function deserialize_db_v1_UpdatePasswordResponse(buffer_arg) {
   return db_v1_db_service_pb.UpdatePasswordResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_UpdateUserRoleRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UpdateUserRoleRequest)) {
+    throw new Error('Expected argument of type db.v1.UpdateUserRoleRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UpdateUserRoleRequest(buffer_arg) {
+  return db_v1_db_service_pb.UpdateUserRoleRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_UpdateUserRoleResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.UpdateUserRoleResponse)) {
+    throw new Error('Expected argument of type db.v1.UpdateUserRoleResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_UpdateUserRoleResponse(buffer_arg) {
+  return db_v1_db_service_pb.UpdateUserRoleResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_VacuumRequest(arg) {
@@ -1111,6 +1155,34 @@ listApiKeys: {
     requestDeserialize: deserialize_db_v1_ListApiKeysRequest,
     responseSerialize: serialize_db_v1_ListApiKeysResponse,
     responseDeserialize: deserialize_db_v1_ListApiKeysResponse,
+  },
+  // *
+// Retrieves all active users.
+// Requires admin privileges.
+listUsers: {
+    path: '/db.v1.AdminService/ListUsers',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.ListUsersRequest,
+    responseType: db_v1_db_service_pb.ListUsersResponse,
+    requestSerialize: serialize_db_v1_ListUsersRequest,
+    requestDeserialize: deserialize_db_v1_ListUsersRequest,
+    responseSerialize: serialize_db_v1_ListUsersResponse,
+    responseDeserialize: deserialize_db_v1_ListUsersResponse,
+  },
+  // *
+// Updates the role of a specific user.
+// Requires admin privileges.
+updateUserRole: {
+    path: '/db.v1.AdminService/UpdateUserRole',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.UpdateUserRoleRequest,
+    responseType: db_v1_db_service_pb.UpdateUserRoleResponse,
+    requestSerialize: serialize_db_v1_UpdateUserRoleRequest,
+    requestDeserialize: deserialize_db_v1_UpdateUserRoleRequest,
+    responseSerialize: serialize_db_v1_UpdateUserRoleResponse,
+    responseDeserialize: deserialize_db_v1_UpdateUserRoleResponse,
   },
   // *
 // Lists all available databases.

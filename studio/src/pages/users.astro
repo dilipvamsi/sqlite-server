@@ -1,0 +1,530 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+---
+
+<Layout title="User Management">
+    <Header />
+
+    <main class="container">
+        <div
+            class="page-header"
+            style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;"
+        >
+            <div>
+                <h1>User Management</h1>
+                <p class="subtitle mt-1">
+                    Manage users, passwords, and API keys.
+                </p>
+            </div>
+
+            <div
+                style="display: flex; gap: 1rem; align-items: center; margin-left: auto;"
+            >
+                <!-- Add User Button (Hero Style) -->
+                <button
+                    id="btn-open-create-modal"
+                    class="hero-btn group flex-row"
+                    style="display:none"
+                >
+                    <div
+                        class="icon-wrapper bg-blue-500/10 group-hover:bg-blue-500/20"
+                        style="color: #60a5fa"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            style="width: 32px; height: 32px;"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                            ></path>
+                        </svg>
+                    </div>
+                    <div class="text-wrapper" style="color: #60a5fa">
+                        <span>New</span>
+                        <span>User</span>
+                    </div>
+                </button>
+
+                <!-- Manage Profile Button (Hero Style) -->
+                <a
+                    href="#"
+                    id="btn-manage-profile-header"
+                    class="hero-btn group"
+                >
+                    <div
+                        class="icon-wrapper bg-blue-500/10 group-hover:bg-blue-500/20"
+                        style="color: #60a5fa"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            style="width: 32px; height: 32px;"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            ></path>
+                        </svg>
+                    </div>
+                    <div class="text-wrapper" style="color: #60a5fa">
+                        <span>Manage</span>
+                        <span>Profile</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Admin Only: Horizontal Stats Cards -->
+        <div
+            id="admin-stats-container"
+            style="display: none; flex-direction: row; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;"
+        >
+            <!-- Total Card -->
+            <div class="card stat-card" style="border-left: 4px solid #9ca3af;">
+                <div
+                    class="stat-icon-bg"
+                    style="background: rgba(156, 163, 175, 0.1);"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        style="width: 24px; height: 24px; color: #9ca3af;"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                        ></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="stat-label" style="color: #9ca3af;">
+                        Total Users
+                    </div>
+                    <div id="stat-total" class="stat-value">0</div>
+                </div>
+            </div>
+
+            <!-- Admin Card -->
+            <div class="card stat-card" style="border-left: 4px solid #c084fc;">
+                <div
+                    class="stat-icon-bg"
+                    style="background: rgba(192, 132, 252, 0.1);"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        style="width: 24px; height: 24px; color: #c084fc;"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                        ></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="stat-label" style="color: #c084fc;">Admins</div>
+                    <div id="stat-admins" class="stat-value">0</div>
+                </div>
+            </div>
+
+            <!-- Editor Card -->
+            <div class="card stat-card" style="border-left: 4px solid #60a5fa;">
+                <div
+                    class="stat-icon-bg"
+                    style="background: rgba(96, 165, 250, 0.1);"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        style="width: 24px; height: 24px; color: #60a5fa;"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        ></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="stat-label" style="color: #60a5fa;">
+                        Editors
+                    </div>
+                    <div id="stat-editors" class="stat-value">0</div>
+                </div>
+            </div>
+
+            <!-- Viewer Card -->
+            <div class="card stat-card" style="border-left: 4px solid #4ade80;">
+                <div
+                    class="stat-icon-bg"
+                    style="background: rgba(74, 222, 128, 0.1);"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        style="width: 24px; height: 24px; color: #4ade80;"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        ></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="stat-label" style="color: #4ade80;">
+                        Viewers
+                    </div>
+                    <div id="stat-viewers" class="stat-value">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Only: User Table -->
+        <div
+            id="admin-section"
+            class="card full-width p-0 overflow-hidden"
+            style="display:none;"
+        >
+            <table
+                class="keys-table"
+                style="width: 100%; border-collapse: collapse;"
+            >
+                <thead style="background: rgba(0,0,0,0.2);">
+                    <tr
+                        style="text-align: left; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;"
+                    >
+                        <th style="padding: 1.5rem 3rem;">User Id</th>
+                        <th style="padding: 1.5rem 1.5rem;">Username</th>
+                        <th style="padding: 1.5rem 1.5rem;">Role</th>
+                        <th style="padding: 1.5rem 3rem;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Create User Modal -->
+        <div id="create-user-modal" class="modal-overlay">
+            <div class="modal-content card">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;"
+                >
+                    <h2>Create New User</h2>
+                    <button
+                        id="btn-close-modal"
+                        style="background: none; border: none; color: gray; cursor: pointer;"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            style="width: 24px; height: 24px;"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="create-user-form">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input
+                            type="text"
+                            name="username"
+                            required
+                            placeholder="username"
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select name="role">
+                            <option value="3">Viewer</option>
+                            <option value="2">Editor</option>
+                            <option value="1">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input
+                            type="password"
+                            name="password"
+                            required
+                            minlength="8"
+                            placeholder="********"
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm Password</label>
+                        <input
+                            type="password"
+                            name="confirm_password"
+                            required
+                            minlength="8"
+                            placeholder="********"
+                        />
+                    </div>
+                    <div
+                        style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;"
+                    >
+                        <button
+                            type="button"
+                            id="btn-cancel-create"
+                            class="btn btn-outline">Cancel</button
+                        >
+                        <button type="submit" class="btn btn-primary"
+                            >Create User</button
+                        >
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        import {
+            getClient,
+            getAuthHeaders,
+            AUTH_USER,
+            AUTH_USER_ID,
+            getAuthToken,
+        } from "../lib/client";
+        import { AdminService, type User } from "../gen/db/v1/db_service_pb";
+
+        const userRole = parseInt(localStorage.getItem("userRole") || "0");
+        const username = localStorage.getItem(AUTH_USER);
+        const userId = localStorage.getItem(AUTH_USER_ID);
+        const authToken = getAuthToken();
+
+        const ROLE_CONFIG = {
+            1: {
+                label: "Admin",
+                badge: "rgba(192, 132, 252, 0.1)",
+                border: "rgba(192, 132, 252, 0.4)",
+                color: "#c084fc",
+                icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+            },
+            2: {
+                label: "Editor",
+                badge: "rgba(96, 165, 250, 0.1)",
+                border: "rgba(96, 165, 250, 0.4)",
+                color: "#60a5fa",
+                icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
+            },
+            3: {
+                label: "Viewer",
+                badge: "rgba(74, 222, 128, 0.1)",
+                border: "rgba(74, 222, 128, 0.4)",
+                color: "#4ade80",
+                icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z",
+            },
+        };
+
+        const fetchUsers = async () => {
+            if (userRole !== 1) return;
+            try {
+                const client = getClient(AdminService);
+                const headers = getAuthHeaders();
+                const response = await client.listUsers({}, { headers });
+                renderTable(response.users);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        const renderTable = (users: User[]) => {
+            const body = document.getElementById("tableBody");
+            document.getElementById("stat-total").innerText = users.length;
+            document.getElementById("stat-admins").innerText = users.filter(
+                (u) => u.role === 1,
+            ).length;
+            document.getElementById("stat-editors").innerText = users.filter(
+                (u) => u.role === 2,
+            ).length;
+            document.getElementById("stat-viewers").innerText = users.filter(
+                (u) => u.role === 3,
+            ).length;
+
+            if (!body) return;
+            body.innerHTML = users
+                .map((u) => {
+                    const conf = ROLE_CONFIG[u.role] || ROLE_CONFIG[3];
+                    const rowStyle = `border-bottom: 1px dashed rgba(255,255,255,0.1); vertical-align: middle; padding: 1.5rem;`;
+                    return `
+                <tr class="hover-row">
+                    <td style="${rowStyle} padding-left: 3rem; color: var(--text-secondary); font-family: monospace; font-size: 0.75rem;">${u.id}</td>
+                    <td style="${rowStyle} font-weight: 500; color: white;">${u.username}</td>
+                    <td style="${rowStyle}">
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${conf.badge}; border: 1px solid ${conf.border}; color: ${conf.color};">
+                            <svg style="width: 14px; height: 14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${conf.icon}"/></svg>
+                            ${conf.label}
+                        </span>
+                    </td>
+                    <td style="${rowStyle} padding: 1.5rem 3rem;">
+                        <a href="/studio/manage-user?username=${u.username}&userId=${u.id}" style="color: var(--text-secondary); text-decoration: none; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.1); padding: 0.4rem 0.8rem; border-radius: 4px;">Manage</a>
+                    </td>
+                </tr>`;
+                })
+                .join("");
+        };
+
+        // Initialize Manage Profile URL
+        const linkManageSelfHeader = document.getElementById(
+            "btn-manage-profile-header",
+        );
+        if (linkManageSelfHeader && username && userId) {
+            linkManageSelfHeader.href = `/studio/manage-user?username=${username}&userId=${userId}`;
+        }
+
+        if (authToken && userRole === 1) {
+            document.getElementById("admin-section").style.display = "block";
+            document.getElementById("admin-stats-container").style.display =
+                "flex";
+            document.getElementById("btn-open-create-modal").style.display =
+                "flex";
+            fetchUsers();
+        }
+
+        // Modal Triggers
+        const modal = document.getElementById("create-user-modal");
+        document
+            .getElementById("btn-open-create-modal")
+            ?.addEventListener("click", () => (modal.style.display = "flex"));
+        document
+            .getElementById("btn-close-modal")
+            ?.addEventListener("click", () => (modal.style.display = "none"));
+        document
+            .getElementById("btn-cancel-create")
+            ?.addEventListener("click", () => (modal.style.display = "none"));
+    </script>
+
+    <style>
+        .hero-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.5rem;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+        .hero-btn:hover {
+            transform: translateY(-2px);
+        }
+        .hero-btn .icon-wrapper {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .hero-btn .text-wrapper {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.85rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            text-align: left;
+            line-height: 1.1;
+            letter-spacing: 0.02em;
+        }
+
+        .stat-card {
+            flex: 1;
+            min-width: 220px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem;
+            background: var(--bg-primary);
+        }
+        .stat-icon-bg {
+            padding: 0.75rem;
+            border-radius: 12px;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 800;
+        }
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: white;
+            line-height: 1;
+            margin-top: 0.2rem;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            width: 450px;
+            padding: 2rem;
+            background: var(--bg-primary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+        }
+        .hover-row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+    </style>
+</Layout>

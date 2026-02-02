@@ -1,0 +1,711 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+---
+
+<Layout title="Manage User">
+    <Header />
+
+    <main class="container">
+        <div class="page-header">
+            <h1>Manage User</h1>
+            <p class="subtitle" id="header-subtitle">Managing user details.</p>
+        </div>
+
+        <div class="grid-layout">
+            <!-- Update Role Section (Admin Only) -->
+            <section class="card" id="card-role" style="display:none">
+                <h2>Update Role</h2>
+                <form id="update-role-form">
+                    <div class="form-group">
+                        <label>Target Username</label>
+                        <input type="text" id="role-username" disabled />
+                    </div>
+                    <div class="form-group">
+                        <label for="update-role-select">New Role</label>
+                        <select id="update-role-select" name="role">
+                            <option value="2">Read/Write</option>
+                            <option value="3">Read Only</option>
+                            <option value="1">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary"
+                        >Update Role</button
+                    >
+                </form>
+                <div id="role-result" class="result-box" style="display:none">
+                </div>
+            </section>
+
+            <!-- Update Password Section -->
+            <section class="card" id="card-password">
+                <h2>Update Password</h2>
+                <form id="update-password-form">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input
+                            type="text"
+                            id="up-username"
+                            disabled
+                            placeholder="username"
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label for="up-new-password">New Password</label>
+                        <input
+                            type="password"
+                            id="up-new-password"
+                            name="new_password"
+                            required
+                            minlength="8"
+                            placeholder="********"
+                        />
+                        <small>Min 8 chars, 1 letter, 1 number.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="up-new-password-confirm"
+                            >Confirm New Password</label
+                        >
+                        <input
+                            type="password"
+                            id="up-new-password-confirm"
+                            name="confirm_new_password"
+                            required
+                            minlength="8"
+                            placeholder="********"
+                        />
+                    </div>
+                    <button type="submit" class="btn btn-primary"
+                        >Update Password</button
+                    >
+                </form>
+                <div id="up-result" class="result-box" style="display:none">
+                </div>
+            </section>
+
+            <!-- API Key Section -->
+            <section class="card" id="card-apikeys">
+                <h2>API Keys</h2>
+                <div
+                    id="no-id-warning"
+                    style="display:none; color: var(--text-secondary); padding: 1rem;"
+                >
+                    User ID is required to manage API keys.
+                </div>
+                <div id="apikey-content">
+                    <div class="form-group">
+                        <label>User ID</label>
+                        <input type="text" id="api-userid-display" disabled />
+                    </div>
+                    <form id="api-key-form">
+                        <div class="api-actions">
+                            <div class="form-group">
+                                <label for="api-key-name">New Key Name</label>
+                                <input
+                                    type="text"
+                                    id="api-key-name"
+                                    name="name"
+                                    placeholder="my-key"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="api-key-expiry">Expires In</label>
+                                <select id="api-key-expiry" name="expiry">
+                                    <option value="never">Never</option>
+                                    <option value="30d">30 Days</option>
+                                    <option value="90d">90 Days</option>
+                                    <option value="365d">1 Year</option>
+                                </select>
+                            </div>
+                            <div class="btn-row">
+                                <button
+                                    type="button"
+                                    id="btn-create-key"
+                                    class="btn btn-primary">Create Key</button
+                                >
+                                <button
+                                    type="button"
+                                    id="btn-list-keys"
+                                    class="btn btn-secondary">List Keys</button
+                                >
+                            </div>
+                        </div>
+                    </form>
+                    <div id="api-results" class="api-results">
+                        <div class="empty-state">
+                            Select an action to see results.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Danger Zone -->
+            <section class="card danger-zone full-width" id="card-delete">
+                <h2>Danger Zone</h2>
+                <div class="danger-content">
+                    <p>Deleting a user is permanent and cannot be undone.</p>
+                    <div class="form-group">
+                        <label>Target Username</label>
+                        <input type="text" id="del-username" disabled />
+                    </div>
+                    <div class="form-group">
+                        <label for="del-confirm" class="text-red-400"
+                            >Type username to confirm</label
+                        >
+                        <input
+                            type="text"
+                            id="del-confirm"
+                            placeholder="Confimation..."
+                            style="border-color: #ef4444;"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        id="btn-delete-user"
+                        class="btn btn-danger">Delete User</button
+                    >
+                </div>
+                <div id="del-result" class="result-box" style="display:none">
+                </div>
+            </section>
+        </div>
+
+        <div class="back-link">
+            <a href="/studio/users" class="btn btn-secondary">← Back to Users</a
+            >
+        </div>
+
+        <div id="toast" class="toast hidden"></div>
+    </main>
+</Layout>
+
+<script>
+    import { getClient, getAuthHeaders, AUTH_USER } from "../lib/client";
+    import { AdminService } from "../gen/db/v1/db_service_pb";
+
+    // Parse URL params
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get("username");
+    const userId = params.get("userid");
+
+    // UI Elements
+    const els = {
+        headerSubtitle: document.getElementById("header-subtitle"),
+        // Password
+        upUsername: document.getElementById("up-username") as HTMLInputElement,
+        upForm: document.getElementById(
+            "update-password-form",
+        ) as HTMLFormElement,
+        upResult: document.getElementById("up-result"),
+        // API Keys
+        apiUserIdDisplay: document.getElementById(
+            "api-userid-display",
+        ) as HTMLInputElement,
+        apiKeyName: document.getElementById("api-key-name") as HTMLInputElement,
+        btnCreateKey: document.getElementById("btn-create-key"),
+        btnListKeys: document.getElementById("btn-list-keys"),
+        apiResults: document.getElementById("api-results"),
+        noIdWarning: document.getElementById("no-id-warning"),
+        apikeyContent: document.getElementById("apikey-content"),
+        // Delete
+        delUsername: document.getElementById(
+            "del-username",
+        ) as HTMLInputElement,
+        btnDelete: document.getElementById("btn-delete-user"),
+        delResult: document.getElementById("del-result"),
+        delConfirm: document.getElementById("del-confirm") as HTMLInputElement,
+        // Role
+        cardRole: document.getElementById("card-role"),
+        roleUsername: document.getElementById(
+            "role-username",
+        ) as HTMLInputElement,
+        roleForm: document.getElementById(
+            "update-role-form",
+        ) as HTMLFormElement,
+        roleResult: document.getElementById("role-result"),
+        apiKeyExpiry: document.getElementById(
+            "api-key-expiry",
+        ) as HTMLSelectElement,
+    };
+
+    // Initialize View
+    if (username) {
+        els.headerSubtitle!.textContent = `Managing user: ${username}`;
+        els.upUsername.value = username;
+        els.delUsername.value = username;
+        if (els.roleUsername) els.roleUsername.value = username;
+
+        // Show Role card only if current user is Admin (check local storage)
+        const currentUserRole = parseInt(
+            localStorage.getItem("userRole") || "0",
+        );
+        if (currentUserRole === 1 && els.cardRole) {
+            els.cardRole.style.display = "block";
+        }
+
+        // Hide delete card for self-management
+        const currentUser =
+            localStorage.getItem("sqlite-server-user") ||
+            localStorage.getItem(AUTH_USER);
+        const cardDelete = document.getElementById("card-delete");
+
+        // Log for debugging (remove in prod)
+        // console.log("Current User:", currentUser, "Target User:", username);
+
+        if (currentUser && username && currentUser === username && cardDelete) {
+            cardDelete.style.display = "none";
+        }
+    } else {
+        els.headerSubtitle!.textContent = "No username provided.";
+        // Disable username-dependent sections if needed, but for now we rely on the inputs being disabled/empty
+    }
+
+    if (userId) {
+        els.apiUserIdDisplay.value = userId;
+        if (username) {
+            els.headerSubtitle!.textContent += ` (ID: ${userId})`;
+        } else {
+            els.headerSubtitle!.textContent = `Managing User ID: ${userId}`;
+        }
+    } else {
+        els.apikeyContent!.style.display = "none";
+        els.noIdWarning!.style.display = "block";
+    }
+
+    // --- Update Password ---
+    els.upForm?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!username) {
+            showToast("Username is missing", "error");
+            return;
+        }
+
+        const formData = new FormData(els.upForm);
+        const newPassword = formData.get("new_password") as string;
+        const confirmPassword = formData.get("confirm_new_password") as string;
+
+        if (newPassword !== confirmPassword) {
+            showResult(els.upResult, "Error: Passwords do not match.", "error");
+            return;
+        }
+
+        try {
+            const client = getClient(AdminService);
+            const headers = getAuthHeaders();
+            await client.updatePassword({ username, newPassword }, { headers });
+            showResult(
+                els.upResult,
+                "Password updated successfully.",
+                "success",
+            );
+            els.upForm.reset();
+        } catch (err: any) {
+            showResult(els.upResult, `Error: ${err.message}`, "error");
+        }
+    });
+
+    // --- API Keys ---
+    els.btnCreateKey?.addEventListener("click", async () => {
+        if (!userId) return;
+        const name = els.apiKeyName.value;
+        if (!name) {
+            showToast("Key Name is required", "error");
+            return;
+        }
+
+        try {
+            const client = getClient(AdminService);
+            const headers = getAuthHeaders();
+            const expiryVal = els.apiKeyExpiry.value;
+            let expiresAt = undefined;
+
+            if (expiryVal !== "never") {
+                const now = new Date();
+                if (expiryVal === "30d") now.setDate(now.getDate() + 30);
+                if (expiryVal === "90d") now.setDate(now.getDate() + 90);
+                if (expiryVal === "365d") now.setDate(now.getDate() + 365);
+
+                // Timestamp for proto (seconds/nanos) or just Date object?
+                // Connect-ES usually takes a partial Timestamp object or just Date if configured.
+                // Looking at standard generated code, it expects a `Timestamp` message wrapper usually.
+                // Let's import Timestamp from @bufbuild/protobuf
+                // Wait, I can't easily import from node_modules in this client script unless it's packaged.
+                // But `db_service_pb.ts` imports from `@bufbuild/protobuf`.
+                // In Connect-Web / ES, we often pass the Date object directly if the generator is configured for standard types,
+                // OR we pass { seconds: BigInt(...), nanos: 0 }.
+
+                // Let's assume the generated type `CreateApiKeyRequest` expects `expiresAt` as a `Timestamp` message.
+                // We need to verify if `createApiKey` accepts it.
+                // Safe bet: Construct a plain object mimicking Timestamp.
+
+                const seconds = BigInt(Math.floor(now.getTime() / 1000));
+                expiresAt = { seconds, nanos: 0 };
+            }
+
+            const response = await client.createApiKey(
+                { userId: BigInt(userId), name, expiresAt },
+                { headers },
+            );
+
+            if (els.apiResults) {
+                els.apiResults.innerHTML = `
+                    <div class="key-created-card">
+                        <h3>API Key Created</h3>
+                        <p class="warning">This key will only be shown once. Copy it now!</p>
+                        <div class="key-display">
+                            <code>${response.apiKey}</code>
+                            <button class="btn btn-sm btn-primary btn-copy" data-key="${response.apiKey}">Copy</button>
+                        </div>
+                        <p><strong>Key ID:</strong> ${response.keyId}</p>
+                    </div>
+                `;
+                bindCopyButtons();
+            }
+        } catch (err: any) {
+            if (els.apiResults)
+                els.apiResults.innerHTML = `<div class="error-msg">Failed: ${err.message}</div>`;
+        }
+    });
+
+    els.btnListKeys?.addEventListener("click", async () => {
+        if (!userId) return;
+        try {
+            if (els.apiResults)
+                els.apiResults.innerHTML =
+                    '<div class="loading">Loading keys...</div>';
+            const client = getClient(AdminService);
+            const headers = getAuthHeaders();
+            const response = await client.listApiKeys(
+                { userId: BigInt(userId) },
+                { headers },
+            );
+
+            if (response.keys.length === 0) {
+                if (els.apiResults)
+                    els.apiResults.innerHTML =
+                        '<div class="empty-state">No API keys found.</div>';
+                return;
+            }
+
+            if (els.apiResults) {
+                els.apiResults.innerHTML = `
+                    <table class="keys-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Prefix</th>
+                                <th>Created</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${response.keys
+                                .map(
+                                    (k: any) => `
+                                <tr>
+                                    <td>${k.name}</td>
+                                    <td><code>${k.prefix}...</code></td>
+                                    <td>${k.createdAt ? new Date(Number(k.createdAt.seconds) * 1000).toLocaleDateString() : "-"}</td>
+                                    <td><button class="btn btn-xs btn-danger btn-revoke" data-id="${k.id}">Revoke</button></td>
+                                </tr>
+                            `,
+                                )
+                                .join("")}
+                        </tbody>
+                    </table>
+                `;
+
+                // Bind revoke
+                els.apiResults
+                    .querySelectorAll(".btn-revoke")
+                    .forEach((btn) => {
+                        btn.addEventListener("click", (e) => {
+                            const id = (e.target as HTMLElement).getAttribute(
+                                "data-id",
+                            );
+                            if (id && confirm("Revoke this API Key?")) {
+                                revokeKey(id);
+                            }
+                        });
+                    });
+            }
+        } catch (err: any) {
+            if (els.apiResults)
+                els.apiResults.innerHTML = `<div class="error-msg">Failed: ${err.message}</div>`;
+        }
+    });
+
+    async function revokeKey(keyId: string) {
+        try {
+            const client = getClient(AdminService);
+            const headers = getAuthHeaders();
+            await client.revokeApiKey({ keyId }, { headers });
+            showToast("API Key revoked", "success");
+            els.btnListKeys?.click();
+        } catch (err: any) {
+            showToast(`Failed to revoke: ${err.message}`, "error");
+        }
+    }
+
+    function bindCopyButtons() {
+        els.apiResults?.querySelectorAll(".btn-copy").forEach((btn) => {
+            btn.addEventListener("click", async (e) => {
+                const key = (e.target as HTMLElement).getAttribute("data-key");
+                if (key) {
+                    await navigator.clipboard.writeText(key);
+                    showToast("Copied!", "success");
+                }
+            });
+        });
+    }
+
+    // --- Update Role ---
+    els.roleForm?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!username) return;
+
+        const formData = new FormData(els.roleForm);
+        const role = parseInt(formData.get("role") as string);
+
+        try {
+            const client = getClient(AdminService);
+            const headers = getAuthHeaders();
+            await client.updateUserRole({ username, role }, { headers });
+            showResult(els.roleResult, "Role updated successfully.", "success");
+        } catch (err: any) {
+            showResult(els.roleResult, `Error: ${err.message}`, "error");
+        }
+    });
+
+    // --- Delete User & Confirm ---
+    els.btnDelete?.addEventListener("click", async () => {
+        if (!username) return;
+
+        // Prevent self-delete
+        const currentUser = localStorage.getItem(AUTH_USER);
+        if (currentUser && currentUser === username) {
+            showResult(
+                els.delResult,
+                "Cannot delete the currently logged-in user.",
+                "error",
+            );
+            return;
+        }
+
+        // Strict Confirmation
+        const confirmName = els.delConfirm.value.trim();
+        if (confirmName !== username) {
+            showToast("Username confirmation mismatch!", "error");
+            els.delConfirm.focus();
+            return;
+        }
+
+        if (
+            !confirm(
+                `Are you sure you want to PERMANENTLY delete user '${username}'?`,
+            )
+        )
+            return;
+
+        try {
+            const client = getClient(AdminService);
+            const headers = getAuthHeaders();
+            await client.deleteUser({ username }, { headers });
+            showResult(
+                els.delResult,
+                "User deleted successfully. Redirecting...",
+                "success",
+            );
+            els.btnDelete!.setAttribute("disabled", "true");
+            setTimeout(() => {
+                window.location.href = "/studio/users";
+            }, 2000);
+        } catch (err: any) {
+            showResult(
+                els.delResult,
+                `Failed to delete: ${err.message}`,
+                "error",
+            );
+        }
+    });
+
+    // --- Helpers ---
+    function showResult(
+        el: HTMLElement | null,
+        msg: string,
+        type: "success" | "error",
+    ) {
+        if (!el) return;
+        el.style.display = "block";
+        el.className = `result-box ${type}`;
+        el.textContent = msg;
+    }
+
+    function showToast(msg: string, type: "success" | "error") {
+        const toast = document.getElementById("toast");
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.className = `toast show ${type}`;
+        setTimeout(() => {
+            toast.className = "toast hidden";
+        }, 3000);
+    }
+</script>
+
+<style>
+    .page-header {
+        margin: 3rem 0 2rem 0;
+    }
+    .subtitle {
+        color: var(--text-secondary);
+        margin: 0;
+    }
+    .grid-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+    .card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1.5rem;
+    }
+    .card.full-width {
+        grid-column: 1 / -1;
+    }
+    .card h2 {
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        font-size: 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 0.25rem;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+    .form-group input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+    .form-group input:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    .result-box {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+    .result-box.success {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border: 1px solid #10b981;
+    }
+    .result-box.error {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+        border: 1px solid #ef4444;
+    }
+
+    .btn-row {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    .back-link {
+        margin-top: 2rem;
+    }
+
+    /* API Results */
+    .api-results {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        min-height: 100px;
+    }
+    .key-created-card {
+        background: var(--bg-primary);
+        padding: 1rem;
+        border: 1px solid #10b981;
+        border-radius: 8px;
+    }
+    .key-display {
+        display: flex;
+        gap: 0.5rem;
+        margin: 1rem 0;
+    }
+    .key-display code {
+        flex: 1;
+        background: #111;
+        color: #10b981;
+        padding: 0.5rem;
+        border-radius: 4px;
+        font-family: monospace;
+        word-break: break-all;
+    }
+    .keys-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .keys-table th,
+    .keys-table td {
+        text-align: left;
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    /* Danger Zone */
+    .danger-zone {
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    .danger-zone h2 {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        padding: 1rem 2rem;
+        border-radius: 6px;
+        color: white;
+        font-weight: 500;
+        transition:
+            transform 0.3s,
+            opacity 0.3s;
+        z-index: 1000;
+    }
+    .toast.hidden {
+        transform: translateY(100px);
+        opacity: 0;
+        pointer-events: none;
+    }
+    .toast.success {
+        background: #10b981;
+    }
+    .toast.error {
+        background: #ef4444;
+    }
+    .btn-xs {
+        padding: 0.1rem 0.4rem;
+        font-size: 0.75rem;
+    }
+</style>

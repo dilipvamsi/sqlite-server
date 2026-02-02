@@ -1,14 +1,10 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
 ---
 
 <Layout title="Dashboard">
-  <header class="header-nav">
-    <div class="logo">SQLite Studio</div>
-    <div class="user-menu">
-      <button id="logout-btn" class="btn btn-ghost">Logout</button>
-    </div>
-  </header>
+  <Header />
 
   <main class="container">
     <div class="dashboard-header">
@@ -320,7 +316,6 @@ busy_timeout=5000"></textarea>
 
   const dbList = document.getElementById("db-list");
   const errorAlert = document.getElementById("error-alert");
-  const logoutBtn = document.getElementById("logout-btn");
 
   // Modals
   const modalCreate = document.getElementById(
@@ -384,11 +379,6 @@ busy_timeout=5000"></textarea>
     });
     return result;
   }
-
-  // Logout Handler
-  logoutBtn?.addEventListener("click", async () => {
-    await performLogout();
-  });
 
   // Modal Handlers
   document

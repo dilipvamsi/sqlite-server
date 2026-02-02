@@ -137,6 +137,11 @@ const (
 	// AdminServiceListApiKeysProcedure is the fully-qualified name of the AdminService's ListApiKeys
 	// RPC.
 	AdminServiceListApiKeysProcedure = "/db.v1.AdminService/ListApiKeys"
+	// AdminServiceListUsersProcedure is the fully-qualified name of the AdminService's ListUsers RPC.
+	AdminServiceListUsersProcedure = "/db.v1.AdminService/ListUsers"
+	// AdminServiceUpdateUserRoleProcedure is the fully-qualified name of the AdminService's
+	// UpdateUserRole RPC.
+	AdminServiceUpdateUserRoleProcedure = "/db.v1.AdminService/UpdateUserRole"
 	// AdminServiceListDatabasesProcedure is the fully-qualified name of the AdminService's
 	// ListDatabases RPC.
 	AdminServiceListDatabasesProcedure = "/db.v1.AdminService/ListDatabases"
@@ -949,6 +954,14 @@ type AdminServiceClient interface {
 	// Returns metadata (name, prefix) but not the full key secrets.
 	ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error)
 	// *
+	// Retrieves all active users.
+	// Requires admin privileges.
+	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
+	// *
+	// Updates the role of a specific user.
+	// Requires admin privileges.
+	UpdateUserRole(context.Context, *connect.Request[v1.UpdateUserRoleRequest]) (*connect.Response[v1.UpdateUserRoleResponse], error)
+	// *
 	// Lists all available databases.
 	ListDatabases(context.Context, *connect.Request[v1.ListDatabasesRequest]) (*connect.Response[v1.ListDatabasesResponse], error)
 	// *
@@ -1024,6 +1037,18 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("ListApiKeys")),
 			connect.WithClientOptions(opts...),
 		),
+		listUsers: connect.NewClient[v1.ListUsersRequest, v1.ListUsersResponse](
+			httpClient,
+			baseURL+AdminServiceListUsersProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("ListUsers")),
+			connect.WithClientOptions(opts...),
+		),
+		updateUserRole: connect.NewClient[v1.UpdateUserRoleRequest, v1.UpdateUserRoleResponse](
+			httpClient,
+			baseURL+AdminServiceUpdateUserRoleProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("UpdateUserRole")),
+			connect.WithClientOptions(opts...),
+		),
 		listDatabases: connect.NewClient[v1.ListDatabasesRequest, v1.ListDatabasesResponse](
 			httpClient,
 			baseURL+AdminServiceListDatabasesProcedure,
@@ -1088,6 +1113,8 @@ type adminServiceClient struct {
 	updatePassword  *connect.Client[v1.UpdatePasswordRequest, v1.UpdatePasswordResponse]
 	createApiKey    *connect.Client[v1.CreateApiKeyRequest, v1.CreateApiKeyResponse]
 	listApiKeys     *connect.Client[v1.ListApiKeysRequest, v1.ListApiKeysResponse]
+	listUsers       *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	updateUserRole  *connect.Client[v1.UpdateUserRoleRequest, v1.UpdateUserRoleResponse]
 	listDatabases   *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
 	login           *connect.Client[v1.LoginRequest, v1.LoginResponse]
 	logout          *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
@@ -1122,6 +1149,16 @@ func (c *adminServiceClient) CreateApiKey(ctx context.Context, req *connect.Requ
 // ListApiKeys calls db.v1.AdminService.ListApiKeys.
 func (c *adminServiceClient) ListApiKeys(ctx context.Context, req *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error) {
 	return c.listApiKeys.CallUnary(ctx, req)
+}
+
+// ListUsers calls db.v1.AdminService.ListUsers.
+func (c *adminServiceClient) ListUsers(ctx context.Context, req *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error) {
+	return c.listUsers.CallUnary(ctx, req)
+}
+
+// UpdateUserRole calls db.v1.AdminService.UpdateUserRole.
+func (c *adminServiceClient) UpdateUserRole(ctx context.Context, req *connect.Request[v1.UpdateUserRoleRequest]) (*connect.Response[v1.UpdateUserRoleResponse], error) {
+	return c.updateUserRole.CallUnary(ctx, req)
 }
 
 // ListDatabases calls db.v1.AdminService.ListDatabases.
@@ -1191,6 +1228,14 @@ type AdminServiceHandler interface {
 	// Retrieves all active API keys for a specific user.
 	// Returns metadata (name, prefix) but not the full key secrets.
 	ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error)
+	// *
+	// Retrieves all active users.
+	// Requires admin privileges.
+	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
+	// *
+	// Updates the role of a specific user.
+	// Requires admin privileges.
+	UpdateUserRole(context.Context, *connect.Request[v1.UpdateUserRoleRequest]) (*connect.Response[v1.UpdateUserRoleResponse], error)
 	// *
 	// Lists all available databases.
 	ListDatabases(context.Context, *connect.Request[v1.ListDatabasesRequest]) (*connect.Response[v1.ListDatabasesResponse], error)
@@ -1263,6 +1308,18 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("ListApiKeys")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceListUsersHandler := connect.NewUnaryHandler(
+		AdminServiceListUsersProcedure,
+		svc.ListUsers,
+		connect.WithSchema(adminServiceMethods.ByName("ListUsers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceUpdateUserRoleHandler := connect.NewUnaryHandler(
+		AdminServiceUpdateUserRoleProcedure,
+		svc.UpdateUserRole,
+		connect.WithSchema(adminServiceMethods.ByName("UpdateUserRole")),
+		connect.WithHandlerOptions(opts...),
+	)
 	adminServiceListDatabasesHandler := connect.NewUnaryHandler(
 		AdminServiceListDatabasesProcedure,
 		svc.ListDatabases,
@@ -1329,6 +1386,10 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceCreateApiKeyHandler.ServeHTTP(w, r)
 		case AdminServiceListApiKeysProcedure:
 			adminServiceListApiKeysHandler.ServeHTTP(w, r)
+		case AdminServiceListUsersProcedure:
+			adminServiceListUsersHandler.ServeHTTP(w, r)
+		case AdminServiceUpdateUserRoleProcedure:
+			adminServiceUpdateUserRoleHandler.ServeHTTP(w, r)
 		case AdminServiceListDatabasesProcedure:
 			adminServiceListDatabasesHandler.ServeHTTP(w, r)
 		case AdminServiceLoginProcedure:
@@ -1374,6 +1435,14 @@ func (UnimplementedAdminServiceHandler) CreateApiKey(context.Context, *connect.R
 
 func (UnimplementedAdminServiceHandler) ListApiKeys(context.Context, *connect.Request[v1.ListApiKeysRequest]) (*connect.Response[v1.ListApiKeysResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.ListApiKeys is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.ListUsers is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) UpdateUserRole(context.Context, *connect.Request[v1.UpdateUserRoleRequest]) (*connect.Response[v1.UpdateUserRoleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.UpdateUserRole is not implemented"))
 }
 
 func (UnimplementedAdminServiceHandler) ListDatabases(context.Context, *connect.Request[v1.ListDatabasesRequest]) (*connect.Response[v1.ListDatabasesResponse], error) {

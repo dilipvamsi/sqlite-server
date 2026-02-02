@@ -272,6 +272,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.ListDatabasesResponse'
+  /db.v1.AdminService/ListUsers:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Retrieves all active users.\r  Requires admin privileges."
+      description: "*\r\n Retrieves all active users.\r\n Requires admin privileges."
+      operationId: db.v1.AdminService.ListUsers
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.ListUsersRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ListUsersResponse'
   /db.v1.AdminService/Login:
     post:
       tags:
@@ -524,6 +560,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.UpdatePasswordResponse'
+  /db.v1.AdminService/UpdateUserRole:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Updates the role of a specific user.\r  Requires admin privileges."
+      description: "*\r\n Updates the role of a specific user.\r\n Requires admin privileges."
+      operationId: db.v1.AdminService.UpdateUserRole
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.UpdateUserRoleRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.UpdateUserRoleResponse'
   /db.v1.DatabaseService/BeginTransaction:
     post:
       tags:
@@ -2038,6 +2110,22 @@ components:
       title: ListTablesResponse
       additionalProperties: false
       description: "*\r\n Response containing a list of table names."
+    db.v1.ListUsersRequest:
+      type: object
+      title: ListUsersRequest
+      additionalProperties: false
+      description: "*\r\n Request to list all users."
+    db.v1.ListUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.User'
+          title: users
+      title: ListUsersResponse
+      additionalProperties: false
+      description: "*\r\n Response containing a list of users."
     db.v1.LoginRequest:
       type: object
       properties:
@@ -3243,6 +3331,29 @@ components:
       title: UpdatePasswordResponse
       additionalProperties: false
       description: "*\r\n Response indicating the success of the password update."
+    db.v1.UpdateUserRoleRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
+        role:
+          title: role
+          $ref: '#/components/schemas/db.v1.Role'
+      title: UpdateUserRoleRequest
+      additionalProperties: false
+      description: "*\r\n Request to update a user's role."
+    db.v1.UpdateUserRoleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+      title: UpdateUserRoleResponse
+      additionalProperties: false
+      description: "*\r\n Response indicating success of role update."
     db.v1.User:
       type: object
       properties:

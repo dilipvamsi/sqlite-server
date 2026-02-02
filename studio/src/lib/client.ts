@@ -4,11 +4,11 @@ import type { GenService } from "@bufbuild/protobuf/codegenv1";
 
 /**
  * Creates a Connect transport that points to the Go backend.
+ * Uses PUBLIC_SQLITE_SERVER_URL env var if available, otherwise defaults to "/".
  * In development, we might need to point to localhost:50051 explicitly if not proxied.
- * In production (embedded), it's the same origin.
  */
 export const transport = createConnectTransport({
-    baseUrl: import.meta.env.DEV ? "http://localhost:50051" : window.location.origin,
+    baseUrl: import.meta.env.PUBLIC_SQLITE_SERVER_URL || "/",
 });
 
 /**
@@ -22,9 +22,14 @@ export function getClient<T extends GenService<any>>(service: T) {
 export const AUTH_KEY = "sqlite-server-auth"; // Stores API Key
 export const AUTH_KEY_ID = "sqlite-server-key-id"; // Stores Session Key ID
 export const AUTH_USER = "sqlite-server-user"; // Stores username
+export const AUTH_USER_ID = "sqlite-server-user-id"; // Stores user ID (bigint as string)
+
+export function getAuthToken(): string | null {
+    return localStorage.getItem(AUTH_KEY);
+}
 
 export function getAuthHeaders(): Record<string, string> {
-    const apiKey = localStorage.getItem(AUTH_KEY);
+    const apiKey = getAuthToken();
     if (!apiKey) return {};
 
     return {
