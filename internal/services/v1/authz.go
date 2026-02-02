@@ -2,6 +2,7 @@ package servicesv1
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"sqlite-server/internal/auth"
@@ -55,6 +56,20 @@ func AuthorizeAdmin(ctx context.Context) error {
 
 	if claims.Role != dbv1.Role_ROLE_ADMIN {
 		return connect.NewError(connect.CodePermissionDenied, nil)
+	}
+
+	return nil
+}
+
+// AuthorizeUser checks if the current user is an admin or is the target user.
+func AuthorizeUser(ctx context.Context, targetUsername string) error {
+	claims, ok := auth.FromContext(ctx)
+	if !ok {
+		return connect.NewError(connect.CodeUnauthenticated, nil)
+	}
+
+	if claims.Role != dbv1.Role_ROLE_ADMIN && claims.Username != targetUsername {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("permission denied"))
 	}
 
 	return nil

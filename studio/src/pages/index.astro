@@ -311,6 +311,7 @@ busy_timeout=5000"></textarea>
     getAuthHeaders,
     AUTH_KEY,
     performLogout,
+    isAdmin,
   } from "../lib/client";
   import { AdminService } from "../gen/db/v1/db_service_pb";
 
@@ -328,6 +329,14 @@ busy_timeout=5000"></textarea>
     "form-create-db",
   ) as HTMLFormElement;
   const formMount = document.getElementById("form-mount-db") as HTMLFormElement;
+
+  // Role-based visibility for management buttons
+  if (!isAdmin()) {
+    const btnCreate = document.getElementById("btn-create-db");
+    const btnMount = document.getElementById("btn-mount-db");
+    if (btnCreate) btnCreate.style.display = "none";
+    if (btnMount) btnMount.style.display = "none";
+  }
 
   // Encryption checkbox toggles
   const createEncryptedCheckbox = document.getElementById(
@@ -484,11 +493,12 @@ busy_timeout=5000"></textarea>
             const badgeClass = isManaged ? "badge-managed" : "badge-mounted";
             const badgeText = isManaged ? "Managed" : "Mounted";
 
-            // Delete button for managed, Unmount for mounted
-            // We use data attributes to handle clicks via delegation
-            const actionBtn = isManaged
-              ? `<button class="btn btn-sm btn-danger btn-delete-db" data-name="${db.name}">Delete</button>`
-              : `<button class="btn btn-sm btn-warning btn-unmount-db" data-name="${db.name}">Unmount</button>`;
+            // Only show management actions for admins
+            const actionBtn = isAdmin()
+              ? isManaged
+                ? `<button class="btn btn-sm btn-danger btn-delete-db" data-name="${db.name}">Delete</button>`
+                : `<button class="btn btn-sm btn-warning btn-unmount-db" data-name="${db.name}">Unmount</button>`
+              : "";
 
             return `
           <div class="card db-card">

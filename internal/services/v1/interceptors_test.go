@@ -303,7 +303,7 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	t.Run("AdminService_Unauthorized", func(t *testing.T) {
 		authHeader := "Bearer " + apiKey // RO user
-		// ListApiKeys
+		// ListApiKeys is now allowed for everyone in interceptor (auth happens in handler)
 		{
 			realReq := connect.NewRequest(&dbv1.ListApiKeysRequest{})
 			realReq.Header().Set("Authorization", authHeader)
@@ -312,7 +312,7 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 				spec:       connect.Spec{Procedure: "/db.v1.AdminService/ListApiKeys"},
 			}
 			_, err := wrap(context.Background(), req)
-			assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+			assert.NoError(t, err)
 		}
 		// DeleteUser
 		{

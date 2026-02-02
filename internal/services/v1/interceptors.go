@@ -141,9 +141,20 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 		// AdminService Check
 		if strings.HasPrefix(req.Spec().Procedure, "/db.v1.AdminService/") {
 			if user.Role != dbv1.Role_ROLE_ADMIN {
-				return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
+				// Allow non-admins to access self-management and informational methods
+				procedure := req.Spec().Procedure
+				allowedForEveryone := map[string]bool{
+					"/db.v1.AdminService/ListDatabases":  true,
+					"/db.v1.AdminService/CreateApiKey":   true,
+					"/db.v1.AdminService/ListApiKeys":    true,
+					"/db.v1.AdminService/RevokeApiKey":   true,
+					"/db.v1.AdminService/UpdatePassword": true,
+					"/db.v1.AdminService/Logout":         true,
+				}
+				if !allowedForEveryone[procedure] {
+					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
+				}
 			}
-			// AdminService calls are allowed if Admin
 			return next(ctx, req)
 		}
 

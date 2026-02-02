@@ -3606,7 +3606,8 @@ proto.db.v1.CreateUserResponse.prototype.toObject = function(opt_includeInstance
 proto.db.v1.CreateUserResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
 userId: jspb.Message.getFieldWithDefault(msg, 1, 0),
-createdAt: (f = msg.getCreatedAt()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
+createdAt: (f = msg.getCreatedAt()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
+username: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -3652,6 +3653,10 @@ proto.db.v1.CreateUserResponse.deserializeBinaryFromReader = function(msg, reade
       reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
       msg.setCreatedAt(value);
       break;
+    case 3:
+      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      msg.setUsername(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3694,6 +3699,13 @@ proto.db.v1.CreateUserResponse.serializeBinaryToWriter = function(message, write
       2,
       f,
       google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
+  f = message.getUsername();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
     );
   }
 };
@@ -3751,6 +3763,24 @@ proto.db.v1.CreateUserResponse.prototype.clearCreatedAt = function() {
  */
 proto.db.v1.CreateUserResponse.prototype.hasCreatedAt = function() {
   return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional string username = 3;
+ * @return {string}
+ */
+proto.db.v1.CreateUserResponse.prototype.getUsername = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.db.v1.CreateUserResponse} returns this
+ */
+proto.db.v1.CreateUserResponse.prototype.setUsername = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
@@ -4887,7 +4917,7 @@ proto.db.v1.CreateApiKeyRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.db.v1.CreateApiKeyRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-userId: jspb.Message.getFieldWithDefault(msg, 1, 0),
+username: jspb.Message.getFieldWithDefault(msg, 1, ""),
 name: jspb.Message.getFieldWithDefault(msg, 2, ""),
 expiresAt: (f = msg.getExpiresAt()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
   };
@@ -4927,8 +4957,8 @@ proto.db.v1.CreateApiKeyRequest.deserializeBinaryFromReader = function(msg, read
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {number} */ (reader.readInt64());
-      msg.setUserId(value);
+      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      msg.setUsername(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readStringRequireUtf8());
@@ -4968,9 +4998,9 @@ proto.db.v1.CreateApiKeyRequest.prototype.serializeBinary = function() {
  */
 proto.db.v1.CreateApiKeyRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getUserId();
-  if (f !== 0) {
-    writer.writeInt64(
+  f = message.getUsername();
+  if (f.length > 0) {
+    writer.writeString(
       1,
       f
     );
@@ -4994,20 +5024,20 @@ proto.db.v1.CreateApiKeyRequest.serializeBinaryToWriter = function(message, writ
 
 
 /**
- * optional int64 user_id = 1;
- * @return {number}
+ * optional string username = 1;
+ * @return {string}
  */
-proto.db.v1.CreateApiKeyRequest.prototype.getUserId = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+proto.db.v1.CreateApiKeyRequest.prototype.getUsername = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
- * @param {number} value
+ * @param {string} value
  * @return {!proto.db.v1.CreateApiKeyRequest} returns this
  */
-proto.db.v1.CreateApiKeyRequest.prototype.setUserId = function(value) {
-  return jspb.Message.setProto3IntField(this, 1, value);
+proto.db.v1.CreateApiKeyRequest.prototype.setUsername = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
@@ -5258,7 +5288,7 @@ proto.db.v1.ListApiKeysRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.db.v1.ListApiKeysRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-userId: jspb.Message.getFieldWithDefault(msg, 1, 0)
+username: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -5296,8 +5326,8 @@ proto.db.v1.ListApiKeysRequest.deserializeBinaryFromReader = function(msg, reade
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {number} */ (reader.readInt64());
-      msg.setUserId(value);
+      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      msg.setUsername(value);
       break;
     default:
       reader.skipField();
@@ -5328,9 +5358,9 @@ proto.db.v1.ListApiKeysRequest.prototype.serializeBinary = function() {
  */
 proto.db.v1.ListApiKeysRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getUserId();
-  if (f !== 0) {
-    writer.writeInt64(
+  f = message.getUsername();
+  if (f.length > 0) {
+    writer.writeString(
       1,
       f
     );
@@ -5339,20 +5369,20 @@ proto.db.v1.ListApiKeysRequest.serializeBinaryToWriter = function(message, write
 
 
 /**
- * optional int64 user_id = 1;
- * @return {number}
+ * optional string username = 1;
+ * @return {string}
  */
-proto.db.v1.ListApiKeysRequest.prototype.getUserId = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+proto.db.v1.ListApiKeysRequest.prototype.getUsername = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
- * @param {number} value
+ * @param {string} value
  * @return {!proto.db.v1.ListApiKeysRequest} returns this
  */
-proto.db.v1.ListApiKeysRequest.prototype.setUserId = function(value) {
-  return jspb.Message.setProto3IntField(this, 1, value);
+proto.db.v1.ListApiKeysRequest.prototype.setUsername = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
@@ -6713,7 +6743,8 @@ proto.db.v1.LogoutRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.db.v1.LogoutRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-keyId: jspb.Message.getFieldWithDefault(msg, 1, "")
+keyId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+username: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6754,6 +6785,10 @@ proto.db.v1.LogoutRequest.deserializeBinaryFromReader = function(msg, reader) {
       var value = /** @type {string} */ (reader.readStringRequireUtf8());
       msg.setKeyId(value);
       break;
+    case 2:
+      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      msg.setUsername(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -6790,6 +6825,13 @@ proto.db.v1.LogoutRequest.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getUsername();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
 };
 
 
@@ -6808,6 +6850,24 @@ proto.db.v1.LogoutRequest.prototype.getKeyId = function() {
  */
 proto.db.v1.LogoutRequest.prototype.setKeyId = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string username = 2;
+ * @return {string}
+ */
+proto.db.v1.LogoutRequest.prototype.getUsername = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.db.v1.LogoutRequest} returns this
+ */
+proto.db.v1.LogoutRequest.prototype.setUsername = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
@@ -7163,7 +7223,8 @@ proto.db.v1.RevokeApiKeyRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.db.v1.RevokeApiKeyRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-keyId: jspb.Message.getFieldWithDefault(msg, 1, "")
+keyId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+username: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7204,6 +7265,10 @@ proto.db.v1.RevokeApiKeyRequest.deserializeBinaryFromReader = function(msg, read
       var value = /** @type {string} */ (reader.readStringRequireUtf8());
       msg.setKeyId(value);
       break;
+    case 2:
+      var value = /** @type {string} */ (reader.readStringRequireUtf8());
+      msg.setUsername(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -7240,6 +7305,13 @@ proto.db.v1.RevokeApiKeyRequest.serializeBinaryToWriter = function(message, writ
       f
     );
   }
+  f = message.getUsername();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
 };
 
 
@@ -7258,6 +7330,24 @@ proto.db.v1.RevokeApiKeyRequest.prototype.getKeyId = function() {
  */
 proto.db.v1.RevokeApiKeyRequest.prototype.setKeyId = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string username = 2;
+ * @return {string}
+ */
+proto.db.v1.RevokeApiKeyRequest.prototype.getUsername = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.db.v1.RevokeApiKeyRequest} returns this
+ */
+proto.db.v1.RevokeApiKeyRequest.prototype.setUsername = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 

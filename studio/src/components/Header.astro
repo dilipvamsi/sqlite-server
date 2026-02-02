@@ -1,4 +1,5 @@
 ---
+
 ---
 
 <header class="header-nav">
@@ -15,7 +16,7 @@
 </header>
 
 <script>
-  import { performLogout } from "../lib/client";
+  import { performLogout, isAdmin, getUsername } from "../lib/client";
 
   const logoutBtn = document.getElementById("logout-btn");
   logoutBtn?.addEventListener("click", async () => {
@@ -23,6 +24,17 @@
       await performLogout();
     }
   });
+
+  // Role-based UI adjustments
+  const usersLink = document.querySelector('.nav-link[href="/studio/users"]');
+  if (usersLink && !isAdmin()) {
+    const username = getUsername();
+    usersLink.textContent = "Manage User";
+    const href = username
+      ? `/studio/manage-user?username=${username}`
+      : "/studio/manage-user";
+    usersLink.setAttribute("href", href);
+  }
 </script>
 
 <style>
@@ -39,7 +51,7 @@
     font-size: 1.1rem;
     margin-right: 2rem;
   }
-  
+
   .logo a {
     color: var(--text-primary);
     text-decoration: none;
@@ -59,13 +71,13 @@
   }
 
   .nav-link:hover,
-  .nav-link[href^="/studio/users"]:global(.active) { 
+  .nav-link[href^="/studio/users"]:global(.active) {
     /* Simple active matching - can be improved if needed */
     color: var(--accent-color);
   }
-  
+
   /* Naive active state highlighting based on URL */
   :global(:root):has(body) .nav-link[href="/studio/"] {
-      color: var(--text-secondary); /* Default */
+    color: var(--text-secondary); /* Default */
   }
 </style>

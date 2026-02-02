@@ -435,9 +435,21 @@ func (s *MetaStore) ListApiKeys(ctx context.Context, userID int64) ([]ApiKey, er
 	return keys, nil
 }
 
-// RevokeApiKey deletes an API key
-func (s *MetaStore) RevokeApiKey(ctx context.Context, keyID string) error {
-	result, err := s.db.ExecContext(ctx, "DELETE FROM api_keys WHERE id = ?", keyID)
+// RevokeApiKey deletes an API key.
+// If username is provided, it ensures the key belongs to that user.
+func (s *MetaStore) RevokeApiKey(ctx context.Context, keyID string, username string) error {
+	var result sql.Result
+	var err error
+
+	if username != "" {
+		result, err = s.db.ExecContext(ctx, `
+			DELETE FROM api_keys
+			WHERE id = ? AND user_id = (SELECT id FROM users WHERE username = ?)
+		`, keyID, username)
+	} else {
+		result, err = s.db.ExecContext(ctx, "DELETE FROM api_keys WHERE id = ?", keyID)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to revoke api key: %w", err)
 	}

@@ -1481,13 +1481,11 @@ components:
     db.v1.CreateApiKeyRequest:
       type: object
       properties:
-        userId:
-          exclusiveMinimum: 0
-          type:
-            - integer
-            - string
-          title: user_id
-          format: int64
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
         name:
           type: string
           title: name
@@ -1615,6 +1613,9 @@ components:
         createdAt:
           title: created_at
           $ref: '#/components/schemas/google.protobuf.Timestamp'
+        username:
+          type: string
+          title: username
       title: CreateUserResponse
       additionalProperties: false
       description: "*\r\n Response containing details of the created user."
@@ -2033,13 +2034,11 @@ components:
     db.v1.ListApiKeysRequest:
       type: object
       properties:
-        userId:
-          exclusiveMinimum: 0
-          type:
-            - integer
-            - string
-          title: user_id
-          format: int64
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
       title: ListApiKeysRequest
       additionalProperties: false
       description: "*\r\n Request to list active API keys for a user."
@@ -2172,6 +2171,9 @@ components:
           title: key_id
           format: uuid
           description: "The session key ID to invalidate (UUID v7).\r\n Ideally, this should match the key used for authentication,\r\n but for explicit correctness we require the ID."
+        username:
+          type: string
+          title: username
       title: LogoutRequest
       additionalProperties: false
     db.v1.LogoutResponse:
@@ -2491,6 +2493,9 @@ components:
           type: string
           title: key_id
           format: uuid
+        username:
+          type: string
+          title: username
       title: RevokeApiKeyRequest
       additionalProperties: false
       description: "*\r\n Request to revoke (delete) a specific API key."

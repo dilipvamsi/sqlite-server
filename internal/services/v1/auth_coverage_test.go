@@ -466,7 +466,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 			return err
 		}},
 		{"ListApiKeys", func(c dbv1connect.AdminServiceClient) error {
-			_, err := c.ListApiKeys(context.Background(), connect.NewRequest(&dbv1.ListApiKeysRequest{UserId: 1}))
+			_, err := c.ListApiKeys(context.Background(), connect.NewRequest(&dbv1.ListApiKeysRequest{Username: "admin"}))
 			return err
 		}},
 	}
@@ -475,7 +475,15 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 		t.Run("Admin_"+at.name, func(t *testing.T) {
 			// Admin -> OK
 			assert.NoError(t, at.call(adminClientFor("admin")))
-			// Writer -> Fail
+
+			// Some methods are now allowed for everyone in the interceptor (auth happens in handler)
+			if at.name == "ListDatabases" || at.name == "ListApiKeys" {
+				assert.NoError(t, at.call(adminClientFor("writer")))
+				assert.NoError(t, at.call(adminClientFor("reader")))
+				return
+			}
+
+			// Others still require Admin if acting on another user ("admin" in ListApiKeys mock call)
 			err := at.call(adminClientFor("writer"))
 			require.Error(t, err)
 			assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))

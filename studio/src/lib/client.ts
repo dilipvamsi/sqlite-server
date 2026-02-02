@@ -93,7 +93,8 @@ export async function performLogout() {
     if (keyId) {
         try {
             const client = getClient(AdminService);
-            await client.logout({ keyId }, { headers });
+            const username = localStorage.getItem(AUTH_USER) || "";
+            await client.logout({ keyId, username }, { headers });
             console.log("[DEBUG] Server-side logout successful");
         } catch (e) {
             console.error("[DEBUG] Failed to logout from server:", e);
@@ -126,6 +127,23 @@ export async function performLogout() {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
 
+
     // 4. Redirect to login
     window.location.href = '/studio/login';
+}
+
+/**
+ * Helper to check if the current user is an admin.
+ */
+export function isAdmin(): boolean {
+    const role = localStorage.getItem("userRole");
+    // ROLE_ADMIN is 1
+    return role === "1";
+}
+
+/**
+ * Helper to get the current username.
+ */
+export function getUsername(): string | null {
+    return localStorage.getItem(AUTH_USER);
 }

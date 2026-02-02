@@ -443,7 +443,7 @@ func TestMetaStore_RevokeApiKey(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("revokes existing key", func(t *testing.T) {
-		err := store.RevokeApiKey(ctx, keyID)
+		err := store.RevokeApiKey(ctx, keyID, "")
 		require.NoError(t, err)
 
 		// Verify key is gone
@@ -453,9 +453,27 @@ func TestMetaStore_RevokeApiKey(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent key", func(t *testing.T) {
-		err := store.RevokeApiKey(ctx, "00000000-0000-0000-0000-000000099999")
+		err := store.RevokeApiKey(ctx, "00000000-0000-0000-0000-000000099999", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "api key not found")
+	})
+
+	t.Run("prevents revoking key owned by another user", func(t *testing.T) {
+		// 1. Create user A and their key
+		userA, _ := store.CreateUser(ctx, "userA", "pass", dbv1.Role_ROLE_READ_WRITE)
+		_, keyIdA, _ := store.CreateApiKey(ctx, userA, "KeyA", nil)
+
+		// 2. Create user B
+		_, _ = store.CreateUser(ctx, "userB", "pass", dbv1.Role_ROLE_READ_WRITE)
+
+		// 3. User B tries to revoke user A's key
+		err := store.RevokeApiKey(ctx, keyIdA, "userB")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "api key not found") // Should fail as not found for userB
+
+		// 4. Verify key A still exists
+		keys, _ := store.ListApiKeys(ctx, userA)
+		assert.Len(t, keys, 1)
 	})
 }
 
@@ -505,7 +523,7 @@ func TestMetaStore_ValidateApiKeyImpl(t *testing.T) {
 		revokedKey, keyID, err := store.CreateApiKey(ctx, userID, "Revoked Key", nil)
 		require.NoError(t, err)
 
-		err = store.RevokeApiKey(ctx, keyID)
+		err = store.RevokeApiKey(ctx, keyID, "")
 		require.NoError(t, err)
 
 		claims, err := store.ValidateApiKeyImpl(ctx, revokedKey)

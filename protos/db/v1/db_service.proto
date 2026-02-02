@@ -630,6 +630,7 @@ message CreateUserRequest {
 message CreateUserResponse {
   int64 user_id = 1;
   google.protobuf.Timestamp created_at = 2;
+  string username = 3;
 }
 
 /**
@@ -694,7 +695,8 @@ message UpdateUserRoleResponse { bool success = 1; }
  * Request to generate a new API key for a user.
  */
 message CreateApiKeyRequest {
-  int64 user_id = 1 [ (buf.validate.field).int64.gt = 0 ];
+  string username = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
   string name = 2 [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
   google.protobuf.Timestamp expires_at = 3;
 }
@@ -712,7 +714,8 @@ message CreateApiKeyResponse {
  * Request to list active API keys for a user.
  */
 message ListApiKeysRequest {
-  int64 user_id = 1 [ (buf.validate.field).int64.gt = 0 ];
+  string username = 1
+      [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
 }
 
 /**
@@ -773,6 +776,7 @@ message LogoutRequest {
   // Ideally, this should match the key used for authentication,
   // but for explicit correctness we require the ID.
   string key_id = 1 [ (buf.validate.field).string.uuid = true ];
+  string username = 2;
 }
 
 message LogoutResponse { bool success = 1; }
@@ -791,6 +795,7 @@ message User {
  */
 message RevokeApiKeyRequest {
   string key_id = 1 [ (buf.validate.field).string.uuid = true ];
+  string username = 2;
 }
 
 /**

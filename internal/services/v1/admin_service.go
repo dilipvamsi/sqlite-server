@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"sqlite-server/internal/auth"
@@ -54,6 +55,7 @@ func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.
 
 	return connect.NewResponse(&dbv1.CreateUserResponse{
 		UserId:    userID,
+		Username:  req.Msg.Username,
 		CreatedAt: timestamppb.New(time.Now()),
 	}), nil
 }
@@ -105,6 +107,27 @@ func (s *AdminServer) UpdateUserRole(ctx context.Context, req *connect.Request[d
 	}
 
 	return connect.NewResponse(&dbv1.UpdateUserRoleResponse{
+		Success: true,
+	}), nil
+}
+
+// UpdatePassword updates a user's password
+func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[dbv1.UpdatePasswordRequest]) (*connect.Response[dbv1.UpdatePasswordResponse], error) {
+
+	// Allow if admin OR if updating own password
+	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
+		return nil, err
+	}
+
+	err := s.store.UpdatePassword(ctx, req.Msg.Username, req.Msg.NewPassword)
+	if err != nil {
+		if strings.Contains(err.Error(), "user not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	return connect.NewResponse(&dbv1.UpdatePasswordResponse{
 		Success: true,
 	}), nil
 }
@@ -164,7 +187,10 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 	// 3. Delete the user
 	err = s.store.DeleteUser(ctx, req.Msg.Username)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, err)
+		if strings.Contains(err.Error(), "user not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	// Invalidate cache immediately to revoke access
@@ -179,11 +205,6 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 
 // CreateApiKey generates a new API key for a user
 func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv1.CreateApiKeyRequest]) (*connect.Response[dbv1.CreateApiKeyResponse], error) {
-	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
-		return nil, err
-	}
-
 	var expiresAt *time.Time
 	if req.Msg.ExpiresAt != nil {
 		if err := req.Msg.ExpiresAt.CheckValid(); err != nil {
@@ -193,7 +214,21 @@ func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv
 		expiresAt = &t
 	}
 
-	rawKey, keyID, err := s.store.CreateApiKey(ctx, req.Msg.UserId, req.Msg.Name, expiresAt)
+	// Allow if admin OR if creating key for self
+	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
+		return nil, err
+	}
+
+	// Look up user by username
+	user, err := s.store.GetUserByUsername(ctx, req.Msg.Username)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if user == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
+	}
+
+	rawKey, keyID, err := s.store.CreateApiKey(ctx, user.ID, req.Msg.Name, expiresAt)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -206,12 +241,21 @@ func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv
 
 // ListApiKeys returns all API keys for a user
 func (s *AdminServer) ListApiKeys(ctx context.Context, req *connect.Request[dbv1.ListApiKeysRequest]) (*connect.Response[dbv1.ListApiKeysResponse], error) {
-	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
+	// Allow if admin OR if listing own keys
+	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
 		return nil, err
 	}
 
-	keys, err := s.store.ListApiKeys(ctx, req.Msg.UserId)
+	// Look up user by username
+	user, err := s.store.GetUserByUsername(ctx, req.Msg.Username)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if user == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
+	}
+
+	keys, err := s.store.ListApiKeys(ctx, user.ID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -233,14 +277,21 @@ func (s *AdminServer) ListApiKeys(ctx context.Context, req *connect.Request[dbv1
 
 // RevokeApiKey deletes an API key
 func (s *AdminServer) RevokeApiKey(ctx context.Context, req *connect.Request[dbv1.RevokeApiKeyRequest]) (*connect.Response[dbv1.RevokeApiKeyResponse], error) {
-	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
+	// Verify admin role or self-revocation
+	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
 		return nil, err
 	}
 
-	err := s.store.RevokeApiKey(ctx, req.Msg.KeyId)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, err)
+	keyID := req.Msg.KeyId
+
+	// 1. Revoke the key
+	if err := s.store.RevokeApiKey(ctx, keyID, req.Msg.Username); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Invalidate cache immediately to revoke access
+	if s.cache != nil {
+		s.cache.ClearCache()
 	}
 
 	return connect.NewResponse(&dbv1.RevokeApiKeyResponse{
@@ -250,8 +301,8 @@ func (s *AdminServer) RevokeApiKey(ctx context.Context, req *connect.Request[dbv
 
 // ListDatabases returns all available databases
 func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[dbv1.ListDatabasesRequest]) (*connect.Response[dbv1.ListDatabasesResponse], error) {
-	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
+	// Verify read access (Admin, ReadWrite, ReadOnly can list)
+	if err := AuthorizeRead(ctx); err != nil {
 		return nil, err
 	}
 
@@ -452,11 +503,6 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
 	}
 
-	// 2. Ensure user has admin access (or allowed role)
-	if user.Role != dbv1.Role_ROLE_ADMIN {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
-	}
-
 	// 3. Determine session duration
 	duration := 7 * 24 * time.Hour // Default 7 days
 	if req.Msg.SessionDuration != nil && req.Msg.SessionDuration.AsDuration() > 0 {
@@ -485,15 +531,14 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 
 // Logout invalidates the provided session key.
 func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[dbv1.LogoutRequest]) (*connect.Response[dbv1.LogoutResponse], error) {
-	// 1. Verify admin role (or at least valid authentication)
-	// Theoretically any user can logout their own key, but for now we reuse AuthorizeAdmin
-	// because only admins have keys anyway in this system currently.
-	if err := AuthorizeAdmin(ctx); err != nil {
+	// If not admin, they can only logout their own session key.
+	// We authorize the username in the request body.
+	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
 		return nil, err
 	}
 
 	// 2. Revoke the key
-	if err := s.store.RevokeApiKey(ctx, req.Msg.KeyId); err != nil {
+	if err := s.store.RevokeApiKey(ctx, req.Msg.KeyId, req.Msg.Username); err != nil {
 		// Even if not found, we return success for idempotency security
 		// But let's log it
 		log.Printf("Warning: failed to revoke key %s during logout: %v", req.Msg.KeyId, err)

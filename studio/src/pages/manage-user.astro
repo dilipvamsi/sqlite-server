@@ -87,15 +87,15 @@ import Header from "../components/Header.astro";
             <section class="card" id="card-apikeys">
                 <h2>API Keys</h2>
                 <div
-                    id="no-id-warning"
+                    id="no-username-warning"
                     style="display:none; color: var(--text-secondary); padding: 1rem;"
                 >
-                    User ID is required to manage API keys.
+                    Username is required to manage API keys.
                 </div>
                 <div id="apikey-content">
                     <div class="form-group">
-                        <label>User ID</label>
-                        <input type="text" id="api-userid-display" disabled />
+                        <label>Username</label>
+                        <input type="text" id="api-username-display" disabled />
                     </div>
                     <form id="api-key-form">
                         <div class="api-actions">
@@ -171,7 +171,8 @@ import Header from "../components/Header.astro";
         </div>
 
         <div class="back-link">
-            <a href="/studio/users" class="btn btn-secondary">← Back to Users</a
+            <a href="/studio/users" id="btn-back" class="btn btn-secondary"
+                >← Back to Users</a
             >
         </div>
 
@@ -180,13 +181,23 @@ import Header from "../components/Header.astro";
 </Layout>
 
 <script>
-    import { getClient, getAuthHeaders, AUTH_USER } from "../lib/client";
+    import {
+        getClient,
+        getAuthHeaders,
+        AUTH_USER,
+        isAdmin,
+    } from "../lib/client";
     import { AdminService } from "../gen/db/v1/db_service_pb";
 
-    // Parse URL params
+    // Session info
+    const loggedInUser =
+        localStorage.getItem(AUTH_USER) ||
+        localStorage.getItem("sqlite-server-user");
+    const loggedInUserRole = parseInt(localStorage.getItem("userRole") || "0");
+
+    // Managed user info (from URL)
     const params = new URLSearchParams(window.location.search);
-    const username = params.get("username");
-    const userId = params.get("userid");
+    const username = params.get("username") || loggedInUser;
 
     // UI Elements
     const els = {
@@ -198,14 +209,14 @@ import Header from "../components/Header.astro";
         ) as HTMLFormElement,
         upResult: document.getElementById("up-result"),
         // API Keys
-        apiUserIdDisplay: document.getElementById(
-            "api-userid-display",
+        apiUsernameDisplay: document.getElementById(
+            "api-username-display",
         ) as HTMLInputElement,
         apiKeyName: document.getElementById("api-key-name") as HTMLInputElement,
         btnCreateKey: document.getElementById("btn-create-key"),
         btnListKeys: document.getElementById("btn-list-keys"),
         apiResults: document.getElementById("api-results"),
-        noIdWarning: document.getElementById("no-id-warning"),
+        noUsernameWarning: document.getElementById("no-username-warning"),
         apikeyContent: document.getElementById("apikey-content"),
         // Delete
         delUsername: document.getElementById(
@@ -235,41 +246,43 @@ import Header from "../components/Header.astro";
         els.delUsername.value = username;
         if (els.roleUsername) els.roleUsername.value = username;
 
-        // Show Role card only if current user is Admin (check local storage)
-        const currentUserRole = parseInt(
-            localStorage.getItem("userRole") || "0",
-        );
-        if (currentUserRole === 1 && els.cardRole) {
+        // Show Role card only if logged-in user is Admin AND is not managing themselves
+        if (
+            loggedInUserRole === 1 &&
+            els.cardRole &&
+            loggedInUser !== username
+        ) {
             els.cardRole.style.display = "block";
         }
 
         // Hide delete card for self-management
-        const currentUser =
-            localStorage.getItem("sqlite-server-user") ||
-            localStorage.getItem(AUTH_USER);
         const cardDelete = document.getElementById("card-delete");
-
-        // Log for debugging (remove in prod)
-        // console.log("Current User:", currentUser, "Target User:", username);
-
-        if (currentUser && username && currentUser === username && cardDelete) {
+        if (loggedInUser && loggedInUser === username && cardDelete) {
             cardDelete.style.display = "none";
         }
     } else {
         els.headerSubtitle!.textContent = "No username provided.";
-        // Disable username-dependent sections if needed, but for now we rely on the inputs being disabled/empty
+        // Hide password and delete cards if no user is provided
+        const cardPassword = document.getElementById("card-password");
+        const cardDelete = document.getElementById("card-delete");
+        if (cardPassword) cardPassword.style.display = "none";
+        if (cardDelete) cardDelete.style.display = "none";
     }
 
-    if (userId) {
-        els.apiUserIdDisplay.value = userId;
-        if (username) {
-            els.headerSubtitle!.textContent += ` (ID: ${userId})`;
-        } else {
-            els.headerSubtitle!.textContent = `Managing User ID: ${userId}`;
-        }
+    if (username) {
+        els.apiUsernameDisplay.value = username;
+        els.apikeyContent!.style.display = "block";
+        els.noUsernameWarning!.style.display = "none";
     } else {
         els.apikeyContent!.style.display = "none";
-        els.noIdWarning!.style.display = "block";
+        els.noUsernameWarning!.style.display = "block";
+    }
+
+    // Back Link Adjustment
+    const btnBack = document.getElementById("btn-back") as HTMLAnchorElement;
+    if (btnBack && !isAdmin()) {
+        btnBack.href = "/studio/";
+        btnBack.textContent = "← Back to Studio";
     }
 
     // --- Update Password ---
@@ -306,7 +319,7 @@ import Header from "../components/Header.astro";
 
     // --- API Keys ---
     els.btnCreateKey?.addEventListener("click", async () => {
-        if (!userId) return;
+        if (!username) return;
         const name = els.apiKeyName.value;
         if (!name) {
             showToast("Key Name is required", "error");
@@ -343,7 +356,7 @@ import Header from "../components/Header.astro";
             }
 
             const response = await client.createApiKey(
-                { userId: BigInt(userId), name, expiresAt },
+                { username: username || undefined, name, expiresAt },
                 { headers },
             );
 
@@ -368,7 +381,7 @@ import Header from "../components/Header.astro";
     });
 
     els.btnListKeys?.addEventListener("click", async () => {
-        if (!userId) return;
+        if (!username) return;
         try {
             if (els.apiResults)
                 els.apiResults.innerHTML =
@@ -376,7 +389,7 @@ import Header from "../components/Header.astro";
             const client = getClient(AdminService);
             const headers = getAuthHeaders();
             const response = await client.listApiKeys(
-                { userId: BigInt(userId) },
+                { username: username || undefined },
                 { headers },
             );
 
@@ -439,7 +452,13 @@ import Header from "../components/Header.astro";
         try {
             const client = getClient(AdminService);
             const headers = getAuthHeaders();
-            await client.revokeApiKey({ keyId }, { headers });
+            await client.revokeApiKey(
+                {
+                    keyId,
+                    username: (isAdmin() ? username : loggedInUser) || "",
+                },
+                { headers },
+            );
             showToast("API Key revoked", "success");
             els.btnListKeys?.click();
         } catch (err: any) {
@@ -482,8 +501,7 @@ import Header from "../components/Header.astro";
         if (!username) return;
 
         // Prevent self-delete
-        const currentUser = localStorage.getItem(AUTH_USER);
-        if (currentUser && currentUser === username) {
+        if (loggedInUser && loggedInUser === username) {
             showResult(
                 els.delResult,
                 "Cannot delete the currently logged-in user.",

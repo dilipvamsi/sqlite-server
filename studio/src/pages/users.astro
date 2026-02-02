@@ -315,14 +315,12 @@ import Header from "../components/Header.astro";
             getClient,
             getAuthHeaders,
             AUTH_USER,
-            AUTH_USER_ID,
             getAuthToken,
         } from "../lib/client";
         import { AdminService, type User } from "../gen/db/v1/db_service_pb";
 
         const userRole = parseInt(localStorage.getItem("userRole") || "0");
         const username = localStorage.getItem(AUTH_USER);
-        const userId = localStorage.getItem(AUTH_USER_ID);
         const authToken = getAuthToken();
 
         const ROLE_CONFIG = {
@@ -363,21 +361,29 @@ import Header from "../components/Header.astro";
 
         const renderTable = (users: User[]) => {
             const body = document.getElementById("tableBody");
-            document.getElementById("stat-total").innerText = users.length;
-            document.getElementById("stat-admins").innerText = users.filter(
-                (u) => u.role === 1,
-            ).length;
-            document.getElementById("stat-editors").innerText = users.filter(
-                (u) => u.role === 2,
-            ).length;
-            document.getElementById("stat-viewers").innerText = users.filter(
-                (u) => u.role === 3,
-            ).length;
+            const statTotal = document.getElementById("stat-total");
+            const statAdmins = document.getElementById("stat-admins");
+            const statEditors = document.getElementById("stat-editors");
+            const statViewers = document.getElementById("stat-viewers");
+
+            if (statTotal) statTotal.innerText = users.length.toString();
+            if (statAdmins)
+                statAdmins.innerText = users
+                    .filter((u) => u.role === 1)
+                    .length.toString();
+            if (statEditors)
+                statEditors.innerText = users
+                    .filter((u) => u.role === 2)
+                    .length.toString();
+            if (statViewers)
+                statViewers.innerText = users
+                    .filter((u) => u.role === 3)
+                    .length.toString();
 
             if (!body) return;
             body.innerHTML = users
                 .map((u) => {
-                    const conf = ROLE_CONFIG[u.role] || ROLE_CONFIG[3];
+                    const conf = (ROLE_CONFIG as any)[u.role] || ROLE_CONFIG[3];
                     const rowStyle = `border-bottom: 1px dashed rgba(255,255,255,0.1); vertical-align: middle; padding: 1.5rem;`;
                     return `
                 <tr class="hover-row">
@@ -390,7 +396,7 @@ import Header from "../components/Header.astro";
                         </span>
                     </td>
                     <td style="${rowStyle} padding: 1.5rem 3rem;">
-                        <a href="/studio/manage-user?username=${u.username}&userId=${u.id}" style="color: var(--text-secondary); text-decoration: none; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.1); padding: 0.4rem 0.8rem; border-radius: 4px;">Manage</a>
+                        <a href="/studio/manage-user?username=${u.username}" style="color: var(--text-secondary); text-decoration: none; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.1); padding: 0.4rem 0.8rem; border-radius: 4px;">Manage</a>
                     </td>
                 </tr>`;
                 })
@@ -400,17 +406,23 @@ import Header from "../components/Header.astro";
         // Initialize Manage Profile URL
         const linkManageSelfHeader = document.getElementById(
             "btn-manage-profile-header",
-        );
-        if (linkManageSelfHeader && username && userId) {
-            linkManageSelfHeader.href = `/studio/manage-user?username=${username}&userId=${userId}`;
+        ) as HTMLAnchorElement | null;
+        if (linkManageSelfHeader && username) {
+            linkManageSelfHeader.href = `/studio/manage-user?username=${username}`;
         }
 
         if (authToken && userRole === 1) {
-            document.getElementById("admin-section").style.display = "block";
-            document.getElementById("admin-stats-container").style.display =
-                "flex";
-            document.getElementById("btn-open-create-modal").style.display =
-                "flex";
+            const adminSection = document.getElementById("admin-section");
+            const adminStatsContainer = document.getElementById(
+                "admin-stats-container",
+            );
+            const btnOpenCreateModal = document.getElementById(
+                "btn-open-create-modal",
+            );
+
+            if (adminSection) adminSection.style.display = "block";
+            if (adminStatsContainer) adminStatsContainer.style.display = "flex";
+            if (btnOpenCreateModal) btnOpenCreateModal.style.display = "flex";
             fetchUsers();
         }
 
@@ -418,13 +430,52 @@ import Header from "../components/Header.astro";
         const modal = document.getElementById("create-user-modal");
         document
             .getElementById("btn-open-create-modal")
-            ?.addEventListener("click", () => (modal.style.display = "flex"));
+            ?.addEventListener("click", () => {
+                if (modal) modal.style.display = "flex";
+            });
         document
             .getElementById("btn-close-modal")
-            ?.addEventListener("click", () => (modal.style.display = "none"));
+            ?.addEventListener("click", () => {
+                if (modal) modal.style.display = "none";
+            });
         document
             .getElementById("btn-cancel-create")
-            ?.addEventListener("click", () => (modal.style.display = "none"));
+            ?.addEventListener("click", () => {
+                if (modal) modal.style.display = "none";
+            });
+
+        const createForm = document.getElementById(
+            "create-user-form",
+        ) as HTMLFormElement | null;
+        createForm?.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const formData = new FormData(createForm);
+            const username = formData.get("username") as string;
+            const password = formData.get("password") as string;
+            const confirmPassword = formData.get("confirm_password") as string;
+            const role = parseInt(formData.get("role") as string);
+
+            if (password !== confirmPassword) {
+                alert("Passwords do not match!");
+                return;
+            }
+
+            try {
+                const client = getClient(AdminService);
+                const headers = getAuthHeaders();
+                await client.createUser(
+                    { username, password, role },
+                    { headers },
+                );
+
+                // Success
+                if (modal) modal.style.display = "none";
+                createForm.reset();
+                fetchUsers(); // Reload the list
+            } catch (err: any) {
+                alert(`Failed to create user: ${err.message}`);
+            }
+        });
     </script>
 
     <style>
