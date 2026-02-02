@@ -20,6 +20,42 @@ security:
   - bearerAuth: []
   - basicAuth: []
 paths:
+  /db.v1.AdminService/AttachDatabase:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Dynamically attaches a database file to an existing managed database.\r  This updates the configuration and reloads the connections."
+      description: "*\r\n Dynamically attaches a database file to an existing managed database.\r\n This updates the configuration and reloads the connections."
+      operationId: db.v1.AdminService.AttachDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.AttachDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.AttachDatabaseResponse'
   /db.v1.AdminService/CreateApiKey:
     post:
       tags:
@@ -200,6 +236,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.DeleteUserResponse'
+  /db.v1.AdminService/DetachDatabase:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Detaches a database from a managed database.\r  This updates the configuration and reloads the connections."
+      description: "*\r\n Detaches a database from a managed database.\r\n This updates the configuration and reloads the connections."
+      operationId: db.v1.AdminService.DetachDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.DetachDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.DetachDatabaseResponse'
   /db.v1.AdminService/ListApiKeys:
     post:
       tags:
@@ -1294,6 +1366,70 @@ components:
           description: Deserialized error detail payload. The 'type' field indicates the schema. This field is for easier debugging and should not be relied upon for application logic.
       additionalProperties: true
       description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message, with an additional debug field for ConnectRPC error details.
+    db.v1.AttachDatabaseRequest:
+      type: object
+      properties:
+        parentDatabase:
+          type: string
+          title: parent_database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: The name of the primary/parent database.
+        attachment:
+          title: attachment
+          description: The configuration for the database to be attached.
+          $ref: '#/components/schemas/db.v1.AttachedDatabase'
+      title: AttachDatabaseRequest
+      required:
+        - attachment
+      additionalProperties: false
+      description: "*\r\n Request to attach a database to a parent database."
+    db.v1.AttachDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: AttachDatabaseResponse
+      additionalProperties: false
+    db.v1.AttachedDatabase:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          pattern: ^[a-zA-Z0-9_-]{1,64}$
+          description: The alias used in SQL queries (e.g., "shared_db" in "shared_db.table")
+        dbPath:
+          type: string
+          title: db_path
+          minLength: 1
+          description: File system path to the database to be attached.
+        key:
+          type:
+            - string
+            - "null"
+          title: key
+          description: 'Optional: Key for sqlcipher if the attached database is encrypted.'
+        readOnly:
+          type: boolean
+          title: read_only
+          description: 'Optional: Open the attached database in read-only mode.'
+      title: AttachedDatabase
+      additionalProperties: false
+      description: "*\r\n Represents a database file attached to a primary database.\r\n Maps to: ATTACH DATABASE 'db_path' AS 'name'"
+    db.v1.AttachedDatabaseList:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.AttachedDatabase'
+          title: values
+      title: AttachedDatabaseList
+      additionalProperties: false
     db.v1.BackupDatabaseRequest:
       type: object
       properties:
@@ -1698,6 +1834,12 @@ components:
             type: string
           title: init_commands
           description: "InitCommands are SQL statements executed automatically when a new\r\n connection is opened. Useful for setting PRAGMAs or ATTACHing databases\r\n persistently."
+        attachedDatabases:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.AttachedDatabase'
+          title: attached_databases
+          description: "AttachedDatabases defines other DB files to be attached on connection\r\n start."
       title: DatabaseConfig
       additionalProperties: false
       description: "*\r\n DatabaseConfig defines the configuration for a single database.\r\n Used for both static configuration (config.json) and dynamic management."
@@ -1818,6 +1960,34 @@ components:
       title: DeleteUserResponse
       additionalProperties: false
       description: "*\r\n Response indicating the success of the user deletion."
+    db.v1.DetachDatabaseRequest:
+      type: object
+      properties:
+        parentDatabase:
+          type: string
+          title: parent_database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: The name of the primary/parent database.
+        alias:
+          type: string
+          title: alias
+          maxLength: 64
+          minLength: 1
+          description: The alias name of the attachment to remove.
+      title: DetachDatabaseRequest
+      additionalProperties: false
+      description: "*\r\n Request to remove an attachment from a parent database."
+    db.v1.DetachDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: DetachDatabaseResponse
+      additionalProperties: false
     db.v1.ErrorResponse:
       type: object
       properties:
@@ -3279,6 +3449,10 @@ components:
         initCommands:
           title: init_commands
           $ref: '#/components/schemas/db.v1.InitCommandList'
+        attachedDatabases:
+          title: attached_databases
+          description: Optional list of databases to be attached.
+          $ref: '#/components/schemas/db.v1.AttachedDatabaseList'
       title: UpdateDatabaseConfig
       additionalProperties: false
       description: "*\r\n Configuration fields that can be updated at runtime.\r\n Immutable fields: name, db_path, is_encrypted, key."

@@ -519,6 +519,18 @@ service AdminService {
    * This operation forces a reload of the database connections.
    */
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
+
+  /**
+   * Dynamically attaches a database file to an existing managed database.
+   * This updates the configuration and reloads the connections.
+   */
+  rpc AttachDatabase(AttachDatabaseRequest) returns (AttachDatabaseResponse);
+
+  /**
+   * Detaches a database from a managed database.
+   * This updates the configuration and reloads the connections.
+   */
+  rpc DetachDatabase(DetachDatabaseRequest) returns (DetachDatabaseResponse);
 }
 
 // -----------------------------------------------------------------------------
@@ -1591,7 +1603,37 @@ message DatabaseConfig {
   // InitCommands are SQL statements executed automatically when a new
   // connection is opened. Useful for setting PRAGMAs or ATTACHing databases
   // persistently.
-  repeated string init_commands = 11;
+  repeated string init_commands = 11
+      [ (buf.validate.field).repeated.items.cel = {
+        id : "init_commands.prevent_attach_detach",
+        message : "ATTACH or DETACH commands are not allowed in init_commands. "
+                  "Use attached_databases field instead.",
+        expression : "!this.trim().upper().startsWith('ATTACH') && "
+                     "!this.trim().upper().startsWith('DETACH')"
+      } ];
+
+  // AttachedDatabases defines other DB files to be attached on connection
+  // start.
+  repeated AttachedDatabase attached_databases = 12;
+}
+
+/**
+ * Represents a database file attached to a primary database.
+ * Maps to: ATTACH DATABASE 'db_path' AS 'name'
+ */
+message AttachedDatabase {
+  // The alias used in SQL queries (e.g., "shared_db" in "shared_db.table")
+  string name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{1,64}$"} ];
+
+  // File system path to the database to be attached.
+  string db_path = 2 [ (buf.validate.field).string.min_len = 1 ];
+
+  // Optional: Key for sqlcipher if the attached database is encrypted.
+  optional string key = 3;
+
+  // Optional: Open the attached database in read-only mode.
+  bool read_only = 4;
 }
 
 // =============================================================================
@@ -1760,13 +1802,25 @@ message UpdateDatabaseConfig {
   optional int32 max_idle_conns = 5;
   optional int32 conn_max_lifetime_ms = 6;
   optional InitCommandList init_commands = 7;
+  // Optional list of databases to be attached.
+  optional AttachedDatabaseList attached_databases = 8;
 }
+
+message AttachedDatabaseList { repeated AttachedDatabase values = 1; }
 
 message ExtensionList { repeated string values = 1; }
 
 message PragmaMap { map<string, string> values = 1; }
 
-message InitCommandList { repeated string values = 1; }
+message InitCommandList {
+  repeated string values = 1 [ (buf.validate.field).repeated.items.cel = {
+    id : "init_commands_list.prevent_attach_detach",
+    message : "ATTACH or DETACH commands are not allowed in init_commands. Use "
+              "attached_databases field instead.",
+    expression : "!this.trim().upper().startsWith('ATTACH') && "
+                 "!this.trim().upper().startsWith('DETACH')"
+  } ];
+}
 
 /**
  * Request to update an existing database configuration.
@@ -1781,6 +1835,41 @@ message UpdateDatabaseRequest {
 }
 
 message UpdateDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+/**
+ * Request to attach a database to a parent database.
+ */
+message AttachDatabaseRequest {
+  // The name of the primary/parent database.
+  string parent_database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+
+  // The configuration for the database to be attached.
+  AttachedDatabase attachment = 2 [ (buf.validate.field).required = true ];
+}
+
+message AttachDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+/**
+ * Request to remove an attachment from a parent database.
+ */
+message DetachDatabaseRequest {
+  // The name of the primary/parent database.
+  string parent_database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+
+  // The alias name of the attachment to remove.
+  string alias = 2
+      [ (buf.validate.field).string = {min_len : 1, max_len : 64} ];
+}
+
+message DetachDatabaseResponse {
   bool success = 1;
   string message = 2;
 }

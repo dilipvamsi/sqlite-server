@@ -140,7 +140,8 @@ function runFunctionalTests(createClientFn) {
 
 
         test("DeclaredType Verification", async () => {
-            await client.query("CREATE TABLE IF NOT EXISTS dtypes (id UUID, meta JSON, age INT, name VARCHAR(255))");
+            await client.query("DROP TABLE IF EXISTS dtypes");
+            await client.query("CREATE TABLE IF NOT EXISTS dtypes (id UUID, meta JSON, age INTEGER, name VARCHAR(255))");
             await client.query("DELETE FROM dtypes");
             await client.query("INSERT INTO dtypes (id, meta, age, name) VALUES ('u-1', '{\"a\":1}', 30, 'Alice')");
 
@@ -653,6 +654,48 @@ function runFunctionalTests(createClientFn) {
             const res = await client.integrityCheck();
             expect(res.success).toBe(true);
             expect(res.errors).toEqual([]);
+        });
+    });
+
+    describe("Attached Databases", () => {
+        test("Attach and Detach Database", async () => {
+            const fs = require('fs');
+            const path = require('path');
+            const os = require('os');
+
+            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sqlite-server-test-'));
+            const adbPath = path.join(tmpDir, 'attached.db');
+
+            // Attach it
+            const attachRes = await client.attach({
+                name: "ext_db",
+                dbPath: adbPath
+            });
+            expect(attachRes.success).toBe(true);
+
+            // Create table and insert in parent (ensure main stays functional)
+            await client.query("CREATE TABLE IF NOT EXISTS main_table (id INTEGER)");
+
+            // Try to query the attached - we need to create it first.
+            // In SQLite, ATTACH creates the file if it doesn't exist?
+            // Actually, better to create it beforehand or via ATTACH if supported.
+            // Let's create a table via the alias.
+            await client.query("CREATE TABLE ext_db.t1 (id INTEGER)");
+            await client.query("INSERT INTO ext_db.t1 (id) VALUES (123)");
+
+            const result = await client.query("SELECT id FROM ext_db.t1");
+            expect(result.rows[0][0]).toBe(123);
+
+            // Detach it
+            const detachRes = await client.detach("ext_db");
+            expect(detachRes.success).toBe(true);
+
+            // Verify it's detached
+            await expect(client.query("SELECT id FROM ext_db.t1")).rejects.toThrow();
+
+            // Cleanup
+            if (fs.existsSync(adbPath)) fs.unlinkSync(adbPath);
+            fs.rmdirSync(tmpDir);
         });
     });
 }

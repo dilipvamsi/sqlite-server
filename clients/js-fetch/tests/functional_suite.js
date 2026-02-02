@@ -193,7 +193,8 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
         describe("DeclaredType Verification", () => {
             it("Correctly identifies specialized types", async () => {
-                await client.query("CREATE TABLE IF NOT EXISTS dtypes_fetch (id UUID, meta JSON, age INT, name VARCHAR(255))");
+                await client.query("DROP TABLE IF EXISTS dtypes_fetch");
+                await client.query("CREATE TABLE IF NOT EXISTS dtypes_fetch (id UUID, meta JSON, age INTEGER, name VARCHAR(255))");
                 await client.query("DELETE FROM dtypes_fetch");
                 await client.query("INSERT INTO dtypes_fetch (id, meta, age, name) VALUES ('u-1', '{\"a\":1}', 30, 'Alice')");
 
@@ -644,6 +645,42 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 } else {
                     expect(res.errors).toBeUndefined();
                 }
+            });
+        });
+
+        describe("Attached Databases", () => {
+            it("Attach and Detach Database", async () => {
+                const fs = require('fs');
+                const path = require('path');
+                const os = require('os');
+
+                const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sqlite-server-fetch-test-'));
+                const adbPath = path.join(tmpDir, 'attached.db');
+
+                // Attach it
+                const attachRes = await client.attach({
+                    name: "ext_db",
+                    dbPath: adbPath
+                });
+                expect(attachRes.success).toBe(true);
+
+                // Create table and insert
+                await client.query("CREATE TABLE ext_db.t1 (id INTEGER)");
+                await client.query("INSERT INTO ext_db.t1 (id) VALUES (123)");
+
+                const result = await client.query("SELECT id FROM ext_db.t1");
+                expect(result.rows[0][0]).toBe(123);
+
+                // Detach it
+                const detachRes = await client.detach("ext_db");
+                expect(detachRes.success).toBe(true);
+
+                // Verify it's detached
+                await expect(client.query("SELECT id FROM ext_db.t1")).rejects.toThrow();
+
+                // Cleanup
+                if (fs.existsSync(adbPath)) fs.unlinkSync(adbPath);
+                fs.rmdirSync(tmpDir);
             });
         });
     });

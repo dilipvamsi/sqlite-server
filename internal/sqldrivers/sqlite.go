@@ -2,6 +2,7 @@ package sqldrivers
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -74,14 +75,15 @@ func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, er
 	// If extensions are specified OR InitCommands are present, we must create and register a unique driver instance
 	// for this database configuration because these are properties of the driver/connection,
 	// not just the DSN.
-	if len(config.Extensions) > 0 || readOnlySecured || len(config.InitCommands) > 0 {
+	if len(config.Extensions) > 0 || readOnlySecured || len(config.InitCommands) > 0 || len(config.AttachedDatabases) > 0 {
 		// Generate a unique driver name for this specific DB configuration to avoid collisions.
 		// e.g., "sqlite3_ext_primary_db" or "sqlite3_ext_primary_db_ro"
 		suffix := ""
 		if readOnlySecured {
 			suffix = "_ro"
 		}
-		driverName = fmt.Sprintf("sqlite3_ext_%s%s", config.Name, suffix)
+		// Use UnixNano to ensure unique driver registration for fresh ConnectHook on every reload
+		driverName = fmt.Sprintf("sqlite3_ext_%s%s_%d", config.Name, suffix, time.Now().UnixNano())
 
 		// Register the custom driver ONLY if it hasn't been registered yet.
 		registeredDriversMu.Lock()
@@ -96,41 +98,53 @@ func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, er
 						})
 					}
 
-					// Execute Init Commands (e.g., PRAGMA, ATTACH)
+					// Execute Init Commands (e.g., PRAGMA)
 					for _, cmd := range config.InitCommands {
-						// Heuristic: If connection is ReadOnly, ensure specified ATTACH commands are forced to be ReadOnly
-						// We check for "ATTACH ... AS ..." pattern.
-						// This is a safety enhancement for user-provided init commands.
-						// Note: This simple parsing assumes commands are well-formed.
-						if readOnlySecured && strings.HasPrefix(strings.ToUpper(strings.TrimSpace(cmd)), "ATTACH") {
-							// Check if explicitly mode=ro is missing.
-							// We blindly try to transform "ATTACH 'path' AS alias" -> "ATTACH 'file:path?mode=ro' AS alias"
-							// But parsing SQL properly is hard.
-							// A safer, more robust way: use "ATTACH DATABASE 'file:%s?mode=ro' AS %s" if the user provided components.
-							// But here we have a raw string.
-
-							// Strategy: Let's assume users who want consistent RO behavior will use the URI syntax themselves if they are advanced.
-							// BUT, the user explicitly asked to "modify the attach database with readonly when it's readonly connection".
-							// So we MUST manipulate it.
-
-							// We will use a regex to extract the path and alias, constructing a URI if it's a simple path.
-							// Regex to capture: ATTACH (DATABASE)? 'path' AS alias
-							// We handle single quotes, double quotes, or no quotes.
-
-							// Warning: This manipulation is brittle. If we fail to match confidently, we execute as-is
-							// and rely on the ReadOnlyAuthorizer to block writes later.
-							// The Authorizer IS registered above, so writes WILL be blocked regardless of how it's attached.
-							// However, SQLite might return "attempt to write a readonly database" earlier if we attach as RO.
-
-							// ACTUALLY: The user's request is satisfied nicely just by the existing authorizer!
-							// If I attach a DB in RW mode on a connection that has an Authorizer denying writes,
-							// any write attempt to that attached DB is BLOCKED by the Authorizer.
-							// Let's VERIFY this hypothesis with a test first before writing complex parsing code.
-							// IF the authorizer works, we might not need to rewrite the string.
-						}
-
 						if _, err := conn.Exec(cmd, nil); err != nil {
 							return fmt.Errorf("failed to execute init command '%s': %w", cmd, err)
+						}
+					}
+
+					// Attach additional databases
+					for _, adb := range config.AttachedDatabases {
+						path := adb.DbPath
+						// Skip for in-memory databases and pre-formatted URIs.
+						if adb.DbPath != ":memory:" && !strings.HasPrefix(adb.DbPath, "file:") {
+							absPath, err := filepath.Abs(adb.DbPath)
+							if err == nil {
+								path = absPath
+							}
+						}
+
+						// Construct URI if not already one
+						var dsn string
+						if strings.HasPrefix(path, "file:") {
+							dsn = path
+						} else {
+							dsn = fmt.Sprintf("file:%s", path)
+						}
+
+						// Force mode=ro if main connection is RO or adb is marked RO
+						if readOnlySecured || adb.ReadOnly {
+							sep := "?"
+							if strings.Contains(dsn, "?") {
+								sep = "&"
+							}
+							dsn += sep + "mode=ro"
+						}
+
+						// Handle Encryption
+						if adb.GetKey() != "" {
+							sep := "?"
+							if strings.Contains(dsn, "?") {
+								sep = "&"
+							}
+							dsn += sep + "_key=" + adb.GetKey()
+						}
+
+						attachCmd := fmt.Sprintf("ATTACH DATABASE '%s' AS '%s'", dsn, adb.Name)
+						if _, err := conn.Exec(attachCmd, []driver.Value{}); err != nil {
+							return fmt.Errorf("failed to attach database '%s' (%s): %w", adb.Name, adb.DbPath, err)
 						}
 					}
 					return nil

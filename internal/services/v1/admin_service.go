@@ -602,6 +602,10 @@ func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[d
 		currentConfig.InitCommands = updates.InitCommands.Values
 	}
 
+	if updates.AttachedDatabases != nil {
+		currentConfig.AttachedDatabases = updates.AttachedDatabases.Values
+	}
+
 	// 4. Persist updated config
 	jsonBytes, err := protojson.Marshal(currentConfig)
 	if err != nil {
@@ -625,6 +629,118 @@ func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[d
 	return connect.NewResponse(&dbv1.UpdateDatabaseResponse{
 		Success: true,
 		Message: fmt.Sprintf("Database '%s' updated successfully", name),
+	}), nil
+}
+
+// AttachDatabase attaches a database to a parent database
+func (s *AdminServer) AttachDatabase(ctx context.Context, req *connect.Request[dbv1.AttachDatabaseRequest]) (*connect.Response[dbv1.AttachDatabaseResponse], error) {
+	if err := AuthorizeRead(ctx); err != nil {
+		return nil, err
+	}
+
+	name := req.Msg.ParentDatabase
+	attachment := req.Msg.Attachment
+
+	// 1. Fetch existing config metadata
+	existingAuthConfig, err := s.store.GetDatabaseConfig(ctx, name)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if existingAuthConfig == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("database config not found"))
+	}
+
+	// 2. Unmarshal existing settings
+	currentConfig := &dbv1.DatabaseConfig{}
+	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
+	}
+
+	// 3. Update attachments
+	// Check for duplicate alias
+	for _, existing := range currentConfig.AttachedDatabases {
+		if existing.Name == attachment.Name {
+			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("attachment alias '%s' already exists", attachment.Name))
+		}
+	}
+	currentConfig.AttachedDatabases = append(currentConfig.AttachedDatabases, attachment)
+
+	// 4. Persist
+	jsonBytes, err := protojson.Marshal(currentConfig)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
+	}
+	if err := s.store.UpsertDatabaseConfig(ctx, name, existingAuthConfig.Path, existingAuthConfig.IsManaged, string(jsonBytes)); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 5. Reload
+	if err := s.dbServer.AttachDatabase(name, attachment); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	return connect.NewResponse(&dbv1.AttachDatabaseResponse{
+		Success: true,
+		Message: "Database attached successfully",
+	}), nil
+}
+
+// DetachDatabase detaches a database from a parent database
+func (s *AdminServer) DetachDatabase(ctx context.Context, req *connect.Request[dbv1.DetachDatabaseRequest]) (*connect.Response[dbv1.DetachDatabaseResponse], error) {
+	if err := AuthorizeRead(ctx); err != nil {
+		return nil, err
+	}
+
+	name := req.Msg.ParentDatabase
+	alias := req.Msg.Alias
+
+	// 1. Fetch existing config metadata
+	existingAuthConfig, err := s.store.GetDatabaseConfig(ctx, name)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if existingAuthConfig == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("database config not found"))
+	}
+
+	// 2. Unmarshal existing settings
+	currentConfig := &dbv1.DatabaseConfig{}
+	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
+	}
+
+	// 3. Update attachments
+	found := false
+	newAttachments := make([]*dbv1.AttachedDatabase, 0, len(currentConfig.AttachedDatabases))
+	for _, adb := range currentConfig.AttachedDatabases {
+		if adb.Name == alias {
+			found = true
+			continue
+		}
+		newAttachments = append(newAttachments, adb)
+	}
+	if !found {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("attachment alias '%s' not found", alias))
+	}
+	currentConfig.AttachedDatabases = newAttachments
+
+	// 4. Persist
+	jsonBytes, err := protojson.Marshal(currentConfig)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
+	}
+	if err := s.store.UpsertDatabaseConfig(ctx, name, existingAuthConfig.Path, existingAuthConfig.IsManaged, string(jsonBytes)); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// 5. Reload
+	if err := s.dbServer.DetachDatabase(name, alias); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	return connect.NewResponse(&dbv1.DetachDatabaseResponse{
+		Success: true,
+		Message: "Database detached successfully",
 	}), nil
 }
 

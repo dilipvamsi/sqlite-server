@@ -36,6 +36,28 @@ var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/time
 var google_protobuf_duration_pb = require('google-protobuf/google/protobuf/duration_pb.js');
 var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb.js');
 
+function serialize_db_v1_AttachDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.AttachDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.AttachDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_AttachDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.AttachDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_AttachDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.AttachDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.AttachDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_AttachDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.AttachDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_BeginTransactionRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.BeginTransactionRequest)) {
     throw new Error('Expected argument of type db.v1.BeginTransactionRequest');
@@ -210,6 +232,28 @@ function serialize_db_v1_DeleteUserResponse(arg) {
 
 function deserialize_db_v1_DeleteUserResponse(buffer_arg) {
   return db_v1_db_service_pb.DeleteUserResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_DetachDatabaseRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DetachDatabaseRequest)) {
+    throw new Error('Expected argument of type db.v1.DetachDatabaseRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DetachDatabaseRequest(buffer_arg) {
+  return db_v1_db_service_pb.DetachDatabaseRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_DetachDatabaseResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.DetachDatabaseResponse)) {
+    throw new Error('Expected argument of type db.v1.DetachDatabaseResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_DetachDatabaseResponse(buffer_arg) {
+  return db_v1_db_service_pb.DetachDatabaseResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_ExecuteTransactionRequest(arg) {
@@ -1329,6 +1373,34 @@ updateDatabase: {
     requestDeserialize: deserialize_db_v1_UpdateDatabaseRequest,
     responseSerialize: serialize_db_v1_UpdateDatabaseResponse,
     responseDeserialize: deserialize_db_v1_UpdateDatabaseResponse,
+  },
+  // *
+// Dynamically attaches a database file to an existing managed database.
+// This updates the configuration and reloads the connections.
+attachDatabase: {
+    path: '/db.v1.AdminService/AttachDatabase',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.AttachDatabaseRequest,
+    responseType: db_v1_db_service_pb.AttachDatabaseResponse,
+    requestSerialize: serialize_db_v1_AttachDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_AttachDatabaseRequest,
+    responseSerialize: serialize_db_v1_AttachDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_AttachDatabaseResponse,
+  },
+  // *
+// Detaches a database from a managed database.
+// This updates the configuration and reloads the connections.
+detachDatabase: {
+    path: '/db.v1.AdminService/DetachDatabase',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.DetachDatabaseRequest,
+    responseType: db_v1_db_service_pb.DetachDatabaseResponse,
+    requestSerialize: serialize_db_v1_DetachDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_DetachDatabaseRequest,
+    responseSerialize: serialize_db_v1_DetachDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_DetachDatabaseResponse,
   },
 };
 

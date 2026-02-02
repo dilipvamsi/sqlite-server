@@ -105,6 +105,16 @@ func (s *DbServer) UnmountDatabase(name string) error {
 	return s.dbManager.Unmount(name)
 }
 
+// AttachDatabase attaches a database to a parent database.
+func (s *DbServer) AttachDatabase(parentName string, attachment *dbv1.AttachedDatabase) error {
+	return s.dbManager.AttachDatabase(parentName, attachment)
+}
+
+// DetachDatabase detaches a database from a parent database.
+func (s *DbServer) DetachDatabase(parentName string, alias string) error {
+	return s.dbManager.DetachDatabase(parentName, alias)
+}
+
 // GetDatabaseNames returns a list of all currently mounted databases.
 func (s *DbServer) GetDatabaseNames() []string {
 	return s.dbManager.List()

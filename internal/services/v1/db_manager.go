@@ -153,17 +153,7 @@ func (m *DbManager) UpdateDatabase(config *dbv1.DatabaseConfig) error {
 	m.muConfigs.Unlock()
 
 	// Invalidate Cache to force reload on next access
-	log.Printf("Invalidating connection cache for updated database: %s", config.Name)
-
-	// 1. Close and remove RW connection
-	if val, ok := m.cacheRW.LoadAndDelete(config.Name); ok {
-		val.(*cachedConnection).db.Close()
-	}
-
-	// 2. Close and remove RO connection
-	if val, ok := m.cacheRO.LoadAndDelete(config.Name); ok {
-		val.(*cachedConnection).db.Close()
-	}
+	m.invalidateCache(config.Name)
 
 	return nil
 }
@@ -178,17 +168,83 @@ func (m *DbManager) Unmount(name string) error {
 	delete(m.configs, name)
 	m.muConfigs.Unlock()
 
-	// 2. Remove RW connection from cache
+	// Remove connections from cache
+	m.invalidateCache(name)
+
+	return nil
+}
+
+// AttachDatabase adds a new attached database to an existing primary database.
+func (m *DbManager) AttachDatabase(parentName string, attachment *dbv1.AttachedDatabase) error {
+	m.muConfigs.Lock()
+	config, ok := m.configs[parentName]
+	if !ok {
+		m.muConfigs.Unlock()
+		return fmt.Errorf("database '%s' not found", parentName)
+	}
+
+	// Check if alias already exists
+	for _, existing := range config.AttachedDatabases {
+		if existing.Name == attachment.Name {
+			m.muConfigs.Unlock()
+			return fmt.Errorf("attachment alias '%s' already exists for database '%s'", attachment.Name, parentName)
+		}
+	}
+
+	config.AttachedDatabases = append(config.AttachedDatabases, attachment)
+	m.muConfigs.Unlock()
+
+	// Invalidate Cache to force reload (ATTACH happens at connection start)
+	m.invalidateCache(parentName)
+
+	return nil
+}
+
+// DetachDatabase removes an attached database from a primary database by its alias.
+func (m *DbManager) DetachDatabase(parentName string, alias string) error {
+	m.muConfigs.Lock()
+	config, ok := m.configs[parentName]
+	if !ok {
+		m.muConfigs.Unlock()
+		return fmt.Errorf("database '%s' not found", parentName)
+	}
+
+	found := false
+	newAttachments := make([]*dbv1.AttachedDatabase, 0, len(config.AttachedDatabases))
+	for _, existing := range config.AttachedDatabases {
+		if existing.Name == alias {
+			found = true
+			continue
+		}
+		newAttachments = append(newAttachments, existing)
+	}
+
+	if !found {
+		m.muConfigs.Unlock()
+		return fmt.Errorf("attachment alias '%s' not found for database '%s'", alias, parentName)
+	}
+
+	config.AttachedDatabases = newAttachments
+	m.muConfigs.Unlock()
+
+	// Invalidate Cache
+	m.invalidateCache(parentName)
+
+	return nil
+}
+
+func (m *DbManager) invalidateCache(name string) {
+	log.Printf("Invalidating connection cache for database: %s", name)
+
+	// 1. Close and remove RW connection
 	if val, ok := m.cacheRW.LoadAndDelete(name); ok {
 		val.(*cachedConnection).db.Close()
 	}
 
-	// 3. Remove RO connection from cache
+	// 2. Close and remove RO connection
 	if val, ok := m.cacheRO.LoadAndDelete(name); ok {
 		val.(*cachedConnection).db.Close()
 	}
-
-	return nil
 }
 
 // List returns the names of all mounted databases.

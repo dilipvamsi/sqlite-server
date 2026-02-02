@@ -528,6 +528,43 @@ class DatabaseClient {
         return res.json();
     }
 
+    /**
+     * Attaches an external database.
+     * @param {object} options - Attachment configuration.
+     * @param {string} options.name - Alias for the attached database.
+     * @param {string} options.dbPath - Path to the database file.
+     * @param {string} [options.key] - Encryption key (optional).
+     * @param {boolean} [options.readOnly=false] - If true, opens as read-only.
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async attach(options) {
+        const req = {
+            parentDatabase: this.database,
+            attachment: {
+                name: options.name,
+                dbPath: options.dbPath,
+                key: options.key,
+                readOnly: !!options.readOnly
+            }
+        };
+        const res = await this._fetch(RPC.ATTACH_DATABASE, req);
+        return res.json();
+    }
+
+    /**
+     * Detaches an attached database.
+     * @param {string} name - Alias of the database to detach.
+     * @returns {Promise<{success: boolean, message: string}>}
+     */
+    async detach(name) {
+        const req = {
+            parentDatabase: this.database,
+            alias: name
+        };
+        const res = await this._fetch(RPC.DETACH_DATABASE, req);
+        return res.json();
+    }
+
     close() {
         // Nothing to close for fetch
     }

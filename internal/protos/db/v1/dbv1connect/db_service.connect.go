@@ -167,6 +167,12 @@ const (
 	// AdminServiceUpdateDatabaseProcedure is the fully-qualified name of the AdminService's
 	// UpdateDatabase RPC.
 	AdminServiceUpdateDatabaseProcedure = "/db.v1.AdminService/UpdateDatabase"
+	// AdminServiceAttachDatabaseProcedure is the fully-qualified name of the AdminService's
+	// AttachDatabase RPC.
+	AdminServiceAttachDatabaseProcedure = "/db.v1.AdminService/AttachDatabase"
+	// AdminServiceDetachDatabaseProcedure is the fully-qualified name of the AdminService's
+	// DetachDatabase RPC.
+	AdminServiceDetachDatabaseProcedure = "/db.v1.AdminService/DetachDatabase"
 )
 
 // DatabaseServiceClient is a client for the db.v1.DatabaseService service.
@@ -994,6 +1000,14 @@ type AdminServiceClient interface {
 	// Useful for changing settings like init_commands, max_open_conns, etc.
 	// This operation forces a reload of the database connections.
 	UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error)
+	// *
+	// Dynamically attaches a database file to an existing managed database.
+	// This updates the configuration and reloads the connections.
+	AttachDatabase(context.Context, *connect.Request[v1.AttachDatabaseRequest]) (*connect.Response[v1.AttachDatabaseResponse], error)
+	// *
+	// Detaches a database from a managed database.
+	// This updates the configuration and reloads the connections.
+	DetachDatabase(context.Context, *connect.Request[v1.DetachDatabaseRequest]) (*connect.Response[v1.DetachDatabaseResponse], error)
 }
 
 // NewAdminServiceClient constructs a client for the db.v1.AdminService service. By default, it uses
@@ -1103,6 +1117,18 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("UpdateDatabase")),
 			connect.WithClientOptions(opts...),
 		),
+		attachDatabase: connect.NewClient[v1.AttachDatabaseRequest, v1.AttachDatabaseResponse](
+			httpClient,
+			baseURL+AdminServiceAttachDatabaseProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("AttachDatabase")),
+			connect.WithClientOptions(opts...),
+		),
+		detachDatabase: connect.NewClient[v1.DetachDatabaseRequest, v1.DetachDatabaseResponse](
+			httpClient,
+			baseURL+AdminServiceDetachDatabaseProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("DetachDatabase")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1124,6 +1150,8 @@ type adminServiceClient struct {
 	unMountDatabase *connect.Client[v1.UnMountDatabaseRequest, v1.UnMountDatabaseResponse]
 	deleteDatabase  *connect.Client[v1.DeleteDatabaseRequest, v1.DeleteDatabaseResponse]
 	updateDatabase  *connect.Client[v1.UpdateDatabaseRequest, v1.UpdateDatabaseResponse]
+	attachDatabase  *connect.Client[v1.AttachDatabaseRequest, v1.AttachDatabaseResponse]
+	detachDatabase  *connect.Client[v1.DetachDatabaseRequest, v1.DetachDatabaseResponse]
 }
 
 // CreateUser calls db.v1.AdminService.CreateUser.
@@ -1206,6 +1234,16 @@ func (c *adminServiceClient) UpdateDatabase(ctx context.Context, req *connect.Re
 	return c.updateDatabase.CallUnary(ctx, req)
 }
 
+// AttachDatabase calls db.v1.AdminService.AttachDatabase.
+func (c *adminServiceClient) AttachDatabase(ctx context.Context, req *connect.Request[v1.AttachDatabaseRequest]) (*connect.Response[v1.AttachDatabaseResponse], error) {
+	return c.attachDatabase.CallUnary(ctx, req)
+}
+
+// DetachDatabase calls db.v1.AdminService.DetachDatabase.
+func (c *adminServiceClient) DetachDatabase(ctx context.Context, req *connect.Request[v1.DetachDatabaseRequest]) (*connect.Response[v1.DetachDatabaseResponse], error) {
+	return c.detachDatabase.CallUnary(ctx, req)
+}
+
 // AdminServiceHandler is an implementation of the db.v1.AdminService service.
 type AdminServiceHandler interface {
 	// *
@@ -1269,6 +1307,14 @@ type AdminServiceHandler interface {
 	// Useful for changing settings like init_commands, max_open_conns, etc.
 	// This operation forces a reload of the database connections.
 	UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error)
+	// *
+	// Dynamically attaches a database file to an existing managed database.
+	// This updates the configuration and reloads the connections.
+	AttachDatabase(context.Context, *connect.Request[v1.AttachDatabaseRequest]) (*connect.Response[v1.AttachDatabaseResponse], error)
+	// *
+	// Detaches a database from a managed database.
+	// This updates the configuration and reloads the connections.
+	DetachDatabase(context.Context, *connect.Request[v1.DetachDatabaseRequest]) (*connect.Response[v1.DetachDatabaseResponse], error)
 }
 
 // NewAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1374,6 +1420,18 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("UpdateDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceAttachDatabaseHandler := connect.NewUnaryHandler(
+		AdminServiceAttachDatabaseProcedure,
+		svc.AttachDatabase,
+		connect.WithSchema(adminServiceMethods.ByName("AttachDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceDetachDatabaseHandler := connect.NewUnaryHandler(
+		AdminServiceDetachDatabaseProcedure,
+		svc.DetachDatabase,
+		connect.WithSchema(adminServiceMethods.ByName("DetachDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/db.v1.AdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminServiceCreateUserProcedure:
@@ -1408,6 +1466,10 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceDeleteDatabaseHandler.ServeHTTP(w, r)
 		case AdminServiceUpdateDatabaseProcedure:
 			adminServiceUpdateDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceAttachDatabaseProcedure:
+			adminServiceAttachDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceDetachDatabaseProcedure:
+			adminServiceDetachDatabaseHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1479,4 +1541,12 @@ func (UnimplementedAdminServiceHandler) DeleteDatabase(context.Context, *connect
 
 func (UnimplementedAdminServiceHandler) UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.UpdateDatabase is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) AttachDatabase(context.Context, *connect.Request[v1.AttachDatabaseRequest]) (*connect.Response[v1.AttachDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.AttachDatabase is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) DetachDatabase(context.Context, *connect.Request[v1.DetachDatabaseRequest]) (*connect.Response[v1.DetachDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.DetachDatabase is not implemented"))
 }

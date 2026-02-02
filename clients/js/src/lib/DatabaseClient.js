@@ -72,6 +72,10 @@ class DatabaseClient {
       address,
       credentials,
     );
+    this.adminClient = new db_service_grpc_pb.AdminServiceClient(
+      address,
+      credentials,
+    );
     this.dbName = databaseName;
 
     // Default Config
@@ -645,6 +649,64 @@ class DatabaseClient {
             success: response.getSuccess(),
             message: response.getMessage(),
             errors: response.getErrorsList(),
+          });
+        });
+      });
+    });
+  }
+
+  /**
+   * Attaches an external database.
+   * @param {object} options - Attachment configuration.
+   * @param {string} options.name - Alias for the attached database.
+   * @param {string} options.dbPath - Path to the database file.
+   * @param {string} [options.key] - Encryption key (optional).
+   * @param {boolean} [options.readOnly=false] - If true, opens as read-only.
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  async attach(options) {
+    return this._withRetry(async () => {
+      const attachment = new db_service_pb.AttachedDatabase();
+      attachment.setName(options.name);
+      attachment.setDbPath(options.dbPath);
+      if (options.key) attachment.setKey(options.key);
+      attachment.setReadOnly(!!options.readOnly);
+
+      const req = new db_service_pb.AttachDatabaseRequest();
+      req.setParentDatabase(this.dbName);
+      req.setAttachment(attachment);
+
+      return new Promise((resolve, reject) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.adminClient.attachDatabase(req, metadata, (err, response) => {
+          if (err) return reject(err);
+          resolve({
+            success: response.getSuccess(),
+            message: response.getMessage(),
+          });
+        });
+      });
+    });
+  }
+
+  /**
+   * Detaches an attached database.
+   * @param {string} name - Alias of the database to detach.
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  async detach(name) {
+    return this._withRetry(async () => {
+      const req = new db_service_pb.DetachDatabaseRequest();
+      req.setParentDatabase(this.dbName);
+      req.setAlias(name);
+
+      return new Promise((resolve, reject) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.adminClient.detachDatabase(req, metadata, (err, response) => {
+          if (err) return reject(err);
+          resolve({
+            success: response.getSuccess(),
+            message: response.getMessage(),
           });
         });
       });
