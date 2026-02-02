@@ -1377,7 +1377,7 @@ components:
         attachment:
           title: attachment
           description: The configuration for the database to be attached.
-          $ref: '#/components/schemas/db.v1.AttachedDatabase'
+          $ref: '#/components/schemas/db.v1.Attachment'
       title: AttachDatabaseRequest
       required:
         - attachment
@@ -1394,41 +1394,31 @@ components:
           title: message
       title: AttachDatabaseResponse
       additionalProperties: false
-    db.v1.AttachedDatabase:
+    db.v1.Attachment:
       type: object
       properties:
-        name:
+        targetDatabaseName:
           type: string
-          title: name
+          title: target_database_name
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: "The logical name of the database to be attached (must already exist in the\r\n server)."
+        alias:
+          type: string
+          title: alias
           pattern: ^[a-zA-Z0-9_-]{1,64}$
-          description: The alias used in SQL queries (e.g., "shared_db" in "shared_db.table")
-        dbPath:
-          type: string
-          title: db_path
-          minLength: 1
-          description: File system path to the database to be attached.
-        key:
-          type:
-            - string
-            - "null"
-          title: key
-          description: 'Optional: Key for sqlcipher if the attached database is encrypted.'
-        readOnly:
-          type: boolean
-          title: read_only
-          description: 'Optional: Open the attached database in read-only mode.'
-      title: AttachedDatabase
+          description: "The SQL alias used to reference this database in queries (e.g., \"archive\"\r\n in \"SELECT * FROM archive.logs\")."
+      title: Attachment
       additionalProperties: false
-      description: "*\r\n Represents a database file attached to a primary database.\r\n Maps to: ATTACH DATABASE 'db_path' AS 'name'"
-    db.v1.AttachedDatabaseList:
+      description: "*\r\n Represents a link between two databases already served by the system.\r\n Maps to: ATTACH DATABASE '<path_of_target_db>' AS '<alias>'"
+    db.v1.AttachmentList:
       type: object
       properties:
         values:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.AttachedDatabase'
+            $ref: '#/components/schemas/db.v1.Attachment'
           title: values
-      title: AttachedDatabaseList
+      title: AttachmentList
       additionalProperties: false
     db.v1.BackupDatabaseRequest:
       type: object
@@ -1834,11 +1824,11 @@ components:
             type: string
           title: init_commands
           description: "InitCommands are SQL statements executed automatically when a new\r\n connection is opened. Useful for setting PRAGMAs or ATTACHing databases\r\n persistently."
-        attachedDatabases:
+        attachments:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.AttachedDatabase'
-          title: attached_databases
+            $ref: '#/components/schemas/db.v1.Attachment'
+          title: attachments
           description: "AttachedDatabases defines other DB files to be attached on connection\r\n start."
       title: DatabaseConfig
       additionalProperties: false
@@ -1866,6 +1856,12 @@ components:
         isManaged:
           type: boolean
           title: is_managed
+        currentAttachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.Attachment'
+          title: current_attachments
+          description: List of databases currently attached to this one.
       title: DatabaseInfo
       additionalProperties: false
     db.v1.DatabaseSchema:
@@ -3449,10 +3445,10 @@ components:
         initCommands:
           title: init_commands
           $ref: '#/components/schemas/db.v1.InitCommandList'
-        attachedDatabases:
-          title: attached_databases
-          description: Optional list of databases to be attached.
-          $ref: '#/components/schemas/db.v1.AttachedDatabaseList'
+        attachments:
+          title: attachments
+          description: Optional list of attachments to update.
+          $ref: '#/components/schemas/db.v1.AttachmentList'
       title: UpdateDatabaseConfig
       additionalProperties: false
       description: "*\r\n Configuration fields that can be updated at runtime.\r\n Immutable fields: name, db_path, is_encrypted, key."

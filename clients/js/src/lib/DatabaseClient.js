@@ -656,21 +656,17 @@ class DatabaseClient {
   }
 
   /**
-   * Attaches an external database.
+   * Attaches a managed database.
    * @param {object} options - Attachment configuration.
-   * @param {string} options.name - Alias for the attached database.
-   * @param {string} options.dbPath - Path to the database file.
-   * @param {string} [options.key] - Encryption key (optional).
-   * @param {boolean} [options.readOnly=false] - If true, opens as read-only.
+   * @param {string} options.targetDatabaseName - The logical name of the database to attach.
+   * @param {string} options.alias - SQL alias for the attached database.
    * @returns {Promise<{success: boolean, message: string}>}
    */
   async attach(options) {
     return this._withRetry(async () => {
-      const attachment = new db_service_pb.AttachedDatabase();
-      attachment.setName(options.name);
-      attachment.setDbPath(options.dbPath);
-      if (options.key) attachment.setKey(options.key);
-      attachment.setReadOnly(!!options.readOnly);
+      const attachment = new db_service_pb.Attachment();
+      attachment.setTargetDatabaseName(options.targetDatabaseName);
+      attachment.setAlias(options.alias);
 
       const req = new db_service_pb.AttachDatabaseRequest();
       req.setParentDatabase(this.dbName);

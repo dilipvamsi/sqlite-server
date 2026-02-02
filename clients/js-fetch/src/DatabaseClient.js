@@ -529,22 +529,18 @@ class DatabaseClient {
     }
 
     /**
-     * Attaches an external database.
+     * Attaches a managed database.
      * @param {object} options - Attachment configuration.
-     * @param {string} options.name - Alias for the attached database.
-     * @param {string} options.dbPath - Path to the database file.
-     * @param {string} [options.key] - Encryption key (optional).
-     * @param {boolean} [options.readOnly=false] - If true, opens as read-only.
+     * @param {string} options.targetDatabaseName - The logical name of the database to attach.
+     * @param {string} options.alias - SQL alias for the attached database.
      * @returns {Promise<{success: boolean, message: string}>}
      */
     async attach(options) {
         const req = {
             parentDatabase: this.database,
             attachment: {
-                name: options.name,
-                dbPath: options.dbPath,
-                key: options.key,
-                readOnly: !!options.readOnly
+                targetDatabaseName: options.targetDatabaseName,
+                alias: options.alias
             }
         };
         const res = await this._fetch(RPC.ATTACH_DATABASE, req);

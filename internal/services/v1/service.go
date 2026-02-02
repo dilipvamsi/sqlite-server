@@ -106,7 +106,7 @@ func (s *DbServer) UnmountDatabase(name string) error {
 }
 
 // AttachDatabase attaches a database to a parent database.
-func (s *DbServer) AttachDatabase(parentName string, attachment *dbv1.AttachedDatabase) error {
+func (s *DbServer) AttachDatabase(parentName string, attachment *dbv1.Attachment) error {
 	return s.dbManager.AttachDatabase(parentName, attachment)
 }
 

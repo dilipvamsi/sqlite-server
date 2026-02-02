@@ -62,7 +62,7 @@ func NewDbManager(configs []*dbv1.DatabaseConfig) *DbManager {
 
 	// Validate Access on Startup (Transient check)
 	for _, cfg := range configs {
-		if err := validateConnection(cfg); err != nil {
+		if err := mgr.validateConnection(cfg); err != nil {
 			log.Printf("WARNING: Failed to validate database %s: %v", cfg.Name, err)
 		}
 	}
@@ -124,7 +124,7 @@ func (m *DbManager) Mount(config *dbv1.DatabaseConfig) error {
 	m.muConfigs.RUnlock()
 
 	// 1. Validate before locking muConfigs (Ping can block)
-	if err := validateConnection(config); err != nil {
+	if err := m.validateConnection(config); err != nil {
 		return err
 	}
 
@@ -175,7 +175,7 @@ func (m *DbManager) Unmount(name string) error {
 }
 
 // AttachDatabase adds a new attached database to an existing primary database.
-func (m *DbManager) AttachDatabase(parentName string, attachment *dbv1.AttachedDatabase) error {
+func (m *DbManager) AttachDatabase(parentName string, attachment *dbv1.Attachment) error {
 	m.muConfigs.Lock()
 	config, ok := m.configs[parentName]
 	if !ok {
@@ -183,15 +183,22 @@ func (m *DbManager) AttachDatabase(parentName string, attachment *dbv1.AttachedD
 		return fmt.Errorf("database '%s' not found", parentName)
 	}
 
+	// Verify target database exists
+	_, targetExists := m.configs[attachment.TargetDatabaseName]
+	if !targetExists {
+		m.muConfigs.Unlock()
+		return fmt.Errorf("target database '%s' not found", attachment.TargetDatabaseName)
+	}
+
 	// Check if alias already exists
-	for _, existing := range config.AttachedDatabases {
-		if existing.Name == attachment.Name {
+	for _, existing := range config.Attachments {
+		if existing.Alias == attachment.Alias {
 			m.muConfigs.Unlock()
-			return fmt.Errorf("attachment alias '%s' already exists for database '%s'", attachment.Name, parentName)
+			return fmt.Errorf("attachment alias '%s' already exists for database '%s'", attachment.Alias, parentName)
 		}
 	}
 
-	config.AttachedDatabases = append(config.AttachedDatabases, attachment)
+	config.Attachments = append(config.Attachments, attachment)
 	m.muConfigs.Unlock()
 
 	// Invalidate Cache to force reload (ATTACH happens at connection start)
@@ -210,9 +217,9 @@ func (m *DbManager) DetachDatabase(parentName string, alias string) error {
 	}
 
 	found := false
-	newAttachments := make([]*dbv1.AttachedDatabase, 0, len(config.AttachedDatabases))
-	for _, existing := range config.AttachedDatabases {
-		if existing.Name == alias {
+	newAttachments := make([]*dbv1.Attachment, 0, len(config.Attachments))
+	for _, existing := range config.Attachments {
+		if existing.Alias == alias {
 			found = true
 			continue
 		}
@@ -224,7 +231,7 @@ func (m *DbManager) DetachDatabase(parentName string, alias string) error {
 		return fmt.Errorf("attachment alias '%s' not found for database '%s'", alias, parentName)
 	}
 
-	config.AttachedDatabases = newAttachments
+	config.Attachments = newAttachments
 	m.muConfigs.Unlock()
 
 	// Invalidate Cache
@@ -295,7 +302,8 @@ func (m *DbManager) GetConnection(ctx context.Context, name string, mode string)
 		return nil, ctx.Err()
 	}
 
-	db, err := sqldrivers.NewSqliteDb(config, mode == ModeRO)
+	attachments := m.resolveAttachments(config)
+	db, err := sqldrivers.NewSqliteDbWithAttachments(config, mode == ModeRO, attachments)
 	if err != nil {
 		return nil, err
 	}
@@ -382,10 +390,33 @@ func (m *DbManager) evictStale() {
 	}
 }
 
+func (m *DbManager) resolveAttachments(config *dbv1.DatabaseConfig) []sqldrivers.AttachmentInfo {
+	m.muConfigs.RLock()
+	defer m.muConfigs.RUnlock()
+
+	var resolved []sqldrivers.AttachmentInfo
+	for _, att := range config.Attachments {
+		target, ok := m.configs[att.TargetDatabaseName]
+		if !ok {
+			log.Printf("WARNING: Atomic attachment failed: target database '%s' not found for parent '%s'", att.TargetDatabaseName, config.Name)
+			continue
+		}
+		resolved = append(resolved, sqldrivers.AttachmentInfo{
+			Alias:    att.Alias,
+			Path:     target.DbPath,
+			Key:      target.Key,
+			ReadOnly: target.ReadOnly,
+		})
+	}
+	return resolved
+}
+
 // validateConnection opens a transient connection to check config validity
-func validateConnection(config *dbv1.DatabaseConfig) error {
+func (m *DbManager) validateConnection(config *dbv1.DatabaseConfig) error {
+	attachments := m.resolveAttachments(config)
+
 	// Always validate as ReadWrite to ensure connectivity.
-	db, err := sqldrivers.NewSqliteDb(config, false)
+	db, err := sqldrivers.NewSqliteDbWithAttachments(config, false, attachments)
 	if err != nil {
 		return err
 	}

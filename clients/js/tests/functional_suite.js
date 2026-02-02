@@ -5,6 +5,7 @@ const {
     CheckpointMode,
 } = require("../src/lib/constants");
 const db_service_pb = require("../src/protos/db/v1/db_service_pb");
+const assert = require('node:assert');
 
 const { SQL } = require("../src");
 
@@ -658,44 +659,27 @@ function runFunctionalTests(createClientFn) {
     });
 
     describe("Attached Databases", () => {
-        test("Attach and Detach Database", async () => {
-            const fs = require('fs');
-            const path = require('path');
-            const os = require('os');
-
-            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sqlite-server-test-'));
-            const adbPath = path.join(tmpDir, 'attached.db');
-
-            // Attach it
+        test("Attach and Detach Database (Managed)", async () => {
+            // We use 'loadtest-mixed' as the target database, which should be pre-configured on the server.
+            // This assumes the server is running with 'loadtest-mixed' managed database.
+            const dbName = "loadtest-mixed";
+            const alias = "ext_db_js";
             const attachRes = await client.attach({
-                name: "ext_db",
-                dbPath: adbPath
+                alias,
+                targetDatabaseName: dbName
             });
-            expect(attachRes.success).toBe(true);
+            assert.strictEqual(attachRes.success, true);
 
-            // Create table and insert in parent (ensure main stays functional)
-            await client.query("CREATE TABLE IF NOT EXISTS main_table (id INTEGER)");
-
-            // Try to query the attached - we need to create it first.
-            // In SQLite, ATTACH creates the file if it doesn't exist?
-            // Actually, better to create it beforehand or via ATTACH if supported.
-            // Let's create a table via the alias.
-            await client.query("CREATE TABLE ext_db.t1 (id INTEGER)");
-            await client.query("INSERT INTO ext_db.t1 (id) VALUES (123)");
-
-            const result = await client.query("SELECT id FROM ext_db.t1");
-            expect(result.rows[0][0]).toBe(123);
+            // Verify it's attached by querying its schema
+            const result = await client.query(`SELECT name FROM ${alias}.sqlite_master LIMIT 1`);
+            expect(result.type).toBe("SELECT");
 
             // Detach it
-            const detachRes = await client.detach("ext_db");
+            const detachRes = await client.detach(alias);
             expect(detachRes.success).toBe(true);
 
             // Verify it's detached
-            await expect(client.query("SELECT id FROM ext_db.t1")).rejects.toThrow();
-
-            // Cleanup
-            if (fs.existsSync(adbPath)) fs.unlinkSync(adbPath);
-            fs.rmdirSync(tmpDir);
+            await expect(client.query(`SELECT name FROM ${alias}.sqlite_master`)).rejects.toThrow();
         });
     });
 }

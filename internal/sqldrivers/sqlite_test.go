@@ -278,15 +278,14 @@ func TestNewSqliteDb_AttachedFailures(t *testing.T) {
 		config := &dbv1.DatabaseConfig{
 			Name:   "primary_fail",
 			DbPath: ":memory:",
-			AttachedDatabases: []*dbv1.AttachedDatabase{
-				{
-					Name:   "invalid",
-					DbPath: "/nonexistent/path/that/cannot/exist/123456789",
-				},
-			},
 		}
 
-		db, err := NewSqliteDb(config, false)
+		db, err := NewSqliteDbWithAttachments(config, false, []AttachmentInfo{
+			{
+				Alias: "invalid",
+				Path:  "/nonexistent/path/that/cannot/exist/123456789",
+			},
+		})
 		if err == nil {
 			// Trigger the ConnectHook
 			err = db.Ping()
@@ -327,21 +326,22 @@ func TestNewSqliteDb_AttachedAdvancedFeatures(t *testing.T) {
 	config := &dbv1.DatabaseConfig{
 		Name:   "primary_adv",
 		DbPath: ":memory:",
-		AttachedDatabases: []*dbv1.AttachedDatabase{
-			{
-				Name:     "ro_ext",
-				DbPath:   "file:" + adbPath, // file: prefix
-				ReadOnly: true,              // adb.ReadOnly
-			},
-			{
-				Name:   "key_ext",
-				DbPath: adbPath,
-				Key:    strPtr("some-key"), // adb.GetKey()
-			},
+	}
+
+	attachments := []AttachmentInfo{
+		{
+			Alias:    "ro_ext",
+			Path:     "file:" + adbPath, // file: prefix
+			ReadOnly: true,              // adb.ReadOnly
+		},
+		{
+			Alias: "key_ext",
+			Path:  adbPath,
+			Key:   "some-key",
 		},
 	}
 
-	db, err := NewSqliteDb(config, false)
+	db, err := NewSqliteDbWithAttachments(config, false, attachments)
 	require.NoError(t, err)
 	defer db.Close()
 

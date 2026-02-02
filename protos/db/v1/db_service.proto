@@ -757,6 +757,8 @@ message DatabaseInfo {
   string name = 1;
   string path = 2;
   bool is_managed = 3;
+  // List of databases currently attached to this one.
+  repeated Attachment current_attachments = 4;
 }
 
 /**
@@ -1614,26 +1616,23 @@ message DatabaseConfig {
 
   // AttachedDatabases defines other DB files to be attached on connection
   // start.
-  repeated AttachedDatabase attached_databases = 12;
+  repeated Attachment attachments = 12;
 }
 
 /**
- * Represents a database file attached to a primary database.
- * Maps to: ATTACH DATABASE 'db_path' AS 'name'
+ * Represents a link between two databases already served by the system.
+ * Maps to: ATTACH DATABASE '<path_of_target_db>' AS '<alias>'
  */
-message AttachedDatabase {
-  // The alias used in SQL queries (e.g., "shared_db" in "shared_db.table")
-  string name = 1
+message Attachment {
+  // The logical name of the database to be attached (must already exist in the
+  // server).
+  string target_database_name = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+
+  // The SQL alias used to reference this database in queries (e.g., "archive"
+  // in "SELECT * FROM archive.logs").
+  string alias = 2
       [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{1,64}$"} ];
-
-  // File system path to the database to be attached.
-  string db_path = 2 [ (buf.validate.field).string.min_len = 1 ];
-
-  // Optional: Key for sqlcipher if the attached database is encrypted.
-  optional string key = 3;
-
-  // Optional: Open the attached database in read-only mode.
-  bool read_only = 4;
 }
 
 // =============================================================================
@@ -1802,11 +1801,11 @@ message UpdateDatabaseConfig {
   optional int32 max_idle_conns = 5;
   optional int32 conn_max_lifetime_ms = 6;
   optional InitCommandList init_commands = 7;
-  // Optional list of databases to be attached.
-  optional AttachedDatabaseList attached_databases = 8;
+  // Optional list of attachments to update.
+  optional AttachmentList attachments = 8;
 }
 
-message AttachedDatabaseList { repeated AttachedDatabase values = 1; }
+message AttachmentList { repeated Attachment values = 1; }
 
 message ExtensionList { repeated string values = 1; }
 
@@ -1848,7 +1847,7 @@ message AttachDatabaseRequest {
       [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
 
   // The configuration for the database to be attached.
-  AttachedDatabase attachment = 2 [ (buf.validate.field).required = true ];
+  Attachment attachment = 2 [ (buf.validate.field).required = true ];
 }
 
 message AttachDatabaseResponse {

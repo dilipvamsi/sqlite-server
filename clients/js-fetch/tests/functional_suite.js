@@ -649,38 +649,28 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
         });
 
         describe("Attached Databases", () => {
-            it("Attach and Detach Database", async () => {
-                const fs = require('fs');
-                const path = require('path');
-                const os = require('os');
-
-                const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sqlite-server-fetch-test-'));
-                const adbPath = path.join(tmpDir, 'attached.db');
-
-                // Attach it
+            it("Attach and Detach Database (Managed)", async () => {
+                // We use 'loadtest-mixed' as the target database, which should be pre-configured on the server.
+                // This assumes the server is running with 'loadtest-mixed' managed database.
+                const dbName = "loadtest-mixed";
+                const alias = "ext_db_js_fetch";
                 const attachRes = await client.attach({
-                    name: "ext_db",
-                    dbPath: adbPath
+                    alias,
+                    targetDatabaseName: dbName
                 });
-                expect(attachRes.success).toBe(true);
+                assert.strictEqual(attachRes.success, true);
 
-                // Create table and insert
-                await client.query("CREATE TABLE ext_db.t1 (id INTEGER)");
-                await client.query("INSERT INTO ext_db.t1 (id) VALUES (123)");
-
-                const result = await client.query("SELECT id FROM ext_db.t1");
-                expect(result.rows[0][0]).toBe(123);
+                // Verify it's attached by querying its schema
+                const result = await client.query(`SELECT name FROM ${alias}.sqlite_master LIMIT 1`);
+                expect(result.type).toBe("SELECT");
 
                 // Detach it
-                const detachRes = await client.detach("ext_db");
+                const detachRes = await client.detach(alias);
                 expect(detachRes.success).toBe(true);
 
                 // Verify it's detached
-                await expect(client.query("SELECT id FROM ext_db.t1")).rejects.toThrow();
+                await expect(client.query(`SELECT name FROM ${alias}.sqlite_master`)).rejects.toThrow();
 
-                // Cleanup
-                if (fs.existsSync(adbPath)) fs.unlinkSync(adbPath);
-                fs.rmdirSync(tmpDir);
             });
         });
     });

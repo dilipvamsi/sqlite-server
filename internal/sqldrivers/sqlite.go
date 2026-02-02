@@ -22,7 +22,19 @@ var (
 
 // const BuildType = "std"
 
+// AttachmentInfo represents a resolved database attachment.
+type AttachmentInfo struct {
+	Alias    string
+	Path     string
+	Key      string
+	ReadOnly bool
+}
+
 func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, error) {
+	return NewSqliteDbWithAttachments(config, readOnlySecured, nil)
+}
+
+func NewSqliteDbWithAttachments(config *dbv1.DatabaseConfig, readOnlySecured bool, attachments []AttachmentInfo) (*sql.DB, error) {
 	// Resolve absolute path to avoid issues with relative paths in URI mode (file:...) via CGO
 	// Skip for in-memory databases and pre-formatted URIs.
 	if config.DbPath != ":memory:" && !strings.HasPrefix(config.DbPath, "file:") {
@@ -75,7 +87,7 @@ func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, er
 	// If extensions are specified OR InitCommands are present, we must create and register a unique driver instance
 	// for this database configuration because these are properties of the driver/connection,
 	// not just the DSN.
-	if len(config.Extensions) > 0 || readOnlySecured || len(config.InitCommands) > 0 || len(config.AttachedDatabases) > 0 {
+	if len(config.Extensions) > 0 || readOnlySecured || len(config.InitCommands) > 0 || len(attachments) > 0 {
 		// Generate a unique driver name for this specific DB configuration to avoid collisions.
 		// e.g., "sqlite3_ext_primary_db" or "sqlite3_ext_primary_db_ro"
 		suffix := ""
@@ -106,11 +118,11 @@ func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, er
 					}
 
 					// Attach additional databases
-					for _, adb := range config.AttachedDatabases {
-						path := adb.DbPath
+					for _, adb := range attachments {
+						path := adb.Path
 						// Skip for in-memory databases and pre-formatted URIs.
-						if adb.DbPath != ":memory:" && !strings.HasPrefix(adb.DbPath, "file:") {
-							absPath, err := filepath.Abs(adb.DbPath)
+						if adb.Path != ":memory:" && !strings.HasPrefix(adb.Path, "file:") {
+							absPath, err := filepath.Abs(adb.Path)
 							if err == nil {
 								path = absPath
 							}
@@ -134,17 +146,17 @@ func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, er
 						}
 
 						// Handle Encryption
-						if adb.GetKey() != "" {
+						if adb.Key != "" {
 							sep := "?"
 							if strings.Contains(dsn, "?") {
 								sep = "&"
 							}
-							dsn += sep + "_key=" + adb.GetKey()
+							dsn += sep + "_key=" + adb.Key
 						}
 
-						attachCmd := fmt.Sprintf("ATTACH DATABASE '%s' AS '%s'", dsn, adb.Name)
+						attachCmd := fmt.Sprintf("ATTACH DATABASE '%s' AS '%s'", dsn, adb.Alias)
 						if _, err := conn.Exec(attachCmd, []driver.Value{}); err != nil {
-							return fmt.Errorf("failed to attach database '%s' (%s): %w", adb.Name, adb.DbPath, err)
+							return fmt.Errorf("failed to attach database '%s' (%s): %w", adb.Alias, adb.Path, err)
 						}
 					}
 					return nil

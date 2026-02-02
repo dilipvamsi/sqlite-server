@@ -313,11 +313,20 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 
 	infos := make([]*dbv1.DatabaseInfo, len(configs))
 	for i, cfg := range configs {
-		infos[i] = &dbv1.DatabaseInfo{
+		info := &dbv1.DatabaseInfo{
 			Name:      cfg.Name,
 			Path:      cfg.Path,
 			IsManaged: cfg.IsManaged,
 		}
+
+		// Parse settings to get current attachments
+		if cfg.Settings != "" {
+			fullCfg := &dbv1.DatabaseConfig{}
+			if err := protojson.Unmarshal([]byte(cfg.Settings), fullCfg); err == nil {
+				info.CurrentAttachments = fullCfg.Attachments
+			}
+		}
+		infos[i] = info
 	}
 
 	return connect.NewResponse(&dbv1.ListDatabasesResponse{
@@ -602,8 +611,8 @@ func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[d
 		currentConfig.InitCommands = updates.InitCommands.Values
 	}
 
-	if updates.AttachedDatabases != nil {
-		currentConfig.AttachedDatabases = updates.AttachedDatabases.Values
+	if updates.Attachments != nil {
+		currentConfig.Attachments = updates.Attachments.Values
 	}
 
 	// 4. Persist updated config
@@ -658,12 +667,12 @@ func (s *AdminServer) AttachDatabase(ctx context.Context, req *connect.Request[d
 
 	// 3. Update attachments
 	// Check for duplicate alias
-	for _, existing := range currentConfig.AttachedDatabases {
-		if existing.Name == attachment.Name {
-			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("attachment alias '%s' already exists", attachment.Name))
+	for _, existing := range currentConfig.Attachments {
+		if existing.Alias == attachment.Alias {
+			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("attachment alias '%s' already exists", attachment.Alias))
 		}
 	}
-	currentConfig.AttachedDatabases = append(currentConfig.AttachedDatabases, attachment)
+	currentConfig.Attachments = append(currentConfig.Attachments, attachment)
 
 	// 4. Persist
 	jsonBytes, err := protojson.Marshal(currentConfig)
@@ -711,9 +720,9 @@ func (s *AdminServer) DetachDatabase(ctx context.Context, req *connect.Request[d
 
 	// 3. Update attachments
 	found := false
-	newAttachments := make([]*dbv1.AttachedDatabase, 0, len(currentConfig.AttachedDatabases))
-	for _, adb := range currentConfig.AttachedDatabases {
-		if adb.Name == alias {
+	newAttachments := make([]*dbv1.Attachment, 0, len(currentConfig.Attachments))
+	for _, adb := range currentConfig.Attachments {
+		if adb.Alias == alias {
 			found = true
 			continue
 		}
@@ -722,7 +731,7 @@ func (s *AdminServer) DetachDatabase(ctx context.Context, req *connect.Request[d
 	if !found {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("attachment alias '%s' not found", alias))
 	}
-	currentConfig.AttachedDatabases = newAttachments
+	currentConfig.Attachments = newAttachments
 
 	// 4. Persist
 	jsonBytes, err := protojson.Marshal(currentConfig)
