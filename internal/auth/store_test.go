@@ -739,3 +739,115 @@ func TestFormatRole(t *testing.T) {
 		})
 	}
 }
+
+func TestMetaStore_ListUsers(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_list_users.db")
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// 1. Initially should be empty
+	users, err := store.ListUsers(ctx)
+	require.NoError(t, err)
+	assert.Len(t, users, 0)
+
+	// 2. Add some users
+	_, _ = store.CreateUser(ctx, "user1", "pass1", dbv1.Role_ROLE_READ_ONLY)
+	_, _ = store.CreateUser(ctx, "user2", "pass2", dbv1.Role_ROLE_READ_WRITE)
+
+	users, err = store.ListUsers(ctx)
+	require.NoError(t, err)
+	assert.Len(t, users, 2)
+	assert.Equal(t, "user1", users[0].Username)
+	assert.Equal(t, "user2", users[1].Username)
+}
+
+func TestMetaStore_UpdateUserRole(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_update_role.db")
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+	defer store.Close()
+
+	ctx := context.Background()
+	_, _ = store.CreateUser(ctx, "roleuser", "pass", dbv1.Role_ROLE_READ_ONLY)
+
+	t.Run("updates role successfully", func(t *testing.T) {
+		err := store.UpdateUserRole(ctx, "roleuser", dbv1.Role_ROLE_ADMIN)
+		require.NoError(t, err)
+
+		user, _ := store.GetUserByUsername(ctx, "roleuser")
+		assert.Equal(t, dbv1.Role_ROLE_ADMIN, user.Role)
+	})
+
+	t.Run("validates role", func(t *testing.T) {
+		err := store.UpdateUserRole(ctx, "roleuser", dbv1.Role_ROLE_UNSPECIFIED)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid role")
+	})
+
+	t.Run("returns error for non-existent user", func(t *testing.T) {
+		err := store.UpdateUserRole(ctx, "nonexistent", dbv1.Role_ROLE_READ_WRITE)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "user not found")
+	})
+}
+
+func TestMetaStore_RevokeAllApiKeysForUser(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_revoke_all_keys.db")
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+	defer store.Close()
+
+	ctx := context.Background()
+	userID1, _ := store.CreateUser(ctx, "user1", "pass", dbv1.Role_ROLE_READ_WRITE)
+	userID2, _ := store.CreateUser(ctx, "user2", "pass", dbv1.Role_ROLE_READ_WRITE)
+
+	// Create keys for user 1
+	_, _, _ = store.CreateApiKey(ctx, userID1, "k1", nil)
+	_, _, _ = store.CreateApiKey(ctx, userID1, "k2", nil)
+	// Create key for user 2
+	_, _, _ = store.CreateApiKey(ctx, userID2, "k3", nil)
+
+	t.Run("revokes all keys for user1", func(t *testing.T) {
+		err := store.RevokeAllApiKeysForUser(ctx, userID1)
+		require.NoError(t, err)
+
+		keys1, _ := store.ListApiKeys(ctx, userID1)
+		assert.Len(t, keys1, 0)
+
+		keys2, _ := store.ListApiKeys(ctx, userID2)
+		assert.Len(t, keys2, 1) // User 2's keys should remain
+	})
+}
+
+func TestMetaStore_Auth_Errors(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test_auth_errors.db")
+	store, err := NewMetaStore(dbPath)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	// 1. Force failure by closing DB
+	store.db.Close()
+
+	t.Run("ListUsers error", func(t *testing.T) {
+		users, err := store.ListUsers(ctx)
+		require.Error(t, err)
+		assert.Nil(t, users)
+	})
+
+	t.Run("UpdateUserRole error", func(t *testing.T) {
+		err := store.UpdateUserRole(ctx, "user", dbv1.Role_ROLE_ADMIN)
+		require.Error(t, err)
+	})
+
+	t.Run("RevokeAllApiKeysForUser error", func(t *testing.T) {
+		err := store.RevokeAllApiKeysForUser(ctx, 1)
+		require.Error(t, err)
+	})
+}

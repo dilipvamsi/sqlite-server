@@ -644,3 +644,54 @@ func TestNoAuthInterceptor(t *testing.T) {
 		assert.True(t, called)
 	})
 }
+
+func TestLoggingInterceptor(t *testing.T) {
+	interceptor := LoggingInterceptor()
+	next := func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		return connect.NewResponse(&struct{}{}), nil
+	}
+
+	t.Run("Logs request", func(t *testing.T) {
+		middleware := interceptor(next)
+		req := connect.NewRequest(&struct{}{})
+		_, err := middleware(context.Background(), req)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Disabled logging", func(t *testing.T) {
+		t.Setenv("SQLITE_SERVER_DISABLE_REQUEST_LOGGING", "true")
+		interceptorDisabled := LoggingInterceptor()
+		middleware := interceptorDisabled(next)
+		req := connect.NewRequest(&struct{}{})
+		_, err := middleware(context.Background(), req)
+		assert.NoError(t, err)
+	})
+}
+
+func TestAuthInterceptor_WrapStreamingHandler_EdgeCases(t *testing.T) {
+	store, _, _ := setupStore(t)
+	interceptor := NewAuthInterceptor(store)
+
+	middleware := interceptor.WrapStreamingHandler(func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		return nil
+	})
+
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{"Unsupported Scheme", "Digest xyz"},
+		{"Invalid Basic Format", "Basic bad-format"},
+		{"Bearer Invalid Token", "Bearer invalid-token"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			header := make(http.Header)
+			header.Set("Authorization", tt.header)
+			err := middleware(context.Background(), &mockStreamingConn{header: header})
+			assert.Error(t, err)
+			assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+		})
+	}
+}

@@ -261,27 +261,71 @@ func mapDeclaredType(dbType string) dbv1.DeclaredType {
 
 	// Exact matches for specialized types
 	switch ts {
-	case "UUID":
-		return dbv1.DeclaredType_DECLARED_TYPE_UUID
-	case "JSON":
-		return dbv1.DeclaredType_DECLARED_TYPE_JSON
-	case "XML":
-		return dbv1.DeclaredType_DECLARED_TYPE_XML
+	case "INT":
+		return dbv1.DeclaredType_DECLARED_TYPE_INT
+	case "INTEGER":
+		return dbv1.DeclaredType_DECLARED_TYPE_INTEGER
+	case "TINYINT":
+		return dbv1.DeclaredType_DECLARED_TYPE_TINYINT
+	case "SMALLINT":
+		return dbv1.DeclaredType_DECLARED_TYPE_SMALLINT
+	case "MEDIUMINT":
+		return dbv1.DeclaredType_DECLARED_TYPE_MEDIUMINT
+	case "BIGINT":
+		return dbv1.DeclaredType_DECLARED_TYPE_BIGINT
+	case "UNSIGNED BIG INT":
+		return dbv1.DeclaredType_DECLARED_TYPE_BIGINT
+	case "INT2":
+		return dbv1.DeclaredType_DECLARED_TYPE_INT2
+	case "INT8":
+		return dbv1.DeclaredType_DECLARED_TYPE_INT8
+	case "CHARACTER":
+		return dbv1.DeclaredType_DECLARED_TYPE_CHARACTER
+	case "VARCHAR":
+		return dbv1.DeclaredType_DECLARED_TYPE_VARCHAR
+	case "VARYING CHARACTER":
+		return dbv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER
+	case "NCHAR":
+		return dbv1.DeclaredType_DECLARED_TYPE_NCHAR
+	case "NATIVE CHARACTER":
+		return dbv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER
+	case "NVARCHAR":
+		return dbv1.DeclaredType_DECLARED_TYPE_NVARCHAR
+	case "TEXT":
+		return dbv1.DeclaredType_DECLARED_TYPE_TEXT
+	case "CLOB":
+		return dbv1.DeclaredType_DECLARED_TYPE_CLOB
+	case "BLOB":
+		return dbv1.DeclaredType_DECLARED_TYPE_BLOB
+	case "REAL":
+		return dbv1.DeclaredType_DECLARED_TYPE_REAL
+	case "DOUBLE":
+		return dbv1.DeclaredType_DECLARED_TYPE_DOUBLE
+	case "FLOAT":
+		return dbv1.DeclaredType_DECLARED_TYPE_FLOAT
+	case "NUMERIC":
+		return dbv1.DeclaredType_DECLARED_TYPE_NUMERIC
 	case "BOOLEAN", "BOOL":
 		return dbv1.DeclaredType_DECLARED_TYPE_BOOLEAN
+	case "DATE":
+		return dbv1.DeclaredType_DECLARED_TYPE_DATE
 	case "DATETIME":
 		return dbv1.DeclaredType_DECLARED_TYPE_DATETIME
 	case "TIMESTAMP":
 		return dbv1.DeclaredType_DECLARED_TYPE_TIMESTAMP
-	case "DATE":
-		return dbv1.DeclaredType_DECLARED_TYPE_DATE
 	case "TIME":
 		return dbv1.DeclaredType_DECLARED_TYPE_TIME
+	case "JSON":
+		return dbv1.DeclaredType_DECLARED_TYPE_JSON
+	case "UUID":
+		return dbv1.DeclaredType_DECLARED_TYPE_UUID
+	case "XML":
+		return dbv1.DeclaredType_DECLARED_TYPE_XML
 	case "YEAR":
 		return dbv1.DeclaredType_DECLARED_TYPE_YEAR
 	}
 
-	// Pattern matching
+	// Pattern matching for types with sizes like VARCHAR(255)
 	switch {
 	case strings.Contains(ts, "INT"):
 		if strings.Contains(ts, "BIG") {
@@ -293,11 +337,26 @@ func mapDeclaredType(dbType string) dbv1.DeclaredType {
 		if strings.Contains(ts, "TINY") {
 			return dbv1.DeclaredType_DECLARED_TYPE_TINYINT
 		}
+		if strings.Contains(ts, "MEDIUM") {
+			return dbv1.DeclaredType_DECLARED_TYPE_MEDIUMINT
+		}
 		return dbv1.DeclaredType_DECLARED_TYPE_INTEGER
 
 	case strings.Contains(ts, "CHAR"):
-		if strings.Contains(ts, "VAR") {
+		if strings.Contains(ts, "NVARCHAR") {
+			return dbv1.DeclaredType_DECLARED_TYPE_NVARCHAR
+		}
+		if strings.Contains(ts, "VARYING CHARACTER") {
+			return dbv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER
+		}
+		if strings.Contains(ts, "VARCHAR") {
 			return dbv1.DeclaredType_DECLARED_TYPE_VARCHAR
+		}
+		if strings.Contains(ts, "NATIVE CHARACTER") {
+			return dbv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER
+		}
+		if strings.Contains(ts, "NCHAR") {
+			return dbv1.DeclaredType_DECLARED_TYPE_NCHAR
 		}
 		return dbv1.DeclaredType_DECLARED_TYPE_CHARACTER
 

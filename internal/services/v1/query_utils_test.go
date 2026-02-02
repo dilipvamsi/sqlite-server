@@ -898,3 +898,77 @@ func TestTypedExecuteQueryAndBuffer_Coverage(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestMapDeclaredType_Comprehensive(t *testing.T) {
+	tests := []struct {
+		decl string
+		want dbv1.DeclaredType
+	}{
+		{"INT", dbv1.DeclaredType_DECLARED_TYPE_INT},
+		{"INTEGER", dbv1.DeclaredType_DECLARED_TYPE_INTEGER},
+		{"TINYINT", dbv1.DeclaredType_DECLARED_TYPE_TINYINT},
+		{"SMALLINT", dbv1.DeclaredType_DECLARED_TYPE_SMALLINT},
+		{"MEDIUMINT", dbv1.DeclaredType_DECLARED_TYPE_MEDIUMINT},
+		{"BIGINT", dbv1.DeclaredType_DECLARED_TYPE_BIGINT},
+		{"UNSIGNED BIG INT", dbv1.DeclaredType_DECLARED_TYPE_BIGINT},
+		{"INT2", dbv1.DeclaredType_DECLARED_TYPE_INT2},
+		{"INT8", dbv1.DeclaredType_DECLARED_TYPE_INT8},
+		{"CHARACTER(20)", dbv1.DeclaredType_DECLARED_TYPE_CHARACTER},
+		{"VARCHAR(255)", dbv1.DeclaredType_DECLARED_TYPE_VARCHAR},
+		{"VARYING CHARACTER(255)", dbv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER},
+		{"NCHAR(55)", dbv1.DeclaredType_DECLARED_TYPE_NCHAR},
+		{"NATIVE CHARACTER(70)", dbv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER},
+		{"NVARCHAR(100)", dbv1.DeclaredType_DECLARED_TYPE_NVARCHAR},
+		{"TEXT", dbv1.DeclaredType_DECLARED_TYPE_TEXT},
+		{"CLOB", dbv1.DeclaredType_DECLARED_TYPE_CLOB},
+		{"BLOB", dbv1.DeclaredType_DECLARED_TYPE_BLOB},
+		{"REAL", dbv1.DeclaredType_DECLARED_TYPE_REAL},
+		{"DOUBLE", dbv1.DeclaredType_DECLARED_TYPE_DOUBLE},
+		{"DOUBLE PRECISION", dbv1.DeclaredType_DECLARED_TYPE_DOUBLE},
+		{"FLOAT", dbv1.DeclaredType_DECLARED_TYPE_FLOAT},
+		{"NUMERIC", dbv1.DeclaredType_DECLARED_TYPE_NUMERIC},
+		{"DECIMAL(10,5)", dbv1.DeclaredType_DECLARED_TYPE_DECIMAL},
+		{"BOOLEAN", dbv1.DeclaredType_DECLARED_TYPE_BOOLEAN},
+		{"DATE", dbv1.DeclaredType_DECLARED_TYPE_DATE},
+		{"DATETIME", dbv1.DeclaredType_DECLARED_TYPE_DATETIME},
+		{"JSON", dbv1.DeclaredType_DECLARED_TYPE_JSON},
+		{"UUID", dbv1.DeclaredType_DECLARED_TYPE_UUID},
+		{"DECIMAL(10,2)", dbv1.DeclaredType_DECLARED_TYPE_DECIMAL},
+		{"VARYING CHARACTER", dbv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER},
+		{"NATIVE CHARACTER", dbv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER},
+		{"TINYINT(1)", dbv1.DeclaredType_DECLARED_TYPE_TINYINT},
+		{"SMALLINT(5)", dbv1.DeclaredType_DECLARED_TYPE_SMALLINT},
+		{"MEDIUMINT(10)", dbv1.DeclaredType_DECLARED_TYPE_MEDIUMINT},
+		{"BIGINT(20)", dbv1.DeclaredType_DECLARED_TYPE_BIGINT},
+		{"UNKNOWN", dbv1.DeclaredType_DECLARED_TYPE_UNSPECIFIED},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.decl, func(t *testing.T) {
+			assert.Equal(t, tt.want, mapDeclaredType(tt.decl))
+		})
+	}
+}
+
+func TestValuesToProto_FloatPrecision(t *testing.T) {
+	// Floating point precision test
+	values := []sql.RawBytes{
+		[]byte("1.234567890123456"),
+	}
+	affinities := []dbv1.ColumnAffinity{dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL}
+
+	protoRes := valuesToProto(values, affinities)
+	assert.Equal(t, 1.234567890123456, protoRes.Values[0].GetNumberValue())
+}
+
+func TestValuesToTypedProto_NullsAndEmpty(t *testing.T) {
+	values := []sql.RawBytes{nil, []byte("")}
+	affinities := []dbv1.ColumnAffinity{
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT,
+		dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT,
+	}
+
+	result := valuesToTypedProto(values, affinities)
+	assert.True(t, result.Values[0].GetNullValue())
+	assert.Equal(t, "", result.Values[1].GetTextValue())
+}

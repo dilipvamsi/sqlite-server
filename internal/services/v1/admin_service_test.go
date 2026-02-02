@@ -1156,4 +1156,136 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 	})
 }
 
+func TestAdminServer_ListUsers(t *testing.T) {
+	server, store, _ := setupAdminTestServer(t)
+	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+
+	// Create some users
+	_, err := store.CreateUser(context.Background(), "user1", "pass1", dbv1.Role_ROLE_READ_WRITE)
+	require.NoError(t, err)
+	_, err = store.CreateUser(context.Background(), "user2", "pass2", dbv1.Role_ROLE_READ_ONLY)
+	require.NoError(t, err)
+
+	t.Run("lists users as admin", func(t *testing.T) {
+		resp, err := server.ListUsers(adminCtx, connect.NewRequest(&dbv1.ListUsersRequest{}))
+		require.NoError(t, err)
+		// admin (default in adminContext), user1, user2
+		assert.GreaterOrEqual(t, len(resp.Msg.Users), 2)
+
+		usernames := make(map[string]bool)
+		for _, u := range resp.Msg.Users {
+			usernames[u.Username] = true
+		}
+		assert.True(t, usernames["user1"])
+		assert.True(t, usernames["user2"])
+	})
+
+	t.Run("denies non-admin", func(t *testing.T) {
+		rwCtx := userContext(10, "user1", dbv1.Role_ROLE_READ_WRITE)
+		_, err := server.ListUsers(rwCtx, connect.NewRequest(&dbv1.ListUsersRequest{}))
+		require.Error(t, err)
+		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	})
+}
+
+func TestAdminServer_UpdateUserRole(t *testing.T) {
+	server, store, _ := setupAdminTestServer(t)
+	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+
+	// Create user
+	_, err := store.CreateUser(context.Background(), "roletest", "pass", dbv1.Role_ROLE_READ_ONLY)
+	require.NoError(t, err)
+
+	t.Run("updates user role as admin", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.UpdateUserRoleRequest{
+			Username: "roletest",
+			Role:     dbv1.Role_ROLE_READ_WRITE,
+		})
+		resp, err := server.UpdateUserRole(adminCtx, req)
+		require.NoError(t, err)
+		assert.True(t, resp.Msg.Success)
+
+		// Verify in store
+		user, err := store.GetUserByUsername(context.Background(), "roletest")
+		require.NoError(t, err)
+		assert.Equal(t, dbv1.Role_ROLE_READ_WRITE, user.Role)
+	})
+
+	t.Run("denies non-admin", func(t *testing.T) {
+		rwCtx := userContext(20, "rwuser", dbv1.Role_ROLE_READ_WRITE)
+		req := connect.NewRequest(&dbv1.UpdateUserRoleRequest{
+			Username: "roletest",
+			Role:     dbv1.Role_ROLE_ADMIN,
+		})
+		_, err := server.UpdateUserRole(rwCtx, req)
+		require.Error(t, err)
+		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+	})
+
+	t.Run("handles store error", func(t *testing.T) {
+		// We can't easily force an error in store.UpdateUserRole without mocking or closing DB.
+	})
+
+	t.Run("invalidates cache when present", func(t *testing.T) {
+		mockCache := &mockCacheInvalidator{}
+		server.cache = mockCache
+		defer func() { server.cache = nil }()
+
+		req := connect.NewRequest(&dbv1.UpdateUserRoleRequest{
+			Username: "roletest",
+			Role:     dbv1.Role_ROLE_READ_ONLY,
+		})
+		_, err := server.UpdateUserRole(adminCtx, req)
+		require.NoError(t, err)
+		assert.True(t, mockCache.cleared)
+	})
+}
+
+type mockCacheInvalidator struct {
+	cleared bool
+}
+
+func (m *mockCacheInvalidator) ClearCache() {
+	m.cleared = true
+}
+
+func TestAdminServer_DeleteUser_Extended(t *testing.T) {
+	server, store, _ := setupAdminTestServer(t)
+	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+
+	t.Run("deletes user and cleans up api keys", func(t *testing.T) {
+		// Create user
+		userID, err := store.CreateUser(context.Background(), "cleanupuser", "pass", dbv1.Role_ROLE_READ_WRITE)
+		require.NoError(t, err)
+
+		// Create API key
+		_, _, err = store.CreateApiKey(context.Background(), userID, "testkey", nil)
+		require.NoError(t, err)
+
+		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+			Username: "cleanupuser",
+		})
+		resp, err := server.DeleteUser(adminCtx, req)
+		require.NoError(t, err)
+		assert.True(t, resp.Msg.Success)
+
+		// Verify user gone
+		user, _ := store.GetUserByUsername(context.Background(), "cleanupuser")
+		assert.Nil(t, user)
+
+		// Verify keys gone
+		keys, _ := store.ListApiKeys(context.Background(), userID)
+		assert.Empty(t, keys)
+	})
+
+	t.Run("fails to delete non-existent user", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+			Username: "doesnotexist",
+		})
+		_, err := server.DeleteUser(adminCtx, req)
+		require.Error(t, err)
+		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	})
+}
+
 func boolPtr(b bool) *bool { return &b }

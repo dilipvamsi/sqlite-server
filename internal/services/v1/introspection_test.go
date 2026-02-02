@@ -415,3 +415,99 @@ func TestGetDatabaseSchema_QueryError(t *testing.T) {
 	_, err = dbServer.GetDatabaseSchema(ctx, req)
 	require.Error(t, err)
 }
+
+func TestGetTableSchema_MoreEdgeCases(t *testing.T) {
+	ctx := context.Background()
+	client, server := setupTestServer(t)
+
+	db, err := server.dbManager.GetConnection(ctx, "test", ModeRW)
+	require.NoError(t, err)
+
+	t.Run("Table with No PK and Autoincrement", func(t *testing.T) {
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS nopk (
+				val TEXT
+			);
+			CREATE TABLE IF NOT EXISTS auto (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT
+			);
+		`)
+		require.NoError(t, err)
+
+		// Test No PK
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+			Database:  "test",
+			TableName: "nopk",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, "nopk", res.Msg.Name)
+		for _, col := range res.Msg.Columns {
+			assert.False(t, col.PrimaryKey)
+		}
+
+		// Test Autoincrement (not explicitly in proto but check it doesn't break)
+		res, err = client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+			Database:  "test",
+			TableName: "auto",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, "auto", res.Msg.Name)
+		assert.True(t, res.Msg.Columns[0].PrimaryKey)
+	})
+
+	t.Run("Table with Default Values and Not Null", func(t *testing.T) {
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS constraints (
+				id INTEGER PRIMARY KEY,
+				coded TEXT NOT NULL DEFAULT 'DEFAULT_VAL',
+				nullable TEXT
+			);
+		`)
+		require.NoError(t, err)
+
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+			Database:  "test",
+			TableName: "constraints",
+		}))
+		require.NoError(t, err)
+
+		for _, col := range res.Msg.Columns {
+			if col.Name == "coded" {
+				assert.True(t, col.NotNull)
+				assert.Equal(t, "'DEFAULT_VAL'", col.DefaultValue)
+			}
+			if col.Name == "nullable" {
+				assert.False(t, col.NotNull)
+				assert.Empty(t, col.DefaultValue)
+			}
+		}
+	})
+
+	t.Run("Table with unique index as constraint", func(t *testing.T) {
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS unique_test (
+				id INT,
+				email TEXT UNIQUE
+			);
+		`)
+		require.NoError(t, err)
+
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+			Database:  "test",
+			TableName: "unique_test",
+		}))
+		require.NoError(t, err)
+
+		// SQLite implements UNIQUE constraint as a unique index
+		assert.NotEmpty(t, res.Msg.Indexes)
+		found := false
+		for _, idx := range res.Msg.Indexes {
+			if idx.Unique {
+				found = true
+				assert.Contains(t, idx.Columns, "email")
+			}
+		}
+		assert.True(t, found, "Should find unique index for UNIQUE constraint")
+	})
+}
