@@ -76,10 +76,11 @@ type dbRole string
 
 // Role string constants for database storage
 const (
-	dbRoleAdmin       dbRole = "admin"
-	dbRoleReadWrite   dbRole = "read_write"
-	dbRoleReadOnly    dbRole = "read_only"
-	dbRoleUnspecified dbRole = "unspecified"
+	dbRoleAdmin           dbRole = "admin"
+	dbRoleDatabaseManager dbRole = "database_manager"
+	dbRoleReadWrite       dbRole = "read_write"
+	dbRoleReadOnly        dbRole = "read_only"
+	dbRoleUnspecified     dbRole = "unspecified"
 )
 
 // Helper to convert DB string to Enum
@@ -87,6 +88,8 @@ func ParseRole(roleStr dbRole) dbv1.Role {
 	switch roleStr {
 	case dbRoleAdmin:
 		return dbv1.Role_ROLE_ADMIN
+	case dbRoleDatabaseManager:
+		return dbv1.Role_ROLE_DATABASE_MANAGER
 	case dbRoleReadWrite:
 		return dbv1.Role_ROLE_READ_WRITE
 	case dbRoleReadOnly:
@@ -101,6 +104,8 @@ func FormatRole(role dbv1.Role) dbRole {
 	switch role {
 	case dbv1.Role_ROLE_ADMIN:
 		return dbRoleAdmin
+	case dbv1.Role_ROLE_DATABASE_MANAGER:
+		return dbRoleDatabaseManager
 	case dbv1.Role_ROLE_READ_WRITE:
 		return dbRoleReadWrite
 	case dbv1.Role_ROLE_READ_ONLY:

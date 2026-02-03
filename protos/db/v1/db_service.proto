@@ -606,11 +606,18 @@ message IntegrityCheckResponse {
  */
 enum Role {
   ROLE_UNSPECIFIED = 0;
-  // Full access to everything.
+
+  // Full access to the entire system, including managing users and roles.
   ROLE_ADMIN = 1;
-  // Can Read and Write data, but cannot manage users/config.
+
+  // Can create, delete, and configure databases and attachments,
+  // but cannot manage users or change security permissions.
+  ROLE_DATABASE_MANAGER = 4;
+
+  // Can Read and Write data within databases.
   ROLE_READ_WRITE = 2;
-  // Can only Read data.
+
+  // Can only Read data from databases.
   ROLE_READ_ONLY = 3;
 }
 

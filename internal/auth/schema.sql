@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL, -- bcrypt hash
-    role TEXT NOT NULL CHECK(role IN ('admin', 'read_write', 'read_only')),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'database_manager', 'read_write', 'read_only')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

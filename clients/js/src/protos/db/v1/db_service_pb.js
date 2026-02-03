@@ -24132,6 +24132,7 @@ proto.db.v1.CheckpointMode = {
 proto.db.v1.Role = {
   ROLE_UNSPECIFIED: 0,
   ROLE_ADMIN: 1,
+  ROLE_DATABASE_MANAGER: 4,
   ROLE_READ_WRITE: 2,
   ROLE_READ_ONLY: 3
 };

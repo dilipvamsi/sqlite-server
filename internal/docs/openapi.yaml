@@ -2680,6 +2680,7 @@ components:
       enum:
         - ROLE_UNSPECIFIED
         - ROLE_ADMIN
+        - ROLE_DATABASE_MANAGER
         - ROLE_READ_WRITE
         - ROLE_READ_ONLY
       description: "*\r\n Role defines the permission level for a user."

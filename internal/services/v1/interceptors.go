@@ -145,7 +145,7 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 
 		// AdminService Check
 		if strings.HasPrefix(req.Spec().Procedure, "/db.v1.AdminService/") {
-			if user.Role != dbv1.Role_ROLE_ADMIN {
+			if user.Role != dbv1.Role_ROLE_ADMIN && user.Role != dbv1.Role_ROLE_DATABASE_MANAGER {
 				// Allow non-admins to access self-management and informational methods
 				procedure := req.Spec().Procedure
 				allowedForEveryone := map[string]bool{
@@ -159,6 +159,25 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 				if !allowedForEveryone[procedure] {
 					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
 				}
+			} else if user.Role == dbv1.Role_ROLE_DATABASE_MANAGER {
+				// Database Manager can only access database related methods
+				procedure := req.Spec().Procedure
+				dbRelated := map[string]bool{
+					"/db.v1.AdminService/ListDatabases":   true,
+					"/db.v1.AdminService/CreateDatabase":  true,
+					"/db.v1.AdminService/DeleteDatabase":  true,
+					"/db.v1.AdminService/UpdateDatabase":  true,
+					"/db.v1.AdminService/MountDatabase":   true,
+					"/db.v1.AdminService/UnMountDatabase": true,
+					"/db.v1.AdminService/CreateApiKey":    true,
+					"/db.v1.AdminService/ListApiKeys":     true,
+					"/db.v1.AdminService/RevokeApiKey":    true,
+					"/db.v1.AdminService/UpdatePassword":  true,
+					"/db.v1.AdminService/Logout":          true,
+				}
+				if !dbRelated[procedure] {
+					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
+				}
 			}
 			return next(ctx, req)
 		}
@@ -168,7 +187,9 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 		switch req.Spec().Procedure {
 		// Explicit Write Methods
 		case "/db.v1.DatabaseService/Vacuum",
-			"/db.v1.DatabaseService/Checkpoint":
+			"/db.v1.DatabaseService/Checkpoint",
+			"/db.v1.DatabaseService/AttachDatabase",
+			"/db.v1.DatabaseService/DetachDatabase":
 			isWrite = true
 
 		// Dynamic Methods (Parse SQL)

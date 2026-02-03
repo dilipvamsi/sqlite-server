@@ -331,8 +331,8 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 
 // CreateDatabase creates a new managed database
 func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[dbv1.CreateDatabaseRequest]) (*connect.Response[dbv1.CreateDatabaseResponse], error) {
-	// Verify Admin Role
-	if err := AuthorizeAdmin(ctx); err != nil {
+	// Verify Admin or Database Manager Role
+	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
 
@@ -386,7 +386,7 @@ func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[d
 
 // MountDatabase mounts an existing unmanaged database
 func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[dbv1.DatabaseConfig]) (*connect.Response[dbv1.MountDatabaseResponse], error) {
-	if err := AuthorizeAdmin(ctx); err != nil {
+	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
 
@@ -425,7 +425,7 @@ func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[db
 
 // UnMountDatabase unmounts a database but keeps the file
 func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[dbv1.UnMountDatabaseRequest]) (*connect.Response[dbv1.UnMountDatabaseResponse], error) {
-	if err := AuthorizeAdmin(ctx); err != nil {
+	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
 
@@ -453,7 +453,7 @@ func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[
 
 // DeleteDatabase deletes a managed database permanently
 func (s *AdminServer) DeleteDatabase(ctx context.Context, req *connect.Request[dbv1.DeleteDatabaseRequest]) (*connect.Response[dbv1.DeleteDatabaseResponse], error) {
-	if err := AuthorizeAdmin(ctx); err != nil {
+	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
 
@@ -557,7 +557,7 @@ func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[dbv1.Logo
 
 // UpdateDatabase updates an existing database configuration
 func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[dbv1.UpdateDatabaseRequest]) (*connect.Response[dbv1.UpdateDatabaseResponse], error) {
-	if err := AuthorizeAdmin(ctx); err != nil {
+	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
 

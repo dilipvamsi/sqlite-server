@@ -95,6 +95,18 @@ func TestAuthorizeWrite(t *testing.T) {
 		err := AuthorizeWrite(ctx)
 		assert.NoError(t, err)
 	})
+
+	t.Run("database_manager user is allowed", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID:   4,
+			Username: "db_manager",
+			Role:     dbv1.Role_ROLE_DATABASE_MANAGER,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+
+		err := AuthorizeWrite(ctx)
+		assert.NoError(t, err)
+	})
 }
 
 func TestAuthorizeAdmin(t *testing.T) {
@@ -127,6 +139,65 @@ func TestAuthorizeAdmin(t *testing.T) {
 		ctx := auth.NewContext(context.Background(), claims)
 
 		err := AuthorizeAdmin(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("database_manager user is denied", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID:   1,
+			Username: "db_manager",
+			Role:     dbv1.Role_ROLE_DATABASE_MANAGER,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+
+		err := AuthorizeAdmin(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "permission_denied")
+	})
+}
+
+func TestAuthorizeDatabaseManager(t *testing.T) {
+	t.Run("unauthenticated context returns error", func(t *testing.T) {
+		ctx := context.Background()
+		err := AuthorizeDatabaseManager(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthenticated")
+	})
+
+	t.Run("normal user is denied", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID:   1,
+			Username: "normal_user",
+			Role:     dbv1.Role_ROLE_READ_WRITE,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+
+		err := AuthorizeDatabaseManager(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "permission_denied")
+	})
+
+	t.Run("database_manager user is allowed", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID:   1,
+			Username: "db_manager",
+			Role:     dbv1.Role_ROLE_DATABASE_MANAGER,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+
+		err := AuthorizeDatabaseManager(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("admin user is allowed", func(t *testing.T) {
+		claims := &auth.UserClaims{
+			UserID:   1,
+			Username: "admin",
+			Role:     dbv1.Role_ROLE_ADMIN,
+		}
+		ctx := auth.NewContext(context.Background(), claims)
+
+		err := AuthorizeDatabaseManager(ctx)
 		assert.NoError(t, err)
 	})
 }

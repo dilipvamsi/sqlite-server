@@ -38,8 +38,10 @@ func AuthorizeWrite(ctx context.Context) error {
 		return connect.NewError(connect.CodeUnauthenticated, nil)
 	}
 
-	// Only Admin and ReadWrite can write.
-	if claims.Role != dbv1.Role_ROLE_ADMIN && claims.Role != dbv1.Role_ROLE_READ_WRITE {
+	// Admin, DatabaseManager and ReadWrite can write.
+	if claims.Role != dbv1.Role_ROLE_ADMIN &&
+		claims.Role != dbv1.Role_ROLE_DATABASE_MANAGER &&
+		claims.Role != dbv1.Role_ROLE_READ_WRITE {
 		return connect.NewError(connect.CodePermissionDenied, nil)
 	}
 
@@ -55,6 +57,20 @@ func AuthorizeAdmin(ctx context.Context) error {
 	}
 
 	if claims.Role != dbv1.Role_ROLE_ADMIN {
+		return connect.NewError(connect.CodePermissionDenied, nil)
+	}
+
+	return nil
+}
+
+// AuthorizeDatabaseManager checks if the current user has admin or database_manager role.
+func AuthorizeDatabaseManager(ctx context.Context) error {
+	claims, ok := auth.FromContext(ctx)
+	if !ok {
+		return connect.NewError(connect.CodeUnauthenticated, nil)
+	}
+
+	if claims.Role != dbv1.Role_ROLE_ADMIN && claims.Role != dbv1.Role_ROLE_DATABASE_MANAGER {
 		return connect.NewError(connect.CodePermissionDenied, nil)
 	}
 
