@@ -766,6 +766,7 @@ message DatabaseInfo {
   bool is_managed = 3;
   // List of databases currently attached to this one.
   repeated Attachment current_attachments = 4;
+  bool read_only = 5;
 }
 
 /**

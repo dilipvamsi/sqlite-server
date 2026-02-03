@@ -1862,6 +1862,9 @@ components:
             $ref: '#/components/schemas/db.v1.Attachment'
           title: current_attachments
           description: List of databases currently attached to this one.
+        readOnly:
+          type: boolean
+          title: read_only
       title: DatabaseInfo
       additionalProperties: false
     db.v1.DatabaseSchema:

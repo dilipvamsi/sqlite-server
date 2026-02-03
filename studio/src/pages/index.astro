@@ -296,6 +296,49 @@ busy_timeout=5000"></textarea>
       </div>
     </dialog>
 
+    <dialog id="modal-attach-db" class="modal">
+      <div class="modal-content">
+        <h2>Attach Database</h2>
+        <form id="form-attach-db">
+          <input type="hidden" id="attach-parent" name="parent" />
+
+          <div class="form-group">
+            <p>Parent Database: <strong id="attach-parent-display"></strong></p>
+          </div>
+
+          <div class="form-group">
+            <label for="attach-target">Select Database to Attach *</label>
+            <select id="attach-target" name="target" required>
+              <option value="">-- Select a database --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="attach-alias">Alias *</label>
+            <input
+              type="text"
+              id="attach-alias"
+              name="alias"
+              required
+              pattern="[a-zA-Z0-9_-]{1,64}"
+              placeholder="e.g. archive, stats"
+            />
+            <small
+              >The name used to reference this database in SQL (e.g.
+              alias.table).</small
+            >
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost btn-close-modal"
+              >Cancel</button
+            >
+            <button type="submit" class="btn btn-primary">Attach</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
     <div id="db-list" class="db-grid">
       <!-- Loaded Client-Side -->
       <div class="loading">Loading databases...</div>
@@ -314,7 +357,7 @@ busy_timeout=5000"></textarea>
     isAdmin,
     canManageDatabases,
   } from "../lib/client";
-  import { AdminService } from "../gen/db/v1/db_service_pb";
+  import { AdminService, DatabaseService } from "../gen/db/v1/db_service_pb";
 
   const dbList = document.getElementById("db-list");
   const errorAlert = document.getElementById("error-alert");
@@ -326,10 +369,16 @@ busy_timeout=5000"></textarea>
   const modalMount = document.getElementById(
     "modal-mount-db",
   ) as HTMLDialogElement;
+  const modalAttach = document.getElementById(
+    "modal-attach-db",
+  ) as HTMLDialogElement;
   const formCreate = document.getElementById(
     "form-create-db",
   ) as HTMLFormElement;
   const formMount = document.getElementById("form-mount-db") as HTMLFormElement;
+  const formAttach = document.getElementById(
+    "form-attach-db",
+  ) as HTMLFormElement;
 
   // Role-based visibility for management buttons
   if (!canManageDatabases()) {
@@ -402,6 +451,7 @@ busy_timeout=5000"></textarea>
     btn.addEventListener("click", () => {
       modalCreate?.close();
       modalMount?.close();
+      modalAttach?.close();
     });
   });
 
@@ -468,6 +518,36 @@ busy_timeout=5000"></textarea>
     }
   });
 
+  formAttach?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(formAttach);
+
+    const parent = formData.get("parent") as string;
+    const target = formData.get("target") as string;
+    const alias = formData.get("alias") as string;
+
+    try {
+      const client = getClient(DatabaseService);
+      const headers = getAuthHeaders();
+      await client.attachDatabase(
+        {
+          parentDatabase: parent,
+          attachment: {
+            targetDatabaseName: target,
+            alias: alias,
+          },
+        },
+        { headers },
+      );
+
+      formAttach.reset();
+      modalAttach.close();
+      await loadDatabases();
+    } catch (err: any) {
+      showError("Failed to attach database: " + err.message);
+    }
+  });
+
   // Load Databases
   async function loadDatabases() {
     if (!localStorage.getItem(AUTH_KEY)) {
@@ -494,12 +574,45 @@ busy_timeout=5000"></textarea>
             const badgeClass = isManaged ? "badge-managed" : "badge-mounted";
             const badgeText = isManaged ? "Managed" : "Mounted";
 
+            const roBadgeClass = db.readOnly ? "badge-ro" : "badge-rw";
+            const roBadgeText = db.readOnly ? "Read Only" : "Read Write";
+
             // Only show management actions for those who can manage databases
-            const actionBtn = canManageDatabases()
-              ? isManaged
-                ? `<button class="btn btn-sm btn-danger btn-delete-db" data-name="${db.name}">Delete</button>`
-                : `<button class="btn btn-sm btn-warning btn-unmount-db" data-name="${db.name}">Unmount</button>`
-              : "";
+            const actionBtn =
+              (canManageDatabases()
+                ? isManaged
+                  ? `<button class="btn btn-sm btn-danger btn-delete-db" data-name="${db.name}">Delete</button>`
+                  : `<button class="btn btn-sm btn-warning btn-unmount-db" data-name="${db.name}">Unmount</button>`
+                : "") +
+              `<button class="btn btn-sm btn-primary-outline btn-open-attach" data-name="${db.name}">Attach</button>`;
+
+            // Render current attachments
+            let attachmentsHtml = "";
+            if (db.currentAttachments && db.currentAttachments.length > 0) {
+              attachmentsHtml = `
+                <div class="attachments-section">
+                  <div class="attachments-card">
+                    <h4>Attached Databases</h4>
+                    <div class="attachments-list">
+                      ${db.currentAttachments
+                        .map(
+                          (att) => `
+                        <div class="attachment-badge">
+                          <span class="att-alias">${att.alias}</span>
+                          <span class="att-name-sep">:</span>
+                          <span class="att-target">${att.targetDatabaseName}</span>
+                          <button class="btn-detach-inline" data-parent="${db.name}" data-alias="${att.alias}" title="Detach">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                          </button>
+                        </div>
+                      `,
+                        )
+                        .join("")}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }
 
             return `
           <div class="card db-card">
@@ -509,10 +622,19 @@ busy_timeout=5000"></textarea>
             <div class="db-info">
               <div class="db-header">
                 <h3>${db.name}</h3>
-                <span class="badge ${badgeClass}">${badgeText}</span>
+                <div class="db-badges">
+                  <span class="badge ${badgeClass}">${badgeText}</span>
+                  <span class="badge ${roBadgeClass}">${roBadgeText}</span>
+                </div>
               </div>
-              <p class="db-path" title="${db.path}">${db.path}</p>
-              
+
+              <div class="path-container">
+                <label class="path-label">File Path</label>
+                <p class="db-path" title="${db.path}">${db.path}</p>
+              </div>
+
+              ${attachmentsHtml}
+
               <div class="db-actions">
                  <a href="/studio/console?db=${db.name}" class="btn btn-sm btn-secondary">Query</a>
                  <a href="/studio/explain?db=${db.name}" class="btn btn-sm btn-secondary">Explain</a>
@@ -529,23 +651,73 @@ busy_timeout=5000"></textarea>
         // Re-attach listeners for Delete/Unmount
         document.querySelectorAll(".btn-delete-db").forEach((btn) => {
           btn.addEventListener("click", (e) => {
-            const name = (e.target as HTMLElement).getAttribute("data-name");
-            if (
-              name &&
-              confirm(
-                `Are you sure you want to PERMANENTLY DELETE database '${name}'? This cannot be undone.`,
-              )
-            ) {
-              deleteDatabase(name);
+            const name = (e.currentTarget as HTMLElement).getAttribute(
+              "data-name",
+            );
+            if (name) {
+              const input = prompt(
+                `Are you sure you want to PERMANENTLY DELETE database '${name}'? This cannot be undone.\n\nPlease type the database name '${name}' to confirm:`,
+              );
+              if (input === name) {
+                deleteDatabase(name);
+              } else if (input !== null) {
+                alert("Database name mismatch. Delete cancelled.");
+              }
             }
           });
         });
 
         document.querySelectorAll(".btn-unmount-db").forEach((btn) => {
           btn.addEventListener("click", (e) => {
-            const name = (e.target as HTMLElement).getAttribute("data-name");
-            if (name && confirm(`Unmount database '${name}'?`)) {
-              unmountDatabase(name);
+            const name = (e.currentTarget as HTMLElement).getAttribute(
+              "data-name",
+            );
+            if (name) {
+              const input = prompt(
+                `Unmount database '${name}'?\n\nPlease type the database name '${name}' to confirm:`,
+              );
+              if (input === name) {
+                unmountDatabase(name);
+              } else if (input !== null) {
+                alert("Database name mismatch. Unmount cancelled.");
+              }
+            }
+          });
+        });
+
+        // Attach listeners for Attach modal
+        document.querySelectorAll(".btn-open-attach").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            const name = (e.currentTarget as HTMLElement).getAttribute(
+              "data-name",
+            );
+            if (name) {
+              openAttachModal(
+                name,
+                response.databases.map((d) => d.name),
+              );
+            }
+          });
+        });
+
+        // Attach listeners for Detach
+        document.querySelectorAll(".btn-detach-inline").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            const parent = (e.currentTarget as HTMLElement).getAttribute(
+              "data-parent",
+            );
+            const alias = (e.currentTarget as HTMLElement).getAttribute(
+              "data-alias",
+            );
+            if (parent && alias) {
+              const input = prompt(
+                `Are you sure you want to detach '${alias}' from '${parent}'?\n\nPlease type the alias '${alias}' to confirm:`,
+              );
+              if (input === alias) {
+                detachDatabase(parent, alias);
+              } else if (input !== null) {
+                alert("Alias mismatch. Detach cancelled.");
+              }
             }
           });
         });
@@ -585,6 +757,47 @@ busy_timeout=5000"></textarea>
     }
   }
 
+  async function detachDatabase(parent: string, alias: string) {
+    try {
+      const client = getClient(DatabaseService);
+      const headers = getAuthHeaders();
+      await client.detachDatabase(
+        { parentDatabase: parent, alias },
+        { headers },
+      );
+      await loadDatabases();
+    } catch (err: any) {
+      showError(`Failed to detach '${alias}': ${err.message}`);
+    }
+  }
+
+  function openAttachModal(parentName: string, allDbNames: string[]) {
+    const parentInput = document.getElementById(
+      "attach-parent",
+    ) as HTMLInputElement;
+    const parentDisplay = document.getElementById(
+      "attach-parent-display",
+    ) as HTMLElement;
+    const targetSelect = document.getElementById(
+      "attach-target",
+    ) as HTMLSelectElement;
+
+    if (parentInput) parentInput.value = parentName;
+    if (parentDisplay) parentDisplay.textContent = parentName;
+
+    // Filter out the parent from the list of databases to attach
+    if (targetSelect) {
+      targetSelect.innerHTML =
+        '<option value="">-- Select a database --</option>' +
+        allDbNames
+          .filter((name) => name !== parentName)
+          .map((name) => `<option value="${name}">${name}</option>`)
+          .join("");
+    }
+
+    modalAttach?.showModal();
+  }
+
   function showError(msg: string) {
     if (errorAlert) {
       errorAlert.style.display = "block";
@@ -598,7 +811,7 @@ busy_timeout=5000"></textarea>
   loadDatabases();
 </script>
 
-<style>
+<style is:global>
   .logo {
     font-weight: 600;
     font-size: 1.1rem;
@@ -629,7 +842,7 @@ busy_timeout=5000"></textarea>
 
   .db-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
     gap: 1.5rem;
   }
 
@@ -677,21 +890,42 @@ busy_timeout=5000"></textarea>
     color: var(--text-primary);
   }
 
-  .db-path {
-    font-family: monospace;
-    font-size: 0.85rem;
+  .db-badges {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .path-container {
+    margin: 1rem 0;
+  }
+
+  .path-label {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--text-secondary);
-    background: var(--bg-secondary);
-    padding: 0.25rem 0.5rem;
+    margin-bottom: 0.35rem;
+    opacity: 0.7;
+    margin-left: 0.1rem;
+  }
+
+  .db-path {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.4rem 0.6rem;
     border-radius: 4px;
-    margin-bottom: 1rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-all;
+    line-height: 1.4;
+    border: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   .db-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: auto;
   }
@@ -714,6 +948,16 @@ busy_timeout=5000"></textarea>
     color: #f59e0b;
   }
 
+  .badge-ro {
+    background: rgba(139, 92, 246, 0.1);
+    color: #a78bfa;
+  }
+
+  .badge-rw {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+  }
+
   .btn-danger {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
@@ -733,6 +977,102 @@ busy_timeout=5000"></textarea>
 
   .btn-warning:hover {
     background: #f59e0b;
+    color: white;
+  }
+
+  .attachments-section {
+    margin: 1.25rem 0;
+  }
+
+  .attachments-card {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .attachments-card h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .attachments-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .attachment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.6rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .attachment-badge:hover {
+    border-color: var(--accent-color);
+    background: rgba(59, 130, 246, 0.05);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .attachment-badge .att-alias {
+    font-weight: 600;
+    color: var(--accent-color);
+  }
+
+  .attachment-badge .att-name-sep {
+    color: var(--text-secondary);
+    opacity: 0.5;
+  }
+
+  .attachment-badge .att-target {
+    color: var(--text-secondary);
+    font-family: var(--font-mono, monospace);
+  }
+
+  .btn-detach-inline {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    margin-left: 0.2rem;
+  }
+
+  .btn-detach-inline:hover {
+    background: #ef4444;
+    color: white;
+  }
+
+  .btn-primary-outline {
+    background: rgba(59, 130, 246, 0.05);
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+    font-weight: 500;
+  }
+
+  .btn-primary-outline:hover {
+    background: var(--accent-color);
     color: white;
   }
 

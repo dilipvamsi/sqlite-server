@@ -6223,7 +6223,8 @@ name: jspb.Message.getFieldWithDefault(msg, 1, ""),
 path: jspb.Message.getFieldWithDefault(msg, 2, ""),
 isManaged: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
 currentAttachmentsList: jspb.Message.toObjectList(msg.getCurrentAttachmentsList(),
-    proto.db.v1.Attachment.toObject, includeInstance)
+    proto.db.v1.Attachment.toObject, includeInstance),
+readOnly: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
   };
 
   if (includeInstance) {
@@ -6276,6 +6277,10 @@ proto.db.v1.DatabaseInfo.deserializeBinaryFromReader = function(msg, reader) {
       var value = new proto.db.v1.Attachment;
       reader.readMessage(value,proto.db.v1.Attachment.deserializeBinaryFromReader);
       msg.addCurrentAttachments(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setReadOnly(value);
       break;
     default:
       reader.skipField();
@@ -6333,6 +6338,13 @@ proto.db.v1.DatabaseInfo.serializeBinaryToWriter = function(message, writer) {
       4,
       f,
       proto.db.v1.Attachment.serializeBinaryToWriter
+    );
+  }
+  f = message.getReadOnly();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
     );
   }
 };
@@ -6427,6 +6439,24 @@ proto.db.v1.DatabaseInfo.prototype.addCurrentAttachments = function(opt_value, o
  */
 proto.db.v1.DatabaseInfo.prototype.clearCurrentAttachmentsList = function() {
   return this.setCurrentAttachmentsList([]);
+};
+
+
+/**
+ * optional bool read_only = 5;
+ * @return {boolean}
+ */
+proto.db.v1.DatabaseInfo.prototype.getReadOnly = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.db.v1.DatabaseInfo} returns this
+ */
+proto.db.v1.DatabaseInfo.prototype.setReadOnly = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
 };
 
 

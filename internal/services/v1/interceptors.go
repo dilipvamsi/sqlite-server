@@ -184,34 +184,41 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 
 		// DatabaseService Permission Checks
 		isWrite := false
+		isAttachmentRPC := false
+		isRestrictedSQL := false
 		switch req.Spec().Procedure {
 		// Explicit Write Methods
 		case "/db.v1.DatabaseService/Vacuum",
-			"/db.v1.DatabaseService/Checkpoint",
-			"/db.v1.DatabaseService/AttachDatabase",
-			"/db.v1.DatabaseService/DetachDatabase":
+			"/db.v1.DatabaseService/Checkpoint":
 			isWrite = true
+		case "/db.v1.DatabaseService/AttachDatabase",
+			"/db.v1.DatabaseService/DetachDatabase":
+			isAttachmentRPC = true
 
 		// Dynamic Methods (Parse SQL)
 		case "/db.v1.DatabaseService/Query", "/db.v1.DatabaseService/QueryStream":
 			if msg, ok := req.Any().(*dbv1.QueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
+				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
 		case "/db.v1.DatabaseService/TypedQuery", "/db.v1.DatabaseService/TypedQueryStream":
 			if msg, ok := req.Any().(*dbv1.TypedQueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
+				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
 		case "/db.v1.DatabaseService/TransactionQuery", "/db.v1.DatabaseService/TransactionQueryStream":
 			if msg, ok := req.Any().(*dbv1.TransactionQueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
+				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
 		case "/db.v1.DatabaseService/TypedTransactionQuery", "/db.v1.DatabaseService/TypedTransactionQueryStream":
 			if msg, ok := req.Any().(*dbv1.TypedTransactionQueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
+				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
 		case "/db.v1.DatabaseService/ExecuteTransaction":
 			if msg, ok := req.Any().(*dbv1.ExecuteTransactionRequest); ok {
-				// Iterate all requests to see if ANY is a write
+				// Iterate all requests to see if ANY is a write or administrative
 				for _, r := range msg.Requests {
 					var sql string
 					if q := r.GetQuery(); q != nil {
@@ -225,14 +232,24 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 					}
 					if IsWriteQuery(sql) {
 						isWrite = true
-						break
+					}
+					if IsRestrictedQuery(sql) {
+						isRestrictedSQL = true
 					}
 				}
 			}
 		}
 
-		// Enforce Write Permissions if intent is write
-		if isWrite {
+		// Enforce Permissions
+		if isRestrictedSQL {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("ATTACH, DETACH, and VACUUM commands are not allowed in raw SQL for security reasons. Please use the dedicated RPC APIs."))
+		}
+
+		if isAttachmentRPC {
+			if err := AuthorizeRead(ctx); err != nil {
+				return nil, err
+			}
+		} else if isWrite {
 			if err := AuthorizeWrite(ctx); err != nil {
 				return nil, err
 			}
@@ -255,25 +272,29 @@ func (w *authStreamWrapper) Receive(msg any) error {
 
 	// Dynamic Check for Bidi Transaction Stream
 	isWrite := false
+	isRestrictedSQL := false
 	switch req := msg.(type) {
 	case *dbv1.TransactionRequest:
 		// Check inner command
+		var sql string
 		switch cmd := req.Command.(type) {
 		case *dbv1.TransactionRequest_Query:
-			isWrite = IsWriteQuery(cmd.Query.Sql)
+			sql = cmd.Query.Sql
 		case *dbv1.TransactionRequest_QueryStream:
-			isWrite = IsWriteQuery(cmd.QueryStream.Sql)
+			sql = cmd.QueryStream.Sql
 		case *dbv1.TransactionRequest_TypedQuery:
-			isWrite = IsWriteQuery(cmd.TypedQuery.Sql)
+			sql = cmd.TypedQuery.Sql
 		case *dbv1.TransactionRequest_TypedQueryStream:
-			isWrite = IsWriteQuery(cmd.TypedQueryStream.Sql)
-		// Begin, Commit, Rollback, Savepoint don't need strict Write checks
-		// as they are transaction management, but usually implied write access?
-		// SQLite allows transactions for reading too.
-		// For now we treat them as neutral/read unless we want to enforce separate perms.
-		default:
-			// No sql to check
+			sql = cmd.TypedQueryStream.Sql
 		}
+		if sql != "" {
+			isWrite = IsWriteQuery(sql)
+			isRestrictedSQL = IsRestrictedQuery(sql)
+		}
+	}
+
+	if isRestrictedSQL {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("ATTACH, DETACH, and VACUUM commands are not allowed in raw SQL for security reasons. Please use the dedicated RPC APIs."))
 	}
 
 	if isWrite {

@@ -95,13 +95,26 @@ func AuthorizeUser(ctx context.Context, targetUsername string) error {
 // This is a simple heuristic check for common write statements.
 func IsWriteQuery(sql string) bool {
 	trimmed := strings.TrimSpace(strings.ToUpper(sql))
-	// Strip comments (simple check)
-	// TODO: Use a proper tokenizer?
 	writeKeywords := []string{
 		"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
-		"TRUNCATE", "REPLACE", "UPSERT", "ATTACH", "DETACH", "VACUUM",
+		"TRUNCATE", "REPLACE", "UPSERT",
 	}
 	for _, keyword := range writeKeywords {
+		if strings.HasPrefix(trimmed, keyword) {
+			return true
+		}
+	}
+	return IsRestrictedQuery(sql)
+}
+
+// IsRestrictedQuery checks if the SQL statement is a restricted operation
+// like ATTACH, DETACH or VACUUM that must be done via dedicated APIs.
+func IsRestrictedQuery(sql string) bool {
+	trimmed := strings.TrimSpace(strings.ToUpper(sql))
+	restrictedKeywords := []string{
+		"ATTACH", "DETACH", "VACUUM",
+	}
+	for _, keyword := range restrictedKeywords {
 		if strings.HasPrefix(trimmed, keyword) {
 			return true
 		}

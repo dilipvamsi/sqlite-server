@@ -314,11 +314,12 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 			IsManaged: cfg.IsManaged,
 		}
 
-		// Parse settings to get current attachments
+		// Parse settings to get current attachments and read-only status
 		if cfg.Settings != "" {
 			fullCfg := &dbv1.DatabaseConfig{}
 			if err := protojson.Unmarshal([]byte(cfg.Settings), fullCfg); err == nil {
 				info.CurrentAttachments = fullCfg.Attachments
+				info.ReadOnly = fullCfg.ReadOnly
 			}
 		}
 		infos[i] = info
