@@ -614,6 +614,12 @@
                         <p>Dedicated connection pools ensure that read-only users are restricted to safe, read-only
                             connections.</p>
                     </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🧩</div>
+                        <h3>Managed Extensions</h3>
+                        <p>Automatically discover and load platform-specific SQLite extensions like vector search and
+                            HTTP support.</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -700,10 +706,20 @@ curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService
                         <span class="endpoint-path">/db.v1.DatabaseService/GetDatabaseSchema</span>
                         <span class="endpoint-desc">Get full database schema</span>
                     </div>
-                    <div class="endpoint-item">
+                     <div class="endpoint-item">
                         <span class="method post">POST</span>
                         <span class="endpoint-path">/db.v1.DatabaseService/Explain</span>
                         <span class="endpoint-desc">Explain query plan</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/ListExtensions</span>
+                        <span class="endpoint-desc">List available SQLite extensions</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/db.v1.DatabaseService/LoadExtension</span>
+                        <span class="endpoint-desc">Load a managed extension</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>

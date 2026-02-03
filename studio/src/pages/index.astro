@@ -112,14 +112,16 @@ import Header from "../components/Header.astro";
             <div class="form-section">
               <h4>SQLite Extensions</h4>
               <div class="form-group">
-                <label for="create-extensions">Extension Paths</label>
+                <label for="create-extensions">Extensions</label>
                 <textarea
                   id="create-extensions"
                   name="extensions"
                   rows="2"
-                  placeholder="/path/to/extension.so (one per line)"></textarea>
+                  placeholder="crypto-0.28.0
+/absolute/path/to/extra.so"
+                ></textarea>
                 <small
-                  >Full paths to shared library extensions, one per line.</small
+                  >Managed folder names (e.g., crypto-0.28.0) or absolute paths.</small
                 >
               </div>
             </div>
@@ -259,14 +261,16 @@ busy_timeout=5000"></textarea>
             <div class="form-section">
               <h4>SQLite Extensions</h4>
               <div class="form-group">
-                <label for="mount-extensions">Extension Paths</label>
+                <label for="mount-extensions">Extensions</label>
                 <textarea
                   id="mount-extensions"
                   name="extensions"
                   rows="2"
-                  placeholder="/path/to/extension.so (one per line)"></textarea>
+                  placeholder="crypto-0.28.0
+/absolute/path/to/extra.so"
+                ></textarea>
                 <small
-                  >Full paths to shared library extensions, one per line.</small
+                  >Managed folder names (e.g., crypto-0.28.0) or absolute paths.</small
                 >
               </div>
             </div>
@@ -339,6 +343,33 @@ busy_timeout=5000"></textarea>
       </div>
     </dialog>
 
+    <dialog id="modal-load-extension" class="modal">
+      <div class="modal-content">
+        <h2>Load Extension</h2>
+        <form id="form-load-extension">
+          <input type="hidden" id="load-ext-db" name="database" />
+
+          <div class="form-group">
+            <p>Database: <strong id="load-ext-db-display"></strong></p>
+          </div>
+
+          <div class="form-group">
+            <label for="load-ext-select">Select Extension *</label>
+            <select id="load-ext-select" name="folderName" required>
+              <option value="">-- Loading extensions... --</option>
+            </select>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost btn-close-modal"
+              >Cancel</button
+            >
+            <button type="submit" class="btn btn-primary">Load</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
     <div id="db-list" class="db-grid">
       <!-- Loaded Client-Side -->
       <div class="loading">Loading databases...</div>
@@ -372,12 +403,18 @@ busy_timeout=5000"></textarea>
   const modalAttach = document.getElementById(
     "modal-attach-db",
   ) as HTMLDialogElement;
+  const modalLoadExt = document.getElementById(
+    "modal-load-extension",
+  ) as HTMLDialogElement;
   const formCreate = document.getElementById(
     "form-create-db",
   ) as HTMLFormElement;
   const formMount = document.getElementById("form-mount-db") as HTMLFormElement;
   const formAttach = document.getElementById(
     "form-attach-db",
+  ) as HTMLFormElement;
+  const formLoadExt = document.getElementById(
+    "form-load-extension",
   ) as HTMLFormElement;
 
   // Role-based visibility for management buttons
@@ -452,6 +489,7 @@ busy_timeout=5000"></textarea>
       modalCreate?.close();
       modalMount?.close();
       modalAttach?.close();
+      modalLoadExt?.close();
     });
   });
 
@@ -548,6 +586,32 @@ busy_timeout=5000"></textarea>
     }
   });
 
+  formLoadExt?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(formLoadExt);
+
+    const database = formData.get("database") as string;
+    const folderName = formData.get("folderName") as string;
+
+    try {
+      const client = getClient(DatabaseService);
+      const headers = getAuthHeaders();
+      await client.loadExtension(
+        {
+          database: database,
+          folderName: folderName,
+        },
+        { headers },
+      );
+
+      formLoadExt.reset();
+      modalLoadExt.close();
+      await loadDatabases();
+    } catch (err: any) {
+      showError("Failed to load extension: " + err.message);
+    }
+  });
+
   // Load Databases
   async function loadDatabases() {
     if (!localStorage.getItem(AUTH_KEY)) {
@@ -614,6 +678,29 @@ busy_timeout=5000"></textarea>
               `;
             }
 
+            // Render loaded extensions
+            let extensionsHtml = "";
+            if (db.loadedExtensions && db.loadedExtensions.length > 0) {
+              extensionsHtml = `
+                <div class="attachments-section" style="margin-top: 0.75rem;">
+                  <div class="attachments-card" style="border-color: rgba(96, 165, 250, 0.2);">
+                    <h4>Loaded Extensions</h4>
+                    <div class="attachments-list">
+                      ${db.loadedExtensions
+                        .map(
+                          (ext) => `
+                        <div class="attachment-badge" style="border-color: rgba(96, 165, 250, 0.4); background: rgba(96, 165, 250, 0.05);">
+                          <span class="att-alias" style="color: var(--accent-color);">${ext}</span>
+                        </div>
+                      `,
+                        )
+                        .join("")}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }
+
             return `
           <div class="card db-card">
             <div class="db-icon">
@@ -634,6 +721,7 @@ busy_timeout=5000"></textarea>
               </div>
 
               ${attachmentsHtml}
+              ${extensionsHtml}
 
               <div class="db-actions">
                  <a href="/studio/console?db=${db.name}" class="btn btn-sm btn-secondary">Query</a>
@@ -641,6 +729,7 @@ busy_timeout=5000"></textarea>
                  <a href="/studio/tables?db=${db.name}" class="btn btn-sm btn-secondary">Tables</a>
                  <a href="/studio/transaction?db=${db.name}" class="btn btn-sm btn-secondary">Transaction</a>
                  ${actionBtn}
+                 <button class="btn btn-sm btn-primary-outline btn-open-load-ext" data-name="${db.name}">Load Ext</button>
               </div>
             </div>
           </div>
@@ -721,6 +810,18 @@ busy_timeout=5000"></textarea>
             }
           });
         });
+
+        // Attach listeners for Load Extension modal
+        document.querySelectorAll(".btn-open-load-ext").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            const name = (e.currentTarget as HTMLElement).getAttribute(
+              "data-name",
+            );
+            if (name) {
+              openLoadExtModal(name);
+            }
+          });
+        });
       }
     } catch (err: any) {
       console.error(err);
@@ -796,6 +897,46 @@ busy_timeout=5000"></textarea>
     }
 
     modalAttach?.showModal();
+  }
+
+  async function openLoadExtModal(dbName: string) {
+    const dbInput = document.getElementById("load-ext-db") as HTMLInputElement;
+    const dbDisplay = document.getElementById(
+      "load-ext-db-display",
+    ) as HTMLElement;
+    const extSelect = document.getElementById(
+      "load-ext-select",
+    ) as HTMLSelectElement;
+
+    if (dbInput) dbInput.value = dbName;
+    if (dbDisplay) dbDisplay.textContent = dbName;
+
+    if (extSelect) {
+      extSelect.innerHTML = '<option value="">-- Loading... --</option>';
+      try {
+        const client = getClient(DatabaseService);
+        const headers = getAuthHeaders();
+        const response = await client.listExtensions(
+          { database: dbName },
+          { headers },
+        );
+
+        extSelect.innerHTML =
+          '<option value="">-- Select an extension --</option>' +
+          response.extensions
+            .map(
+              (ext) =>
+                `<option value="${ext.folderName}" ${ext.isLoaded ? "disabled" : ""}>${ext.name} v${ext.version} ${ext.isLoaded ? "(Already loaded)" : ""}</option>`,
+            )
+            .join("");
+      } catch (err: any) {
+        extSelect.innerHTML =
+          '<option value="">Error loading extensions</option>';
+        showError("Failed to list extensions: " + err.message);
+      }
+    }
+
+    modalLoadExt?.showModal();
   }
 
   function showError(msg: string) {

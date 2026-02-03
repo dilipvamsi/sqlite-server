@@ -64,6 +64,12 @@ Perform essential database maintenance tasks:
 ### 9. Typed API
 A strictly typed alternative to the sparse hint system. Instead of generic `ListValue`, it uses specific Protobuf messages for each data type (`TypedQuery`, `TypedTransactionQuery`). This provides better wire efficiency and type safety at the cost of flexibility.
 
+### 10. Managed SQLite Extensions
+A robust system for extending SQLite functionality:
+*   **Managed Discovery:** Automatically scans a dedicated directory for compatible binaries based on your OS and architecture.
+*   **Dynamic Loading:** Load specialized extensions like `sqlite-vec`, `sqlite-http`, or `mview` into any database at runtime via the API or Studio UI.
+*   **Automated Setup:** Includes scripts to instantly download and organize popular community extensions from the `sqlean` and `asg017` ecosystems.
+
 ---
 
 ## 🏗 Architecture
@@ -357,6 +363,55 @@ In JSON, bytes must be Base64 encoded. You must tell the server to decode it bac
 | `COLUMN_TYPE_BLOB` | Decodes Base64 String -> Bytes |
 | `COLUMN_TYPE_INTEGER` | Casts JSON Float64 -> Int64 |
 | `COLUMN_TYPE_DATE` | Passes through as ISO String |
+
+---
+
+## 🧩 SQLite Extension Management
+
+SQLite Server includes a managed system for shared library extensions. It simplifies the discovery and loading of binary extensions by handling OS and architecture detection.
+
+### 1. The Managed Extensions Folder
+The server looks for extensions in `./extensions/managed/`. This directory should be organized by extension names (folders), which contain architecture-specific binaries:
+```text
+extensions/managed/
+├── sqlite-vec-0.1.5/
+│   ├── sqlite-vec-linux-amd64.so
+│   ├── sqlite-vec-darwin-arm64.dylib
+│   └── extension.json (optional metadata)
+└── crypto-0.28.0/
+    └── ...
+```
+
+### 2. Automated Download Scripts
+We provide a suite of scripts to download and organize popular extensions from the community:
+```bash
+# Download and setup sqlite-vec, sqlite-http, and mview
+make extensions-download
+
+# Each extension has its own target if needed:
+make extensions-download-vec
+make extensions-download-http
+make extensions-download-mview
+```
+
+### 3. Loading Extensions via API
+Once extensions are in the managed directory, you can load them dynamically into any active database:
+
+**Step A: List Extensions**
+**POST** `/db.v1.DatabaseService/ListExtensions`
+*Returns all extensions compatible with the host OS/Arch.*
+
+**Step B: Load Extension**
+**POST** `/db.v1.DatabaseService/LoadExtension`
+```json
+{
+  "database": "primary",
+  "folder_name": "sqlite-vec-0.1.5"
+}
+```
+
+### 4. Direct Paths
+For stability or custom extensions, you can still load extensions via absolute paths by providing the `extensions` array in your `config.json` or `CreateDatabase` request.
 
 ---
 
