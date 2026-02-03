@@ -24,8 +24,9 @@ import Header from "../components/Header.astro";
                     <div class="form-group">
                         <label for="update-role-select">New Role</label>
                         <select id="update-role-select" name="role">
-                            <option value="2">Read/Write</option>
                             <option value="3">Read Only</option>
+                            <option value="2">Read/Write</option>
+                            <option value="4">DB Admin</option>
                             <option value="1">Admin</option>
                         </select>
                     </div>
@@ -140,7 +141,11 @@ import Header from "../components/Header.astro";
             </section>
 
             <!-- Danger Zone -->
-            <section class="card danger-zone full-width" id="card-delete">
+            <section
+                class="card danger-zone full-width"
+                id="card-delete"
+                style="display:none"
+            >
                 <h2>Danger Zone</h2>
                 <div class="danger-content">
                     <p>Deleting a user is permanent and cannot be undone.</p>
@@ -255,10 +260,10 @@ import Header from "../components/Header.astro";
             els.cardRole.style.display = "block";
         }
 
-        // Hide delete card for self-management
+        // Show delete card only if admin is managing someone else
         const cardDelete = document.getElementById("card-delete");
-        if (loggedInUser && loggedInUser === username && cardDelete) {
-            cardDelete.style.display = "none";
+        if (isAdmin() && loggedInUser !== username && cardDelete) {
+            cardDelete.style.display = "block";
         }
     } else {
         els.headerSubtitle!.textContent = "No username provided.";

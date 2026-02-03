@@ -203,6 +203,35 @@ import Header from "../components/Header.astro";
                     <div id="stat-viewers" class="stat-value">0</div>
                 </div>
             </div>
+
+            <!-- DB Manager Card -->
+            <div class="card stat-card" style="border-left: 4px solid #fbbf24;">
+                <div
+                    class="stat-icon-bg"
+                    style="background: rgba(251, 191, 36, 0.1);"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        style="width: 24px; height: 24px; color: #fbbf24;"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+                        ></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="stat-label" style="color: #fbbf24;">
+                        DB Admins
+                    </div>
+                    <div id="stat-db-managers" class="stat-value">0</div>
+                </div>
+            </div>
         </div>
 
         <!-- Admin Only: User Table -->
@@ -270,6 +299,7 @@ import Header from "../components/Header.astro";
                         <select name="role">
                             <option value="3">Viewer</option>
                             <option value="2">Editor</option>
+                            <option value="4">DB Admin</option>
                             <option value="1">Admin</option>
                         </select>
                     </div>
@@ -345,6 +375,13 @@ import Header from "../components/Header.astro";
                 color: "#4ade80",
                 icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z",
             },
+            4: {
+                label: "DB Admin",
+                badge: "rgba(251, 191, 36, 0.1)",
+                border: "rgba(251, 191, 36, 0.4)",
+                color: "#fbbf24",
+                icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
+            },
         };
 
         const fetchUsers = async () => {
@@ -365,6 +402,7 @@ import Header from "../components/Header.astro";
             const statAdmins = document.getElementById("stat-admins");
             const statEditors = document.getElementById("stat-editors");
             const statViewers = document.getElementById("stat-viewers");
+            const statDbManagers = document.getElementById("stat-db-managers");
 
             if (statTotal) statTotal.innerText = users.length.toString();
             if (statAdmins)
@@ -378,6 +416,10 @@ import Header from "../components/Header.astro";
             if (statViewers)
                 statViewers.innerText = users
                     .filter((u) => u.role === 3)
+                    .length.toString();
+            if (statDbManagers)
+                statDbManagers.innerText = users
+                    .filter((u) => u.role === 4)
                     .length.toString();
 
             if (!body) return;

@@ -312,6 +312,7 @@ busy_timeout=5000"></textarea>
     AUTH_KEY,
     performLogout,
     isAdmin,
+    canManageDatabases,
   } from "../lib/client";
   import { AdminService } from "../gen/db/v1/db_service_pb";
 
@@ -331,7 +332,7 @@ busy_timeout=5000"></textarea>
   const formMount = document.getElementById("form-mount-db") as HTMLFormElement;
 
   // Role-based visibility for management buttons
-  if (!isAdmin()) {
+  if (!canManageDatabases()) {
     const btnCreate = document.getElementById("btn-create-db");
     const btnMount = document.getElementById("btn-mount-db");
     if (btnCreate) btnCreate.style.display = "none";
@@ -493,8 +494,8 @@ busy_timeout=5000"></textarea>
             const badgeClass = isManaged ? "badge-managed" : "badge-mounted";
             const badgeText = isManaged ? "Managed" : "Mounted";
 
-            // Only show management actions for admins
-            const actionBtn = isAdmin()
+            // Only show management actions for those who can manage databases
+            const actionBtn = canManageDatabases()
               ? isManaged
                 ? `<button class="btn btn-sm btn-danger btn-delete-db" data-name="${db.name}">Delete</button>`
                 : `<button class="btn btn-sm btn-warning btn-unmount-db" data-name="${db.name}">Unmount</button>`

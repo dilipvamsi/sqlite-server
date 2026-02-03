@@ -142,6 +142,22 @@ export function isAdmin(): boolean {
 }
 
 /**
+ * Helper to check if the current user is a database manager.
+ */
+export function isDatabaseManager(): boolean {
+    const role = localStorage.getItem("userRole");
+    // ROLE_DATABASE_MANAGER is 4
+    return role === "4";
+}
+
+/**
+ * Helper to check if the current user can manage databases.
+ */
+export function canManageDatabases(): boolean {
+    return isAdmin() || isDatabaseManager();
+}
+
+/**
  * Helper to get the current username.
  */
 export function getUsername(): string | null {
