@@ -337,6 +337,32 @@ export const DatabaseService = {
       O: IntegrityCheckResponse,
       kind: MethodKind.Unary,
     },
+    /**
+     * *
+     * Dynamically attaches a database file to an existing managed database.
+     * This updates the configuration and reloads the connections.
+     *
+     * @generated from rpc db.v1.DatabaseService.AttachDatabase
+     */
+    attachDatabase: {
+      name: "AttachDatabase",
+      I: AttachDatabaseRequest,
+      O: AttachDatabaseResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Detaches a database from a managed database.
+     * This updates the configuration and reloads the connections.
+     *
+     * @generated from rpc db.v1.DatabaseService.DetachDatabase
+     */
+    detachDatabase: {
+      name: "DetachDatabase",
+      I: DetachDatabaseRequest,
+      O: DetachDatabaseResponse,
+      kind: MethodKind.Unary,
+    },
   }
 } as const;
 
@@ -555,32 +581,6 @@ export const AdminService = {
       name: "UpdateDatabase",
       I: UpdateDatabaseRequest,
       O: UpdateDatabaseResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * *
-     * Dynamically attaches a database file to an existing managed database.
-     * This updates the configuration and reloads the connections.
-     *
-     * @generated from rpc db.v1.AdminService.AttachDatabase
-     */
-    attachDatabase: {
-      name: "AttachDatabase",
-      I: AttachDatabaseRequest,
-      O: AttachDatabaseResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * *
-     * Detaches a database from a managed database.
-     * This updates the configuration and reloads the connections.
-     *
-     * @generated from rpc db.v1.AdminService.DetachDatabase
-     */
-    detachDatabase: {
-      name: "DetachDatabase",
-      I: DetachDatabaseRequest,
-      O: DetachDatabaseResponse,
       kind: MethodKind.Unary,
     },
   }

@@ -1120,6 +1120,34 @@ integrityCheck: {
     responseSerialize: serialize_db_v1_IntegrityCheckResponse,
     responseDeserialize: deserialize_db_v1_IntegrityCheckResponse,
   },
+  // *
+// Dynamically attaches a database file to an existing managed database.
+// This updates the configuration and reloads the connections.
+attachDatabase: {
+    path: '/db.v1.DatabaseService/AttachDatabase',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.AttachDatabaseRequest,
+    responseType: db_v1_db_service_pb.AttachDatabaseResponse,
+    requestSerialize: serialize_db_v1_AttachDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_AttachDatabaseRequest,
+    responseSerialize: serialize_db_v1_AttachDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_AttachDatabaseResponse,
+  },
+  // *
+// Detaches a database from a managed database.
+// This updates the configuration and reloads the connections.
+detachDatabase: {
+    path: '/db.v1.DatabaseService/DetachDatabase',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.DetachDatabaseRequest,
+    responseType: db_v1_db_service_pb.DetachDatabaseResponse,
+    requestSerialize: serialize_db_v1_DetachDatabaseRequest,
+    requestDeserialize: deserialize_db_v1_DetachDatabaseRequest,
+    responseSerialize: serialize_db_v1_DetachDatabaseResponse,
+    responseDeserialize: deserialize_db_v1_DetachDatabaseResponse,
+  },
 };
 
 exports.DatabaseServiceClient = grpc.makeGenericClientConstructor(DatabaseServiceService, 'DatabaseService');
@@ -1373,34 +1401,6 @@ updateDatabase: {
     requestDeserialize: deserialize_db_v1_UpdateDatabaseRequest,
     responseSerialize: serialize_db_v1_UpdateDatabaseResponse,
     responseDeserialize: deserialize_db_v1_UpdateDatabaseResponse,
-  },
-  // *
-// Dynamically attaches a database file to an existing managed database.
-// This updates the configuration and reloads the connections.
-attachDatabase: {
-    path: '/db.v1.AdminService/AttachDatabase',
-    requestStream: false,
-    responseStream: false,
-    requestType: db_v1_db_service_pb.AttachDatabaseRequest,
-    responseType: db_v1_db_service_pb.AttachDatabaseResponse,
-    requestSerialize: serialize_db_v1_AttachDatabaseRequest,
-    requestDeserialize: deserialize_db_v1_AttachDatabaseRequest,
-    responseSerialize: serialize_db_v1_AttachDatabaseResponse,
-    responseDeserialize: deserialize_db_v1_AttachDatabaseResponse,
-  },
-  // *
-// Detaches a database from a managed database.
-// This updates the configuration and reloads the connections.
-detachDatabase: {
-    path: '/db.v1.AdminService/DetachDatabase',
-    requestStream: false,
-    responseStream: false,
-    requestType: db_v1_db_service_pb.DetachDatabaseRequest,
-    responseType: db_v1_db_service_pb.DetachDatabaseResponse,
-    requestSerialize: serialize_db_v1_DetachDatabaseRequest,
-    requestDeserialize: deserialize_db_v1_DetachDatabaseRequest,
-    responseSerialize: serialize_db_v1_DetachDatabaseResponse,
-    responseDeserialize: deserialize_db_v1_DetachDatabaseResponse,
   },
 };
 

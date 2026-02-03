@@ -674,7 +674,7 @@ class DatabaseClient {
 
       return new Promise((resolve, reject) => {
         const metadata = getAuthMetadata(this.config.auth);
-        this.adminClient.attachDatabase(req, metadata, (err, response) => {
+        this.client.attachDatabase(req, metadata, (err, response) => {
           if (err) return reject(err);
           resolve({
             success: response.getSuccess(),
@@ -698,7 +698,7 @@ class DatabaseClient {
 
       return new Promise((resolve, reject) => {
         const metadata = getAuthMetadata(this.config.auth);
-        this.adminClient.detachDatabase(req, metadata, (err, response) => {
+        this.client.detachDatabase(req, metadata, (err, response) => {
           if (err) return reject(err);
           resolve({
             success: response.getSuccess(),

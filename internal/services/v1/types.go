@@ -3,6 +3,7 @@ package servicesv1
 import (
 	"context"
 	"database/sql"
+	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 	"sqlite-server/internal/protos/db/v1/dbv1connect"
 	"sync"
@@ -53,6 +54,9 @@ type DbServer struct {
 
 	// dbManager handles connection lifecycle, lazy loading, and LRU eviction.
 	dbManager *DbManager
+
+	// store handles persistent configuration (for dynamic attachments)
+	store *auth.MetaStore
 
 	// txRegistry maps a client-provided UUID to an active TxSession.
 	// CONCURRENCY: Protected by txMu (RWMutex) to allow parallel reads (queries)

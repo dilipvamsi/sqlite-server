@@ -80,6 +80,37 @@ func TestNewMetaStore(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "database is locked")
 	})
+
+	t.Run("fails on read-only file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		dbPath := filepath.Join(tmpDir, "readonly.db")
+		// Create a file and make it read-only
+		err := os.WriteFile(dbPath, []byte("not a db"), 0400)
+		require.NoError(t, err)
+
+		_, err = NewMetaStore(dbPath)
+		require.Error(t, err)
+	})
+
+	t.Run("fails on read-only valid db (migrate failure)", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		dbPath := filepath.Join(tmpDir, "readonly_valid.db")
+
+		// 1. Create a valid DB
+		db, _ := sql.Open("sqlite3", dbPath)
+		_, err := db.Exec("CREATE TABLE dummy (id INT)")
+		require.NoError(t, err)
+		db.Close()
+
+		// 2. Make it read-only
+		err = os.Chmod(dbPath, 0400)
+		require.NoError(t, err)
+		defer os.Chmod(dbPath, 0644)
+
+		// 3. NewMetaStore should fail at migrate()
+		_, err = NewMetaStore(dbPath)
+		require.Error(t, err)
+	})
 }
 
 func TestMetaStore_Migrate_Error(t *testing.T) {

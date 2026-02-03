@@ -149,8 +149,8 @@ const RPC = {
     VACUUM: 'db.v1.DatabaseService/Vacuum',
     CHECKPOINT: 'db.v1.DatabaseService/Checkpoint',
     INTEGRITY_CHECK: 'db.v1.DatabaseService/IntegrityCheck',
-    ATTACH_DATABASE: 'db.v1.AdminService/AttachDatabase',
-    DETACH_DATABASE: 'db.v1.AdminService/DetachDatabase',
+    ATTACH_DATABASE: 'db.v1.DatabaseService/AttachDatabase',
+    DETACH_DATABASE: 'db.v1.DatabaseService/DetachDatabase',
 };
 
 const CheckpointMode = {

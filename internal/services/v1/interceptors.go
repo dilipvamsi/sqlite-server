@@ -138,6 +138,11 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 		ctx = auth.NewContext(ctx, user)
 
 		// 3. Authorization (Check Permissions)
+		// Global Read Requirement (All APIs except Login)
+		if err := AuthorizeRead(ctx); err != nil {
+			return nil, err
+		}
+
 		// AdminService Check
 		if strings.HasPrefix(req.Spec().Procedure, "/db.v1.AdminService/") {
 			if user.Role != dbv1.Role_ROLE_ADMIN {
@@ -205,14 +210,9 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 			}
 		}
 
-		// Enforce Permissions based on intent
+		// Enforce Write Permissions if intent is write
 		if isWrite {
 			if err := AuthorizeWrite(ctx); err != nil {
-				return nil, err
-			}
-		} else {
-			// Read-only or Neutral operation -> Requires at least Read permissions
-			if err := AuthorizeRead(ctx); err != nil {
 				return nil, err
 			}
 		}

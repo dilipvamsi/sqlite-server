@@ -141,7 +141,7 @@ func main() {
 
 	// NewDbServer starts the background 'Reaper' goroutine.
 	// It will skip any dynamic configs that fail to open (graceful degradation).
-	dbServer := servicesv1.NewDbServer(activeConfigs)
+	dbServer := servicesv1.NewDbServer(activeConfigs, authStore)
 
 	// 3. HTTP Server Setup
 	corsOrigin := os.Getenv("SQLITE_SERVER_CORS_ORIGIN")

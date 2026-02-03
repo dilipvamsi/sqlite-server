@@ -139,10 +139,13 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 		return nil, err
 	}
 
-	// 1. Prevent self-deletion
-	// Need to get the current user from context.
-	// We don't strictly have it in the handler signature, but AuthorizeAdmin checks it.
-	// We can parse the header or use a interceptor to set it.
+	// 1. Prevent root admin deletion
+	if req.Msg.Username == "admin" {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot delete the root admin user"))
+	}
+
+	// 2. Prevent self-deletion
+	// ... (rest of the comments)
 	// For now, let's assume we can rely on the client username matching.
 	// Wait, we need the caller's identity.
 	// The `dbv1connect.UnimplementedAdminServiceHandler` doesn't give us that easily unless we authenticated.
@@ -168,10 +171,7 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 
 	// Get current user from context (if set by interceptor) or header.
 	// As a fallback constraint:
-	if req.Msg.Username == "admin" {
-		// Hard constraint: never delete the root 'admin' user (if we assume it's special)
-		// Or check if it's the SAME user.
-	}
+	// (moved up)
 
 	// Better: Get current user ID/Name from context using a helper if available.
 	// Assuming `auth.GetClaims(ctx)` usage pattern.
@@ -301,11 +301,6 @@ func (s *AdminServer) RevokeApiKey(ctx context.Context, req *connect.Request[dbv
 
 // ListDatabases returns all available databases
 func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[dbv1.ListDatabasesRequest]) (*connect.Response[dbv1.ListDatabasesResponse], error) {
-	// Verify read access (Admin, ReadWrite, ReadOnly can list)
-	if err := AuthorizeRead(ctx); err != nil {
-		return nil, err
-	}
-
 	configs, err := s.store.ListDatabaseConfigs(ctx)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -638,118 +633,6 @@ func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[d
 	return connect.NewResponse(&dbv1.UpdateDatabaseResponse{
 		Success: true,
 		Message: fmt.Sprintf("Database '%s' updated successfully", name),
-	}), nil
-}
-
-// AttachDatabase attaches a database to a parent database
-func (s *AdminServer) AttachDatabase(ctx context.Context, req *connect.Request[dbv1.AttachDatabaseRequest]) (*connect.Response[dbv1.AttachDatabaseResponse], error) {
-	if err := AuthorizeRead(ctx); err != nil {
-		return nil, err
-	}
-
-	name := req.Msg.ParentDatabase
-	attachment := req.Msg.Attachment
-
-	// 1. Fetch existing config metadata
-	existingAuthConfig, err := s.store.GetDatabaseConfig(ctx, name)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	if existingAuthConfig == nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("database config not found"))
-	}
-
-	// 2. Unmarshal existing settings
-	currentConfig := &dbv1.DatabaseConfig{}
-	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
-	}
-
-	// 3. Update attachments
-	// Check for duplicate alias
-	for _, existing := range currentConfig.Attachments {
-		if existing.Alias == attachment.Alias {
-			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("attachment alias '%s' already exists", attachment.Alias))
-		}
-	}
-	currentConfig.Attachments = append(currentConfig.Attachments, attachment)
-
-	// 4. Persist
-	jsonBytes, err := protojson.Marshal(currentConfig)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
-	}
-	if err := s.store.UpsertDatabaseConfig(ctx, name, existingAuthConfig.Path, existingAuthConfig.IsManaged, string(jsonBytes)); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	// 5. Reload
-	if err := s.dbServer.AttachDatabase(name, attachment); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	return connect.NewResponse(&dbv1.AttachDatabaseResponse{
-		Success: true,
-		Message: "Database attached successfully",
-	}), nil
-}
-
-// DetachDatabase detaches a database from a parent database
-func (s *AdminServer) DetachDatabase(ctx context.Context, req *connect.Request[dbv1.DetachDatabaseRequest]) (*connect.Response[dbv1.DetachDatabaseResponse], error) {
-	if err := AuthorizeRead(ctx); err != nil {
-		return nil, err
-	}
-
-	name := req.Msg.ParentDatabase
-	alias := req.Msg.Alias
-
-	// 1. Fetch existing config metadata
-	existingAuthConfig, err := s.store.GetDatabaseConfig(ctx, name)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	if existingAuthConfig == nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("database config not found"))
-	}
-
-	// 2. Unmarshal existing settings
-	currentConfig := &dbv1.DatabaseConfig{}
-	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
-	}
-
-	// 3. Update attachments
-	found := false
-	newAttachments := make([]*dbv1.Attachment, 0, len(currentConfig.Attachments))
-	for _, adb := range currentConfig.Attachments {
-		if adb.Alias == alias {
-			found = true
-			continue
-		}
-		newAttachments = append(newAttachments, adb)
-	}
-	if !found {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("attachment alias '%s' not found", alias))
-	}
-	currentConfig.Attachments = newAttachments
-
-	// 4. Persist
-	jsonBytes, err := protojson.Marshal(currentConfig)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
-	}
-	if err := s.store.UpsertDatabaseConfig(ctx, name, existingAuthConfig.Path, existingAuthConfig.IsManaged, string(jsonBytes)); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	// 5. Reload
-	if err := s.dbServer.DetachDatabase(name, alias); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	return connect.NewResponse(&dbv1.DetachDatabaseResponse{
-		Success: true,
-		Message: "Database detached successfully",
 	}), nil
 }
 

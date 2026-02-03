@@ -194,6 +194,9 @@ func (m *DbManager) AttachDatabase(parentName string, attachment *dbv1.Attachmen
 	for _, existing := range config.Attachments {
 		if existing.Alias == attachment.Alias {
 			m.muConfigs.Unlock()
+			if existing.TargetDatabaseName == attachment.TargetDatabaseName {
+				return nil
+			}
 			return fmt.Errorf("attachment alias '%s' already exists for database '%s'", attachment.Alias, parentName)
 		}
 	}

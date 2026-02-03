@@ -145,10 +145,6 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 		if err := AuthorizeWrite(ctx); err != nil {
 			return connect.NewError(connect.CodePermissionDenied, err)
 		}
-	} else {
-		if err := AuthorizeRead(ctx); err != nil {
-			return connect.NewError(connect.CodePermissionDenied, err)
-		}
 	}
 
 	reqMsg := req.Msg
@@ -273,10 +269,6 @@ func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[db
 	isWrite := IsWriteQuery(req.Msg.Sql)
 	if isWrite {
 		if err := AuthorizeWrite(ctx); err != nil {
-			return connect.NewError(connect.CodePermissionDenied, err)
-		}
-	} else {
-		if err := AuthorizeRead(ctx); err != nil {
 			return connect.NewError(connect.CodePermissionDenied, err)
 		}
 	}

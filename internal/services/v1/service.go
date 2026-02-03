@@ -46,6 +46,7 @@ import (
 	"log"
 	"time"
 
+	"sqlite-server/internal/auth"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
@@ -71,13 +72,16 @@ const reaperInterval = 5 * time.Second
 //  4. "Fail-Fast": If ANY database fails to load, the application crashes intentionally (`log.Fatalf`).
 //     It is better to crash at startup than to run in a partially broken state.
 //     It is better to crash at startup than to run in a partially broken state.
-func NewDbServer(configs []*dbv1.DatabaseConfig) *DbServer {
+//
+// NewDbServer initializes the database server.
+func NewDbServer(configs []*dbv1.DatabaseConfig, store *auth.MetaStore) *DbServer {
 	// Initialize DbManager
 	mgr := NewDbManager(configs)
 
 	log.Printf("sqlite-server ready. Managed by DbManager.")
 	db := &DbServer{
 		dbManager:  mgr,
+		store:      store,
 		txRegistry: make(map[string]*TxSession),
 		shutdownCh: make(chan struct{}),
 	}
@@ -103,16 +107,6 @@ func (s *DbServer) UpdateDatabase(config *dbv1.DatabaseConfig) error {
 // UnmountDatabase closes and removes a database from the server.
 func (s *DbServer) UnmountDatabase(name string) error {
 	return s.dbManager.Unmount(name)
-}
-
-// AttachDatabase attaches a database to a parent database.
-func (s *DbServer) AttachDatabase(parentName string, attachment *dbv1.Attachment) error {
-	return s.dbManager.AttachDatabase(parentName, attachment)
-}
-
-// DetachDatabase detaches a database from a parent database.
-func (s *DbServer) DetachDatabase(parentName string, alias string) error {
-	return s.dbManager.DetachDatabase(parentName, alias)
 }
 
 // GetDatabaseNames returns a list of all currently mounted databases.

@@ -38,7 +38,7 @@ func setupTestServer(t *testing.T) (dbv1connect.DatabaseServiceClient, *DbServer
 		MaxOpenConns: 1,
 	}
 
-	server := NewDbServer([]*dbv1.DatabaseConfig{config})
+	server := NewDbServer([]*dbv1.DatabaseConfig{config}, nil)
 
 	// Seed Data via Manager
 	// We use ModeRW to seed data.
@@ -310,7 +310,7 @@ func TestNewDbServer_Constructor(t *testing.T) {
 	configs := []*dbv1.DatabaseConfig{
 		{Name: "mem1", DbPath: ":memory:", MaxOpenConns: 1},
 	}
-	server := NewDbServer(configs)
+	server := NewDbServer(configs, nil)
 	assert.NotNil(t, server)
 	// Access DbManager via private field for test
 	assert.NotNil(t, server.dbManager)

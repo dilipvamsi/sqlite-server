@@ -375,6 +375,9 @@ export class DatabaseClient {
 
     integrityCheck(maxErrors?: number): Promise<IntegrityCheckResult>;
 
+    attach(options: { targetDatabaseName: string; alias: string }): Promise<VacuumResult>;
+    detach(name: string): Promise<VacuumResult>;
+
     /** Helper to convert a row array into an object using column names. */
     static toObject(columns: string[], row: any[]): Record<string, any>;
 }

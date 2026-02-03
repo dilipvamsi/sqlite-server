@@ -394,6 +394,18 @@ service DatabaseService {
    * Runs an integrity check on the database.
    */
   rpc IntegrityCheck(IntegrityCheckRequest) returns (IntegrityCheckResponse);
+
+  /**
+   * Dynamically attaches a database file to an existing managed database.
+   * This updates the configuration and reloads the connections.
+   */
+  rpc AttachDatabase(AttachDatabaseRequest) returns (AttachDatabaseResponse);
+
+  /**
+   * Detaches a database from a managed database.
+   * This updates the configuration and reloads the connections.
+   */
+  rpc DetachDatabase(DetachDatabaseRequest) returns (DetachDatabaseResponse);
 }
 
 /**
@@ -519,18 +531,6 @@ service AdminService {
    * This operation forces a reload of the database connections.
    */
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
-
-  /**
-   * Dynamically attaches a database file to an existing managed database.
-   * This updates the configuration and reloads the connections.
-   */
-  rpc AttachDatabase(AttachDatabaseRequest) returns (AttachDatabaseResponse);
-
-  /**
-   * Detaches a database from a managed database.
-   * This updates the configuration and reloads the connections.
-   */
-  rpc DetachDatabase(DetachDatabaseRequest) returns (DetachDatabaseResponse);
 }
 
 // -----------------------------------------------------------------------------

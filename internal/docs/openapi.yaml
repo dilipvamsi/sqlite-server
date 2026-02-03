@@ -20,42 +20,6 @@ security:
   - bearerAuth: []
   - basicAuth: []
 paths:
-  /db.v1.AdminService/AttachDatabase:
-    post:
-      tags:
-        - db.v1.AdminService
-      summary: "*\r  Dynamically attaches a database file to an existing managed database.\r  This updates the configuration and reloads the connections."
-      description: "*\r\n Dynamically attaches a database file to an existing managed database.\r\n This updates the configuration and reloads the connections."
-      operationId: db.v1.AdminService.AttachDatabase
-      parameters:
-        - name: Connect-Protocol-Version
-          in: header
-          required: true
-          schema:
-            $ref: '#/components/schemas/connect-protocol-version'
-        - name: Connect-Timeout-Ms
-          in: header
-          schema:
-            $ref: '#/components/schemas/connect-timeout-header'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/db.v1.AttachDatabaseRequest'
-        required: true
-      responses:
-        default:
-          description: Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/connect.error'
-        "200":
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/db.v1.AttachDatabaseResponse'
   /db.v1.AdminService/CreateApiKey:
     post:
       tags:
@@ -236,42 +200,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.DeleteUserResponse'
-  /db.v1.AdminService/DetachDatabase:
-    post:
-      tags:
-        - db.v1.AdminService
-      summary: "*\r  Detaches a database from a managed database.\r  This updates the configuration and reloads the connections."
-      description: "*\r\n Detaches a database from a managed database.\r\n This updates the configuration and reloads the connections."
-      operationId: db.v1.AdminService.DetachDatabase
-      parameters:
-        - name: Connect-Protocol-Version
-          in: header
-          required: true
-          schema:
-            $ref: '#/components/schemas/connect-protocol-version'
-        - name: Connect-Timeout-Ms
-          in: header
-          schema:
-            $ref: '#/components/schemas/connect-timeout-header'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/db.v1.DetachDatabaseRequest'
-        required: true
-      responses:
-        default:
-          description: Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/connect.error'
-        "200":
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/db.v1.DetachDatabaseResponse'
   /db.v1.AdminService/ListApiKeys:
     post:
       tags:
@@ -668,6 +596,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.UpdateUserRoleResponse'
+  /db.v1.DatabaseService/AttachDatabase:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Dynamically attaches a database file to an existing managed database.\r  This updates the configuration and reloads the connections."
+      description: "*\r\n Dynamically attaches a database file to an existing managed database.\r\n This updates the configuration and reloads the connections."
+      operationId: db.v1.DatabaseService.AttachDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.AttachDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.AttachDatabaseResponse'
   /db.v1.DatabaseService/BeginTransaction:
     post:
       tags:
@@ -776,6 +740,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.TransactionControlResponse'
+  /db.v1.DatabaseService/DetachDatabase:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Detaches a database from a managed database.\r  This updates the configuration and reloads the connections."
+      description: "*\r\n Detaches a database from a managed database.\r\n This updates the configuration and reloads the connections."
+      operationId: db.v1.DatabaseService.DetachDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.DetachDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.DetachDatabaseResponse'
   /db.v1.DatabaseService/ExecuteTransaction:
     post:
       tags:

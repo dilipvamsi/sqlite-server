@@ -23,7 +23,7 @@ func TestMaintenanceRPCs(t *testing.T) {
 	}
 
 	// Initialize Server
-	server := NewDbServer([]*dbv1.DatabaseConfig{config})
+	server := NewDbServer([]*dbv1.DatabaseConfig{config}, nil)
 	defer server.Stop()
 
 	// Pre-populate DB

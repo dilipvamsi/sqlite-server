@@ -47,7 +47,7 @@ func setupAuthIntegrationServer(t *testing.T) (dbv1connect.DatabaseServiceClient
 		Name:   "test",
 		DbPath: ":memory:",
 	}
-	server := NewDbServer([]*dbv1.DatabaseConfig{config})
+	server := NewDbServer([]*dbv1.DatabaseConfig{config}, store)
 
 	// 3. Setup Handler with REAL AuthInterceptor
 	interceptors := connect.WithInterceptors(
