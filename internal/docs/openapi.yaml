@@ -19,6 +19,9 @@ info:
 security:
   - bearerAuth: []
   - basicAuth: []
+security:
+  - bearerAuth: []
+  - basicAuth: []
 paths:
   /db.v1.AdminService/CreateApiKey:
     post:
@@ -956,6 +959,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.IntegrityCheckResponse'
+  /db.v1.DatabaseService/ListExtensions:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Returns a list of available SQLite extensions found in the server's\r  extension directory. Extensions are filtered by compatibility with the\r  current OS and architecture."
+      description: "*\r\n Returns a list of available SQLite extensions found in the server's\r\n extension directory. Extensions are filtered by compatibility with the\r\n current OS and architecture."
+      operationId: db.v1.DatabaseService.ListExtensions
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.ListExtensionsRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.ListExtensionsResponse'
   /db.v1.DatabaseService/ListTables:
     post:
       tags:
@@ -992,6 +1031,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.ListTablesResponse'
+  /db.v1.DatabaseService/LoadExtension:
+    post:
+      tags:
+        - db.v1.DatabaseService
+      summary: "*\r  Loads a compatible SQLite extension into the specified database.\r  This updates the database configuration and reloads connections."
+      description: "*\r\n Loads a compatible SQLite extension into the specified database.\r\n This updates the database configuration and reloads connections."
+      operationId: db.v1.DatabaseService.LoadExtension
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.LoadExtensionRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.LoadExtensionResponse'
   /db.v1.DatabaseService/Query:
     post:
       tags:
@@ -1286,6 +1361,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/db.v1.VacuumResponse'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: "API Key obtained from Login endpoint (format: sk_...)"
+    basicAuth:
+      type: http
+      scheme: basic
+      description: "Username and password for initial authentication"
   securitySchemes:
     bearerAuth:
       type: http
@@ -1795,7 +1880,7 @@ components:
           items:
             type: string
           title: extensions
-          description: Extensions is a list of paths to shared library extensions to load.
+          description: "Extensions is a list of logical extension names (IDs) to load.\r\n These names should match the 'id' field returned by ListExtensions.\r\n Paths can still be absolute for side-loading external libraries."
         pragmas:
           type: object
           title: pragmas
@@ -2068,6 +2153,39 @@ components:
       title: ExplainResponse
       additionalProperties: false
       description: "*\r\n Response containing the structured EXPLAIN QUERY PLAN output.\r\n The nodes form a tree via the parent_id references."
+    db.v1.ExtensionInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          description: Logical name of the extension (e.g., "crypto").
+        version:
+          type: string
+          title: version
+          description: Version string (e.g., "0.28.0").
+        folderName:
+          type: string
+          title: folder_name
+          description: "The name of the extension folder (e.g., \"crypto-0.28.0\").\r\n This is what should be passed to LoadExtension."
+        isLoaded:
+          type: boolean
+          title: is_loaded
+          description: Whether the extension is currently loaded in the requested database.
+        filePath:
+          type: string
+          title: file_path
+          description: The path to the extension file (server-side, relative to extension dir).
+        description:
+          type: string
+          title: description
+          description: A short description of the extension.
+        documentationUrl:
+          type: string
+          title: documentation_url
+          description: A URL for documentation.
+      title: ExtensionInfo
+      additionalProperties: false
     db.v1.ExtensionList:
       type: object
       properties:
@@ -2257,6 +2375,28 @@ components:
       title: ListDatabasesResponse
       additionalProperties: false
       description: "*\r\n Response containing a list of database names."
+    db.v1.ListExtensionsRequest:
+      type: object
+      properties:
+        database:
+          type:
+            - string
+            - "null"
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          description: "Optional: If provided, indicates which database's loaded extensions to\r\n check."
+      title: ListExtensionsRequest
+      additionalProperties: false
+    db.v1.ListExtensionsResponse:
+      type: object
+      properties:
+        extensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/db.v1.ExtensionInfo'
+          title: extensions
+      title: ListExtensionsResponse
+      additionalProperties: false
     db.v1.ListTablesRequest:
       type: object
       properties:
@@ -2294,6 +2434,31 @@ components:
       title: ListUsersResponse
       additionalProperties: false
       description: "*\r\n Response containing a list of users."
+    db.v1.LoadExtensionRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          pattern: ^[a-zA-Z0-9_-]{3,64}$
+        folderName:
+          type: string
+          title: folder_name
+          minLength: 1
+          description: The name of the extension folder to load (e.g., "crypto-0.28.0").
+      title: LoadExtensionRequest
+      additionalProperties: false
+    db.v1.LoadExtensionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+        message:
+          type: string
+          title: message
+      title: LoadExtensionResponse
+      additionalProperties: false
     db.v1.LoginRequest:
       type: object
       properties:

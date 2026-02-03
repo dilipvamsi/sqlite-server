@@ -51,6 +51,11 @@ func main() {
 	}
 
 	// 2. Service Initialization
+	extDir := os.Getenv("SQLITE_SERVER_EXTENSIONS")
+	if extDir == "" {
+		extDir = "./extensions"
+	}
+	log.Printf("[EXT] Extensions path: %s", extDir)
 
 	// Check if auth is enabled (default: true)
 	authEnabled := os.Getenv("SQLITE_SERVER_AUTH_ENABLED") != "false"

@@ -4,14 +4,15 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/mattn/go-sqlite3"
-	_ "github.com/mattn/go-sqlite3"
 
+	"sqlite-server/internal/extensions"
 	dbv1 "sqlite-server/internal/protos/db/v1"
 )
 
@@ -89,7 +90,6 @@ func NewSqliteDbWithAttachments(config *dbv1.DatabaseConfig, readOnlySecured boo
 	// not just the DSN.
 	if len(config.Extensions) > 0 || readOnlySecured || len(config.InitCommands) > 0 || len(attachments) > 0 {
 		// Generate a unique driver name for this specific DB configuration to avoid collisions.
-		// e.g., "sqlite3_ext_primary_db" or "sqlite3_ext_primary_db_ro"
 		suffix := ""
 		if readOnlySecured {
 			suffix = "_ro"
@@ -97,11 +97,32 @@ func NewSqliteDbWithAttachments(config *dbv1.DatabaseConfig, readOnlySecured boo
 		// Use UnixNano to ensure unique driver registration for fresh ConnectHook on every reload
 		driverName = fmt.Sprintf("sqlite3_ext_%s%s_%d", config.Name, suffix, time.Now().UnixNano())
 
+		// Resolve Extensions
+		var resolvedExtensions []string
+		for _, ext := range config.Extensions {
+			if filepath.IsAbs(ext) {
+				resolvedExtensions = append(resolvedExtensions, ext)
+			} else {
+				// Try to resolve as a managed extension first
+				absPath, err := extensions.ResolveExtensionPath(ext)
+				if err == nil {
+					resolvedExtensions = append(resolvedExtensions, absPath)
+				} else {
+					// Fallback to relative path from SQLITE_SERVER_EXTENSIONS dir as before
+					extDir := os.Getenv("SQLITE_SERVER_EXTENSIONS")
+					if extDir == "" {
+						extDir = "./extensions"
+					}
+					resolvedExtensions = append(resolvedExtensions, filepath.Join(extDir, ext))
+				}
+			}
+		}
+
 		// Register the custom driver ONLY if it hasn't been registered yet.
 		registeredDriversMu.Lock()
 		if !registeredDrivers[driverName] {
 			sql.Register(driverName, &sqlite3.SQLiteDriver{
-				Extensions: config.Extensions,
+				Extensions: resolvedExtensions,
 				ConnectHook: func(conn *sqlite3.SQLiteConn) error {
 					if readOnlySecured {
 						// Register Authorizer to deny writes

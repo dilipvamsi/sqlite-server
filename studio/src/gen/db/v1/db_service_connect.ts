@@ -29,7 +29,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AttachDatabaseRequest, AttachDatabaseResponse, BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DatabaseSchema, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, DetachDatabaseRequest, DetachDatabaseResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, ListTablesRequest, ListTablesResponse, ListUsersRequest, ListUsersResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TableSchema, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdateDatabaseRequest, UpdateDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse, UpdateUserRoleRequest, UpdateUserRoleResponse, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
+import { AttachDatabaseRequest, AttachDatabaseResponse, BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DatabaseSchema, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, DetachDatabaseRequest, DetachDatabaseResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, ListExtensionsRequest, ListExtensionsResponse, ListTablesRequest, ListTablesResponse, ListUsersRequest, ListUsersResponse, LoadExtensionRequest, LoadExtensionResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TableSchema, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdateDatabaseRequest, UpdateDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse, UpdateUserRoleRequest, UpdateUserRoleResponse, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -361,6 +361,33 @@ export const DatabaseService = {
       name: "DetachDatabase",
       I: DetachDatabaseRequest,
       O: DetachDatabaseResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Returns a list of available SQLite extensions found in the server's
+     * extension directory. Extensions are filtered by compatibility with the
+     * current OS and architecture.
+     *
+     * @generated from rpc db.v1.DatabaseService.ListExtensions
+     */
+    listExtensions: {
+      name: "ListExtensions",
+      I: ListExtensionsRequest,
+      O: ListExtensionsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Loads a compatible SQLite extension into the specified database.
+     * This updates the database configuration and reloads connections.
+     *
+     * @generated from rpc db.v1.DatabaseService.LoadExtension
+     */
+    loadExtension: {
+      name: "LoadExtension",
+      I: LoadExtensionRequest,
+      O: LoadExtensionResponse,
       kind: MethodKind.Unary,
     },
   }

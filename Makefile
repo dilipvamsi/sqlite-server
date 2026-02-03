@@ -311,6 +311,32 @@ clean: ## Remove binaries, database files, and coverage reports
 	rm -rf _meta.db _meta.db-shm _meta.db-wal
 	rm -f coverage.out coverage.raw.out coverage.html
 	@echo "Cleanup complete."
+# ==============================================================================
+# Extensions
+# ==============================================================================
+
+.PHONY: extensions
+extensions: extensions-sqlean extensions-mview extensions-vec extensions-http ## Download all SQLite extensions
+
+.PHONY: extensions-sqlean
+extensions-sqlean: ## Download SQLean extensions
+	@echo "⬇️  Downloading SQLean extensions..."
+	./scripts/download_extensions_sqlean.sh
+
+.PHONY: extensions-mview
+extensions-mview: ## Download sqlite-mview extension
+	@echo "⬇️  Downloading mview extension..."
+	./scripts/download_extension_mview.sh
+
+.PHONY: extensions-vec
+extensions-vec: ## Download sqlite-vec extension
+	@echo "⬇️  Downloading vec extension..."
+	./scripts/download_extension_vec.sh
+
+.PHONY: extensions-http
+extensions-http: ## Download sqlite-http extension
+	@echo "⬇️  Downloading http extension..."
+	./scripts/download_extension_http.sh
 
 .PHONY: help
 help: ## Show this help screen

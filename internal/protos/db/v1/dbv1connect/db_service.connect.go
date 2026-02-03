@@ -130,6 +130,12 @@ const (
 	// DatabaseServiceDetachDatabaseProcedure is the fully-qualified name of the DatabaseService's
 	// DetachDatabase RPC.
 	DatabaseServiceDetachDatabaseProcedure = "/db.v1.DatabaseService/DetachDatabase"
+	// DatabaseServiceListExtensionsProcedure is the fully-qualified name of the DatabaseService's
+	// ListExtensions RPC.
+	DatabaseServiceListExtensionsProcedure = "/db.v1.DatabaseService/ListExtensions"
+	// DatabaseServiceLoadExtensionProcedure is the fully-qualified name of the DatabaseService's
+	// LoadExtension RPC.
+	DatabaseServiceLoadExtensionProcedure = "/db.v1.DatabaseService/LoadExtension"
 	// AdminServiceCreateUserProcedure is the fully-qualified name of the AdminService's CreateUser RPC.
 	AdminServiceCreateUserProcedure = "/db.v1.AdminService/CreateUser"
 	// AdminServiceDeleteUserProcedure is the fully-qualified name of the AdminService's DeleteUser RPC.
@@ -280,6 +286,15 @@ type DatabaseServiceClient interface {
 	// Detaches a database from a managed database.
 	// This updates the configuration and reloads the connections.
 	DetachDatabase(context.Context, *connect.Request[v1.DetachDatabaseRequest]) (*connect.Response[v1.DetachDatabaseResponse], error)
+	// *
+	// Returns a list of available SQLite extensions found in the server's
+	// extension directory. Extensions are filtered by compatibility with the
+	// current OS and architecture.
+	ListExtensions(context.Context, *connect.Request[v1.ListExtensionsRequest]) (*connect.Response[v1.ListExtensionsResponse], error)
+	// *
+	// Loads a compatible SQLite extension into the specified database.
+	// This updates the database configuration and reloads connections.
+	LoadExtension(context.Context, *connect.Request[v1.LoadExtensionRequest]) (*connect.Response[v1.LoadExtensionResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the db.v1.DatabaseService service. By default,
@@ -437,6 +452,18 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("DetachDatabase")),
 			connect.WithClientOptions(opts...),
 		),
+		listExtensions: connect.NewClient[v1.ListExtensionsRequest, v1.ListExtensionsResponse](
+			httpClient,
+			baseURL+DatabaseServiceListExtensionsProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("ListExtensions")),
+			connect.WithClientOptions(opts...),
+		),
+		loadExtension: connect.NewClient[v1.LoadExtensionRequest, v1.LoadExtensionResponse](
+			httpClient,
+			baseURL+DatabaseServiceLoadExtensionProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("LoadExtension")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -466,6 +493,8 @@ type databaseServiceClient struct {
 	integrityCheck              *connect.Client[v1.IntegrityCheckRequest, v1.IntegrityCheckResponse]
 	attachDatabase              *connect.Client[v1.AttachDatabaseRequest, v1.AttachDatabaseResponse]
 	detachDatabase              *connect.Client[v1.DetachDatabaseRequest, v1.DetachDatabaseResponse]
+	listExtensions              *connect.Client[v1.ListExtensionsRequest, v1.ListExtensionsResponse]
+	loadExtension               *connect.Client[v1.LoadExtensionRequest, v1.LoadExtensionResponse]
 }
 
 // Query calls db.v1.DatabaseService.Query.
@@ -588,6 +617,16 @@ func (c *databaseServiceClient) DetachDatabase(ctx context.Context, req *connect
 	return c.detachDatabase.CallUnary(ctx, req)
 }
 
+// ListExtensions calls db.v1.DatabaseService.ListExtensions.
+func (c *databaseServiceClient) ListExtensions(ctx context.Context, req *connect.Request[v1.ListExtensionsRequest]) (*connect.Response[v1.ListExtensionsResponse], error) {
+	return c.listExtensions.CallUnary(ctx, req)
+}
+
+// LoadExtension calls db.v1.DatabaseService.LoadExtension.
+func (c *databaseServiceClient) LoadExtension(ctx context.Context, req *connect.Request[v1.LoadExtensionRequest]) (*connect.Response[v1.LoadExtensionResponse], error) {
+	return c.loadExtension.CallUnary(ctx, req)
+}
+
 // DatabaseServiceHandler is an implementation of the db.v1.DatabaseService service.
 type DatabaseServiceHandler interface {
 	// *
@@ -693,6 +732,15 @@ type DatabaseServiceHandler interface {
 	// Detaches a database from a managed database.
 	// This updates the configuration and reloads the connections.
 	DetachDatabase(context.Context, *connect.Request[v1.DetachDatabaseRequest]) (*connect.Response[v1.DetachDatabaseResponse], error)
+	// *
+	// Returns a list of available SQLite extensions found in the server's
+	// extension directory. Extensions are filtered by compatibility with the
+	// current OS and architecture.
+	ListExtensions(context.Context, *connect.Request[v1.ListExtensionsRequest]) (*connect.Response[v1.ListExtensionsResponse], error)
+	// *
+	// Loads a compatible SQLite extension into the specified database.
+	// This updates the database configuration and reloads connections.
+	LoadExtension(context.Context, *connect.Request[v1.LoadExtensionRequest]) (*connect.Response[v1.LoadExtensionResponse], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -846,6 +894,18 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("DetachDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceListExtensionsHandler := connect.NewUnaryHandler(
+		DatabaseServiceListExtensionsProcedure,
+		svc.ListExtensions,
+		connect.WithSchema(databaseServiceMethods.ByName("ListExtensions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceLoadExtensionHandler := connect.NewUnaryHandler(
+		DatabaseServiceLoadExtensionProcedure,
+		svc.LoadExtension,
+		connect.WithSchema(databaseServiceMethods.ByName("LoadExtension")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/db.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceQueryProcedure:
@@ -896,6 +956,10 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceAttachDatabaseHandler.ServeHTTP(w, r)
 		case DatabaseServiceDetachDatabaseProcedure:
 			databaseServiceDetachDatabaseHandler.ServeHTTP(w, r)
+		case DatabaseServiceListExtensionsProcedure:
+			databaseServiceListExtensionsHandler.ServeHTTP(w, r)
+		case DatabaseServiceLoadExtensionProcedure:
+			databaseServiceLoadExtensionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -999,6 +1063,14 @@ func (UnimplementedDatabaseServiceHandler) AttachDatabase(context.Context, *conn
 
 func (UnimplementedDatabaseServiceHandler) DetachDatabase(context.Context, *connect.Request[v1.DetachDatabaseRequest]) (*connect.Response[v1.DetachDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.DetachDatabase is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) ListExtensions(context.Context, *connect.Request[v1.ListExtensionsRequest]) (*connect.Response[v1.ListExtensionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.ListExtensions is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) LoadExtension(context.Context, *connect.Request[v1.LoadExtensionRequest]) (*connect.Response[v1.LoadExtensionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.DatabaseService.LoadExtension is not implemented"))
 }
 
 // AdminServiceClient is a client for the db.v1.AdminService service.

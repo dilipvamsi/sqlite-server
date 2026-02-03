@@ -1,0 +1,146 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+---
+
+<Layout title="Extensions">
+    <Header />
+
+    <main class="container">
+        <div class="page-header" style="margin-bottom: 2rem;">
+            <h1>Extensions</h1>
+            <p class="subtitle mt-1">
+                Browse and discover available SQLite extensions compatible with
+                the current platform.
+            </p>
+        </div>
+
+        <div class="card full-width p-0 overflow-hidden">
+            <table
+                class="keys-table"
+                style="width: 100%; border-collapse: collapse;"
+            >
+                <thead style="background: rgba(0,0,0,0.2);">
+                    <tr
+                        style="text-align: left; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;"
+                    >
+                        <th style="padding: 1.5rem 3rem;">Name</th>
+                        <th style="padding: 1.5rem 1.5rem;">Version</th>
+                        <th style="padding: 1.5rem 1.5rem;">Description</th>
+                        <th style="padding: 1.5rem 3rem;">Docs</th>
+                    </tr>
+                </thead>
+                <tbody id="extensionsTableBody">
+                    <tr>
+                        <td
+                            colspan="4"
+                            style="padding: 3rem; text-align: center; color: var(--text-secondary);"
+                        >
+                            Loading extensions...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div
+            id="error-alert"
+            class="error-alert"
+            style="display: none; margin-top: 2rem;"
+        >
+        </div>
+    </main>
+
+    <script>
+        import { getClient, getAuthHeaders } from "../lib/client";
+        import { DatabaseService } from "../gen/db/v1/db_service_pb";
+
+        const tableBody = document.getElementById("extensionsTableBody");
+        const errorAlert = document.getElementById("error-alert");
+
+        const fetchExtensions = async () => {
+            try {
+                const client = getClient(DatabaseService);
+                const headers = getAuthHeaders();
+                // ListExtensions might require a database name for 'is_loaded' check,
+                // but for a general list, it can often be empty or we pick a random one if needed.
+                // The backend implementation currently handles empty db name by just returning the list.
+                const response = await client.listExtensions(
+                    { database: "" },
+                    { headers },
+                );
+                renderExtensions(response.extensions);
+            } catch (err: any) {
+                console.error(err);
+                if (errorAlert) {
+                    errorAlert.innerText =
+                        "Failed to load extensions: " + err.message;
+                    errorAlert.style.display = "block";
+                }
+                if (tableBody) {
+                    tableBody.innerHTML = `<tr><td colspan="4" style="padding: 3rem; text-align: center; color: var(--error-color);">Error loading extensions</td></tr>`;
+                }
+            }
+        };
+
+        const renderExtensions = (extensions: any[]) => {
+            if (!tableBody) return;
+
+            if (extensions.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" style="padding: 3rem; text-align: center; color: var(--text-secondary);">No extensions found in the server extensions directory.</td></tr>`;
+                return;
+            }
+
+            tableBody.innerHTML = extensions
+                .map((ext) => {
+                    const rowStyle = `border-bottom: 1px dashed rgba(255,255,255,0.1); vertical-align: middle; padding: 1.5rem;`;
+                    const docLink = ext.documentationUrl
+                        ? `<a href="${ext.documentationUrl}" target="_blank" rel="noopener noreferrer" class="doc-link">View Docs</a>`
+                        : `<span style="color: var(--text-muted); opacity: 0.5;">N/A</span>`;
+
+                    return `
+                <tr class="hover-row">
+                    <td style="${rowStyle} padding-left: 3rem; font-weight: 600; color: white;">
+                        ${ext.folderName}
+                    </td>
+                    <td style="${rowStyle} font-family: monospace; color: var(--accent-color); font-size: 0.85rem;">
+                        ${ext.version}
+                    </td>
+                    <td style="${rowStyle} color: var(--text-secondary); max-width: 400px; line-height: 1.4;">
+                        ${ext.description || "No description provided."}
+                    </td>
+                    <td style="${rowStyle} padding: 1.5rem 3rem;">
+                        ${docLink}
+                    </td>
+                </tr>`;
+                })
+                .join("");
+        };
+
+        // Initialize
+        fetchExtensions();
+    </script>
+
+    <style>
+        .hover-row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .doc-link {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-size: 0.8rem;
+            border: 1px solid var(--accent-color);
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: inline-block;
+        }
+        .doc-link:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+        .mt-1 {
+            margin-top: 0.25rem;
+        }
+    </style>
+</Layout>

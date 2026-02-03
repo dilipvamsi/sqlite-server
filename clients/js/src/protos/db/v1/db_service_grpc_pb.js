@@ -377,6 +377,28 @@ function deserialize_db_v1_ListDatabasesResponse(buffer_arg) {
   return db_v1_db_service_pb.ListDatabasesResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_ListExtensionsRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListExtensionsRequest)) {
+    throw new Error('Expected argument of type db.v1.ListExtensionsRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListExtensionsRequest(buffer_arg) {
+  return db_v1_db_service_pb.ListExtensionsRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_ListExtensionsResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.ListExtensionsResponse)) {
+    throw new Error('Expected argument of type db.v1.ListExtensionsResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_ListExtensionsResponse(buffer_arg) {
+  return db_v1_db_service_pb.ListExtensionsResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_ListTablesRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.ListTablesRequest)) {
     throw new Error('Expected argument of type db.v1.ListTablesRequest');
@@ -419,6 +441,28 @@ function serialize_db_v1_ListUsersResponse(arg) {
 
 function deserialize_db_v1_ListUsersResponse(buffer_arg) {
   return db_v1_db_service_pb.ListUsersResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_LoadExtensionRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.LoadExtensionRequest)) {
+    throw new Error('Expected argument of type db.v1.LoadExtensionRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_LoadExtensionRequest(buffer_arg) {
+  return db_v1_db_service_pb.LoadExtensionRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_LoadExtensionResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.LoadExtensionResponse)) {
+    throw new Error('Expected argument of type db.v1.LoadExtensionResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_LoadExtensionResponse(buffer_arg) {
+  return db_v1_db_service_pb.LoadExtensionResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_db_v1_LoginRequest(arg) {
@@ -1147,6 +1191,35 @@ detachDatabase: {
     requestDeserialize: deserialize_db_v1_DetachDatabaseRequest,
     responseSerialize: serialize_db_v1_DetachDatabaseResponse,
     responseDeserialize: deserialize_db_v1_DetachDatabaseResponse,
+  },
+  // *
+// Returns a list of available SQLite extensions found in the server's
+// extension directory. Extensions are filtered by compatibility with the
+// current OS and architecture.
+listExtensions: {
+    path: '/db.v1.DatabaseService/ListExtensions',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.ListExtensionsRequest,
+    responseType: db_v1_db_service_pb.ListExtensionsResponse,
+    requestSerialize: serialize_db_v1_ListExtensionsRequest,
+    requestDeserialize: deserialize_db_v1_ListExtensionsRequest,
+    responseSerialize: serialize_db_v1_ListExtensionsResponse,
+    responseDeserialize: deserialize_db_v1_ListExtensionsResponse,
+  },
+  // *
+// Loads a compatible SQLite extension into the specified database.
+// This updates the database configuration and reloads connections.
+loadExtension: {
+    path: '/db.v1.DatabaseService/LoadExtension',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.LoadExtensionRequest,
+    responseType: db_v1_db_service_pb.LoadExtensionResponse,
+    requestSerialize: serialize_db_v1_LoadExtensionRequest,
+    requestDeserialize: deserialize_db_v1_LoadExtensionRequest,
+    responseSerialize: serialize_db_v1_LoadExtensionResponse,
+    responseDeserialize: deserialize_db_v1_LoadExtensionResponse,
   },
 };
 

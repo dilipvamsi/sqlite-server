@@ -406,6 +406,19 @@ service DatabaseService {
    * This updates the configuration and reloads the connections.
    */
   rpc DetachDatabase(DetachDatabaseRequest) returns (DetachDatabaseResponse);
+
+  /**
+   * Returns a list of available SQLite extensions found in the server's
+   * extension directory. Extensions are filtered by compatibility with the
+   * current OS and architecture.
+   */
+  rpc ListExtensions(ListExtensionsRequest) returns (ListExtensionsResponse);
+
+  /**
+   * Loads a compatible SQLite extension into the specified database.
+   * This updates the database configuration and reloads connections.
+   */
+  rpc LoadExtension(LoadExtensionRequest) returns (LoadExtensionResponse);
 }
 
 /**
@@ -767,6 +780,8 @@ message DatabaseInfo {
   // List of databases currently attached to this one.
   repeated Attachment current_attachments = 4;
   bool read_only = 5;
+  // List of managed extension folder names currently loaded.
+  repeated string loaded_extensions = 6;
 }
 
 /**
@@ -1595,7 +1610,9 @@ message DatabaseConfig {
   // ReadOnly opens the database in read-only mode (mode=ro).
   bool read_only = 5;
 
-  // Extensions is a list of paths to shared library extensions to load.
+  // Extensions is a list of logical extension names (IDs) to load.
+  // These names should match the 'id' field returned by ListExtensions.
+  // Paths can still be absolute for side-loading external libraries.
   repeated string extensions = 6;
 
   // Pragmas allows passing arbitrary key-value pairs to the DSN.
@@ -1877,6 +1894,48 @@ message DetachDatabaseRequest {
 }
 
 message DetachDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+// -----------------------------------------------------------------------------
+// Extension Management Messages
+// -----------------------------------------------------------------------------
+
+message ListExtensionsRequest {
+  // Optional: If provided, indicates which database's loaded extensions to
+  // check.
+  optional string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+}
+
+message ListExtensionsResponse { repeated ExtensionInfo extensions = 1; }
+
+message ExtensionInfo {
+  // Logical name of the extension (e.g., "crypto").
+  string name = 1;
+  // Version string (e.g., "0.28.0").
+  string version = 2;
+  // The name of the extension folder (e.g., "crypto-0.28.0").
+  // This is what should be passed to LoadExtension.
+  string folder_name = 3;
+  // Whether the extension is currently loaded in the requested database.
+  bool is_loaded = 4;
+  // The path to the extension file (server-side, relative to extension dir).
+  string file_path = 5;
+  // A short description of the extension.
+  string description = 6;
+  // A URL for documentation.
+  string documentation_url = 7;
+}
+
+message LoadExtensionRequest {
+  string database = 1
+      [ (buf.validate.field).string = {pattern : "^[a-zA-Z0-9_-]{3,64}$"} ];
+  // The name of the extension folder to load (e.g., "crypto-0.28.0").
+  string folder_name = 2 [ (buf.validate.field).string.min_len = 1 ];
+}
+
+message LoadExtensionResponse {
   bool success = 1;
   string message = 2;
 }

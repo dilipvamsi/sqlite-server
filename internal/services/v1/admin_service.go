@@ -320,6 +320,7 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 			if err := protojson.Unmarshal([]byte(cfg.Settings), fullCfg); err == nil {
 				info.CurrentAttachments = fullCfg.Attachments
 				info.ReadOnly = fullCfg.ReadOnly
+				info.LoadedExtensions = fullCfg.Extensions
 			}
 		}
 		infos[i] = info
