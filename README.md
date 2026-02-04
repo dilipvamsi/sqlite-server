@@ -4,6 +4,79 @@
 
 It is designed to solve the common limitations of using SQLite in networked architectures by providing connection pooling, safe streaming for large datasets, and hybrid transaction management.
 
+> **Comparisons:** Curious how this compares to rqlite, Turso, or PocketBase? Check out [comparison.md](comparison.md) for a deep dive.
+
+## 🏗 System Architecture
+
+```text
++---------------------------------------------------------------+
+|                   sqlite-server (PID 1234)                    |
+|                                                               |
+|  +----------------+    +------------------+    +-----------+  |
+|  |   API Layer    |<---|  Embedded Studio |    | Extension |  |
+|  | (gRPC / HTTP2) |    |   (React/Astro)  |    |  Manager  |  |
+|  +-------+--------+    +------------------+    +-----+-----+  |
+|          |                                           |        |
+|          v                                           v        |
+|  +---------------------------------------------------------+  |
+|  |              Core Logic & Transaction Manager           |  |
+|  +-----------+-----------------------------+---------------+  |
+|              |                             |                  |
+|      +-------v------+              +-------v------+           |
+|      |   RW Pool    |              |   RO Pool    |           |
+|      +-------+------+              +-------+------+           |
+|              ^                             ^                  |
+|              |          (Eviction)         |                  |
+|              +-----------(Timer)-----------+                  |
+|                              |                                |
+|                              v                                |
+|  +---------------------------------------------------------+  |
+|  |               SQLite Engine (CGO Driver)                |  |
+|  +-------------+---------------------------+---------------+  |
+|                |                           |                  |
++----------------|---------------------------|------------------+
+                 v                           v
+          [ primary.db ]              [ analytics.db ]
+```
+
+### Transaction Management Architecture
+
+```text
++-------------------------------------------------------------------+
+|               Hybrid Transaction Management                       |
+|                                                                   |
+|   [ Client A: Interactive ]           [ Client B: Stateless ]     |
+|   (gRPC Bidirectional)                (HTTP/REST Requests)        |
+|           |                                    |                  |
+|           v                                    v                  |
+|   +---------------+                   +-----------------+         |
+|   | Stream Handler|                   |  Unary Handler  |         |
+|   | (Keep-Alive)  |                   | (Request/Response)|       |
+|   +-------+-------+                   +--------+--------+         |
+|           |                                    |                  |
+|           |                                    v                  |
+|           |                           +-----------------+         |
+|           |                           |   Tx Registry   |<----+   |
+|           |                           | (Map<ID, Tx>)   |     |   |
+|           |                           +--------+--------+     |   |
+|           |                                    |              |   |
+|           v                                    v              |   |
+|    +-------------+                      +-------------+       |   |
+|    |  Active Tx  |                      |  Active Tx  |       |   |
+|    +------+------+                      +------+------+       |   |
+|           |                                    |              |   |
+|           +-----------------+------------------+              |   |
+|                             |                                 |   |
+|                             v                                 |   |
+|                     +-----------------+               +-------+---+
+|                     | Connection Pool |               |   Reaper  |
+|                     +-------+---------+               | (Cleanup) |
+|                             |                         +-----------+
+|                             v                                     |
+|                     [ SQLite Engine ]                             |
++-------------------------------------------------------------------+
+```
+
 ---
 
 ## 🚀 Key Features
@@ -67,8 +140,28 @@ A strictly typed alternative to the sparse hint system. Instead of generic `List
 ### 10. Managed SQLite Extensions
 A robust system for extending SQLite functionality:
 *   **Managed Discovery:** Automatically scans a dedicated directory for compatible binaries based on your OS and architecture.
-*   **Dynamic Loading:** Load specialized extensions like `sqlite-vec`, `sqlite-http`, or `mview` into any database at runtime via the API or Studio UI.
-*   **Automated Setup:** Includes scripts to instantly download and organize popular community extensions from the `sqlean` and `asg017` ecosystems.
+*   **Rich Ecosystem:** Supports `sqlite-vec` (Vector Search), `sqlite-http` (API Calls), and `sqlean` (Crypto, Math, Fuzzy Match).
+*   **Materialized Views:** Dedicated support for `sqlite-mview` to cache expensive queries (Postgres-like `REFRESH MATERIALIZED VIEW`).
+*   **Automated Setup:** Includes scripts (`make extensions`) to instantly download and organize popular community extensions.
+
+### 11. Zero-Dependency "Single Binary"
+The server compiles into a single static binary that includes:
+*   **The Engine:** Embedded SQLite driver (CGO-enabled).
+*   **The UI:** The complete Studio web interface is embedded into the binary.
+*   **The Server:** gRPC/HTTP connection logic.
+*   **Result:** Drop one file (`sqlite-server`) and run. No external runtime dependencies (not even for the web UI).
+
+### 12. Resource Efficiency (Smart Eviction)
+Ideal for multi-tenant architectures:
+*   **Lazy Loading:** Databases are only opened upon first request.
+*   **LRU Eviction:** A background process automatically closes connections that have been idle for 10 minutes.
+*   **Scale:** Mount thousands of databases on a single server with minimal memory footprint.
+
+### 13. Client Drivers (SDKs)
+Connect using strictly typed clients:
+*   **JavaScript (Fetch):** Zero-dependency, lightweight client for Edge/Browsers (`clients/js-fetch`).
+*   **JavaScript (gRPC):** Full-featured client with streaming support (`clients/js`).
+*   *Go support coming soon.*
 
 ---
 
@@ -183,7 +276,20 @@ SQLITE_SERVER_AUTH_ENABLED=false make run
 
 The server listens on `localhost:50051` using HTTP/2 (h2c).
 
-### 4. Access Points
+### 4. Configuration Reference
+You can configure the server via CLI flags or Environment Variables:
+
+| Flag | Env Var | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--port` | `SQLITE_SERVER_PORT` | `50051` | Port to listen on. |
+| `--host` | `SQLITE_SERVER_HOST` | `localhost` | Host to bind to. |
+| `--mounts` | `SQLITE_SERVER_MOUNTS` | `""` | Path to JSON mounts file. |
+| `--auth-disabled` | `SQLITE_SERVER_AUTH_ENABLED` | `true` | Set to `false` to disable auth. |
+| `--cors-origin` | `SQLITE_SERVER_CORS_ORIGIN` | `""` | Allowed CORS origin. |
+| `--idle-timeout` | `SQLITE_SERVER_IDLE_TIMEOUT` | `120` | Connection idle timeout (sec). |
+| `--shutdown-timeout` | `SQLITE_SERVER_SHUTDOWN_TIMEOUT` | `10` | Graceful shutdown wait (sec). |
+
+### 5. Access Points
 | Endpoint | Description |
 | :--- | :--- |
 | `http://localhost:50051/` | Landing page with server overview |
@@ -371,9 +477,9 @@ In JSON, bytes must be Base64 encoded. You must tell the server to decode it bac
 SQLite Server includes a managed system for shared library extensions. It simplifies the discovery and loading of binary extensions by handling OS and architecture detection.
 
 ### 1. The Managed Extensions Folder
-The server looks for extensions in `./extensions/managed/`. This directory should be organized by extension names (folders), which contain architecture-specific binaries:
+The server looks for extensions in `./extensions/`. This directory should be organized by extension names (folders), which contain architecture-specific binaries:
 ```text
-extensions/managed/
+extensions/
 ├── sqlite-vec-0.1.5/
 │   ├── sqlite-vec-linux-amd64.so
 │   ├── sqlite-vec-darwin-arm64.dylib
@@ -386,12 +492,12 @@ extensions/managed/
 We provide a suite of scripts to download and organize popular extensions from the community:
 ```bash
 # Download and setup sqlite-vec, sqlite-http, and mview
-make extensions-download
+make extensions
 
 # Each extension has its own target if needed:
-make extensions-download-vec
-make extensions-download-http
-make extensions-download-mview
+make extensions-vec
+make extensions-http
+make extensions-mview
 ```
 
 ### 3. Loading Extensions via API
@@ -533,6 +639,15 @@ The `Makefile` is the source of truth for all development workflows. Run `make h
 | `make test-coverage` | Runs unit tests and generates HTML report |
 | `make clean` | Resets the workspace (removes bins, metadata, and test DBs) |
 | `make help` | Lists all available targets with descriptions |
+
+---
+
+---
+
+## 🔮 Future Roadmap
+
+*   **Litestream Integration**: Native support for simple, continuous replication to S3/GCS. This will enable disaster recovery and simple read-replica setups without complex consensus algorithms.
+*   **Prometheus Metrics**: Built-in `/metrics` endpoint for monitoring connection pool stats, query latency, and eviction events.
 
 ---
 

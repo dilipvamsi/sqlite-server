@@ -620,6 +620,29 @@
                         <p>Automatically discover and load platform-specific SQLite extensions like vector search and
                             HTTP support.</p>
                     </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📦</div>
+                        <h3>Single Binary</h3>
+                        <p>Zero dependencies. The server, UI, and SQLite engine are compiled into one static binary.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📉</div>
+                        <h3>Smart Eviction</h3>
+                        <p>LRU policy automatically closes idle connections to minimize memory footprint in multi-tenant
+                            setups.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Materialized Views</h3>
+                        <p>Cache expensive analytical queries physically on disk with <code>sqlite-mview</code> support.
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔌</div>
+                        <h3>Client SDKs</h3>
+                        <p>Official, strictly typed drivers for JavaScript (Zero-dependency Fetch & Full gRPC). Go
+                            support coming soon.</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -706,7 +729,7 @@ curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService
                         <span class="endpoint-path">/db.v1.DatabaseService/GetDatabaseSchema</span>
                         <span class="endpoint-desc">Get full database schema</span>
                     </div>
-                     <div class="endpoint-item">
+                    <div class="endpoint-item">
                         <span class="method post">POST</span>
                         <span class="endpoint-path">/db.v1.DatabaseService/Explain</span>
                         <span class="endpoint-desc">Explain query plan</span>
