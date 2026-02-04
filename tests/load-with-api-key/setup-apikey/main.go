@@ -26,7 +26,7 @@ func main() {
 	defer store.Close()
 
 	// Ensure admin user exists
-	password, err := store.EnsureDefaultAdmin()
+	password, err := store.EnsureDefaultAdmin("", "")
 	if err != nil {
 		log.Fatalf("Failed to ensure admin: %v", err)
 	}

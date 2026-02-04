@@ -193,7 +193,7 @@ func (s *MetaStore) GetDB() *sql.DB {
 
 // EnsureDefaultAdmin creates an admin user if no users exist.
 // Returns the password used (either from env or generated).
-func (s *MetaStore) EnsureDefaultAdmin() (string, error) {
+func (s *MetaStore) EnsureDefaultAdmin(initialUsername, initialPassword string) (string, error) {
 	var count int
 	err := s.db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
@@ -205,7 +205,16 @@ func (s *MetaStore) EnsureDefaultAdmin() (string, error) {
 	}
 
 	// No users, create admin
-	password := os.Getenv("SQLITE_SERVER_ADMIN_PASSWORD")
+	username := initialUsername
+	if username == "" {
+		username = "admin"
+	}
+
+	password := initialPassword
+	if password == "" {
+		password = os.Getenv("SQLITE_SERVER_ADMIN_PASSWORD")
+	}
+
 	generated := false
 	if password == "" {
 		password = generateRandomPassword(16)
@@ -218,14 +227,16 @@ func (s *MetaStore) EnsureDefaultAdmin() (string, error) {
 	_, err = s.db.Exec(`
 		INSERT INTO users (username, password_hash, role)
 		VALUES (?, ?, ?)
-	`, "admin", passwordHash, dbRoleAdmin)
+	`, username, passwordHash, dbRoleAdmin)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to create admin user: %w", err)
 	}
 
 	if generated {
-		log.Printf("\n[AUTH] Created default 'admin' user.\n[AUTH] Password: %s\n[AUTH] Please change this immediately!\n", password)
+		log.Printf("\n[AUTH] Created default '%s' user.\n[AUTH] Password: %s\n[AUTH] Please change this immediately!\n", username, password)
+	} else {
+		log.Printf("\n[AUTH] Created default '%s' user.\n", username)
 	}
 
 	return password, nil

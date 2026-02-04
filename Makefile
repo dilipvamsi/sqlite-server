@@ -31,6 +31,8 @@ LOADTEST_CIPHER_CONFIG := ./tests/load/loadtest-cipher.config.json
 
 # Tooling
 GOCMD          := go
+# Ensure tools installed via 'go install' are on the PATH
+export PATH    := $(shell go env GOPATH)/bin:$(PATH)
 LDFLAGS_COMMON := -s -w
 STATIC_TAGS    := osusergo,netgo
 
@@ -94,6 +96,21 @@ run: build ## Build and run the server with default config
 run-dev: ## Run directly using 'go run' (fast development)
 	@echo "Starting server in dev mode..."
 	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(DEFAULT_CONFIG)
+
+# ==============================================================================
+# Debugging
+# ==============================================================================
+
+.PHONY: run-hot-reload
+run-hot-reload: ## Run with hot reload using 'air'
+	@echo "Starting server with hot reload (Air)..."
+	@if command -v air > /dev/null; then \
+		air; \
+	else \
+		echo "Air not found. Installing..."; \
+		go install github.com/air-verse/air@latest; \
+		air; \
+	fi
 
 # ==============================================================================
 # Protocol Buffers

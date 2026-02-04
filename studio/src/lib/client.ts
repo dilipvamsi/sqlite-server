@@ -32,6 +32,9 @@ export function getAuthHeaders(): Record<string, string> {
     const apiKey = getAuthToken();
     if (!apiKey) return {};
 
+    // Bypass Authorization header if using special "no-auth" token
+    if (apiKey === "no-auth") return {};
+
     return {
         Authorization: `Bearer ${apiKey}`,
     };
@@ -162,4 +165,44 @@ export function canManageDatabases(): boolean {
  */
 export function getUsername(): string | null {
     return localStorage.getItem(AUTH_USER);
+}
+
+// Server Capability Caching
+const SERVER_STATUS_KEY = "sqlite-server-status";
+
+export function isAuthDisabled(): boolean {
+    const status = localStorage.getItem(SERVER_STATUS_KEY);
+    return status === "anonymous";
+}
+
+export async function initServerStatus() {
+    console.log("[DEBUG] initServerStatus called");
+    const { AdminService } = await import("../gen/db/v1/db_service_pb");
+    const client = getClient(AdminService);
+
+    try {
+        const info = await client.getServerInfo({});
+        console.log("[DEBUG] Server Info:", info);
+
+        if (info.authDisabled) {
+            localStorage.setItem(SERVER_STATUS_KEY, "anonymous");
+            // Auto-inject admin session if not present or session is different
+            if (localStorage.getItem(AUTH_KEY) !== "no-auth") {
+                console.log("[DEBUG] Auto-injecting anonymous admin session");
+                localStorage.setItem(AUTH_KEY, "no-auth");
+                localStorage.setItem(AUTH_USER, "anonymous-admin");
+                localStorage.setItem("userRole", "1"); // Admin role
+            }
+        } else {
+            localStorage.setItem(SERVER_STATUS_KEY, "auth-enabled");
+            // If we had a no-auth session, clear it as server now requires auth
+            if (localStorage.getItem(AUTH_KEY) === "no-auth") {
+                localStorage.removeItem(AUTH_KEY);
+                localStorage.removeItem(AUTH_USER);
+                localStorage.removeItem("userRole");
+            }
+        }
+    } catch (e) {
+        console.error("[DEBUG] Failed to fetch server info:", e);
+    }
 }

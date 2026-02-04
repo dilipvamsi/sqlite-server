@@ -121,4 +121,46 @@ func TestExtensionRPCs(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})
+
+	t.Run("LoadExtension DB Not Found", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+			Database:   "ghostdb",
+			FolderName: "crypto-0.28.0",
+		})
+		_, err := server.LoadExtension(ctx, req)
+		assert.Error(t, err)
+		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	})
+
+	t.Run("LoadExtension Already Loaded", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+			Database:   "extdb",
+			FolderName: "crypto-0.28.0",
+		})
+		res, err := server.LoadExtension(ctx, req)
+		require.NoError(t, err)
+		assert.True(t, res.Msg.Success)
+		assert.Equal(t, "Extension already loaded", res.Msg.Message)
+	})
+
+	t.Run("LoadExtension Store Error", func(t *testing.T) {
+		store.GetDB().Close()
+		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+			Database:   "extdb",
+			FolderName: "crypto-0.28.0",
+		})
+		_, err := server.LoadExtension(ctx, req)
+		assert.Error(t, err)
+		assert.Equal(t, connect.CodeInternal, connect.CodeOf(err))
+	})
+
+	t.Run("LoadExtension Unauthenticated", func(t *testing.T) {
+		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+			Database:   "any",
+			FolderName: "any",
+		})
+		_, err := server.LoadExtension(context.Background(), req)
+		assert.Error(t, err)
+		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+	})
 }

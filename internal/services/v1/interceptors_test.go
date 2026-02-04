@@ -124,6 +124,11 @@ type mockStreamingConn struct {
 	connect.StreamingHandlerConn
 	header http.Header
 	msg    any // Message to return on Receive
+	spec   connect.Spec
+}
+
+func (m *mockStreamingConn) Spec() connect.Spec {
+	return m.spec
 }
 
 func (m *mockStreamingConn) RequestHeader() http.Header {

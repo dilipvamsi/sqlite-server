@@ -29,7 +29,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AttachDatabaseRequest, AttachDatabaseResponse, BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DatabaseSchema, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, DetachDatabaseRequest, DetachDatabaseResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, ListExtensionsRequest, ListExtensionsResponse, ListTablesRequest, ListTablesResponse, ListUsersRequest, ListUsersResponse, LoadExtensionRequest, LoadExtensionResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TableSchema, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdateDatabaseRequest, UpdateDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse, UpdateUserRoleRequest, UpdateUserRoleResponse, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
+import { AttachDatabaseRequest, AttachDatabaseResponse, BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, CreateApiKeyRequest, CreateApiKeyResponse, CreateDatabaseRequest, CreateDatabaseResponse, CreateUserRequest, CreateUserResponse, DatabaseConfig, DatabaseSchema, DeleteDatabaseRequest, DeleteDatabaseResponse, DeleteUserRequest, DeleteUserResponse, DetachDatabaseRequest, DetachDatabaseResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetServerInfoRequest, GetServerInfoResponse, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListApiKeysRequest, ListApiKeysResponse, ListDatabasesRequest, ListDatabasesResponse, ListExtensionsRequest, ListExtensionsResponse, ListTablesRequest, ListTablesResponse, ListUsersRequest, ListUsersResponse, LoadExtensionRequest, LoadExtensionResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, MountDatabaseResponse, QueryRequest, QueryResponse, QueryResult, RevokeApiKeyRequest, RevokeApiKeyResponse, SavepointResponse, TableSchema, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, UnMountDatabaseRequest, UnMountDatabaseResponse, UpdateDatabaseRequest, UpdateDatabaseResponse, UpdatePasswordRequest, UpdatePasswordResponse, UpdateUserRoleRequest, UpdateUserRoleResponse, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -608,6 +608,18 @@ export const AdminService = {
       name: "UpdateDatabase",
       I: UpdateDatabaseRequest,
       O: UpdateDatabaseResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Retrieves server metadata and capability info.
+     *
+     * @generated from rpc db.v1.AdminService.GetServerInfo
+     */
+    getServerInfo: {
+      name: "GetServerInfo",
+      I: GetServerInfoRequest,
+      O: GetServerInfoResponse,
       kind: MethodKind.Unary,
     },
   }

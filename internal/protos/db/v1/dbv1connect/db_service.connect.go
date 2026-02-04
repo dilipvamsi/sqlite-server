@@ -179,6 +179,9 @@ const (
 	// AdminServiceUpdateDatabaseProcedure is the fully-qualified name of the AdminService's
 	// UpdateDatabase RPC.
 	AdminServiceUpdateDatabaseProcedure = "/db.v1.AdminService/UpdateDatabase"
+	// AdminServiceGetServerInfoProcedure is the fully-qualified name of the AdminService's
+	// GetServerInfo RPC.
+	AdminServiceGetServerInfoProcedure = "/db.v1.AdminService/GetServerInfo"
 )
 
 // DatabaseServiceClient is a client for the db.v1.DatabaseService service.
@@ -1136,6 +1139,9 @@ type AdminServiceClient interface {
 	// Useful for changing settings like init_commands, max_open_conns, etc.
 	// This operation forces a reload of the database connections.
 	UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error)
+	// *
+	// Retrieves server metadata and capability info.
+	GetServerInfo(context.Context, *connect.Request[v1.GetServerInfoRequest]) (*connect.Response[v1.GetServerInfoResponse], error)
 }
 
 // NewAdminServiceClient constructs a client for the db.v1.AdminService service. By default, it uses
@@ -1245,6 +1251,12 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("UpdateDatabase")),
 			connect.WithClientOptions(opts...),
 		),
+		getServerInfo: connect.NewClient[v1.GetServerInfoRequest, v1.GetServerInfoResponse](
+			httpClient,
+			baseURL+AdminServiceGetServerInfoProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("GetServerInfo")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -1266,6 +1278,7 @@ type adminServiceClient struct {
 	unMountDatabase *connect.Client[v1.UnMountDatabaseRequest, v1.UnMountDatabaseResponse]
 	deleteDatabase  *connect.Client[v1.DeleteDatabaseRequest, v1.DeleteDatabaseResponse]
 	updateDatabase  *connect.Client[v1.UpdateDatabaseRequest, v1.UpdateDatabaseResponse]
+	getServerInfo   *connect.Client[v1.GetServerInfoRequest, v1.GetServerInfoResponse]
 }
 
 // CreateUser calls db.v1.AdminService.CreateUser.
@@ -1348,6 +1361,11 @@ func (c *adminServiceClient) UpdateDatabase(ctx context.Context, req *connect.Re
 	return c.updateDatabase.CallUnary(ctx, req)
 }
 
+// GetServerInfo calls db.v1.AdminService.GetServerInfo.
+func (c *adminServiceClient) GetServerInfo(ctx context.Context, req *connect.Request[v1.GetServerInfoRequest]) (*connect.Response[v1.GetServerInfoResponse], error) {
+	return c.getServerInfo.CallUnary(ctx, req)
+}
+
 // AdminServiceHandler is an implementation of the db.v1.AdminService service.
 type AdminServiceHandler interface {
 	// *
@@ -1411,6 +1429,9 @@ type AdminServiceHandler interface {
 	// Useful for changing settings like init_commands, max_open_conns, etc.
 	// This operation forces a reload of the database connections.
 	UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error)
+	// *
+	// Retrieves server metadata and capability info.
+	GetServerInfo(context.Context, *connect.Request[v1.GetServerInfoRequest]) (*connect.Response[v1.GetServerInfoResponse], error)
 }
 
 // NewAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1516,6 +1537,12 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("UpdateDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceGetServerInfoHandler := connect.NewUnaryHandler(
+		AdminServiceGetServerInfoProcedure,
+		svc.GetServerInfo,
+		connect.WithSchema(adminServiceMethods.ByName("GetServerInfo")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/db.v1.AdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminServiceCreateUserProcedure:
@@ -1550,6 +1577,8 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceDeleteDatabaseHandler.ServeHTTP(w, r)
 		case AdminServiceUpdateDatabaseProcedure:
 			adminServiceUpdateDatabaseHandler.ServeHTTP(w, r)
+		case AdminServiceGetServerInfoProcedure:
+			adminServiceGetServerInfoHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1621,4 +1650,8 @@ func (UnimplementedAdminServiceHandler) DeleteDatabase(context.Context, *connect
 
 func (UnimplementedAdminServiceHandler) UpdateDatabase(context.Context, *connect.Request[v1.UpdateDatabaseRequest]) (*connect.Response[v1.UpdateDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.UpdateDatabase is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) GetServerInfo(context.Context, *connect.Request[v1.GetServerInfoRequest]) (*connect.Response[v1.GetServerInfoResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("db.v1.AdminService.GetServerInfo is not implemented"))
 }

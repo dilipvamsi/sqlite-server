@@ -5066,6 +5066,94 @@ func (x *ErrorResponse) GetSqliteErrorCode() SqliteCode {
 	return SqliteCode_SQLITE_CODE_OK
 }
 
+type GetServerInfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServerInfoRequest) Reset() {
+	*x = GetServerInfoRequest{}
+	mi := &file_db_v1_db_service_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServerInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServerInfoRequest) ProtoMessage() {}
+
+func (x *GetServerInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_db_v1_db_service_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServerInfoRequest.ProtoReflect.Descriptor instead.
+func (*GetServerInfoRequest) Descriptor() ([]byte, []int) {
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{69}
+}
+
+type GetServerInfoResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	AuthDisabled  bool                   `protobuf:"varint,2,opt,name=auth_disabled,json=authDisabled,proto3" json:"auth_disabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServerInfoResponse) Reset() {
+	*x = GetServerInfoResponse{}
+	mi := &file_db_v1_db_service_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServerInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServerInfoResponse) ProtoMessage() {}
+
+func (x *GetServerInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_db_v1_db_service_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServerInfoResponse.ProtoReflect.Descriptor instead.
+func (*GetServerInfoResponse) Descriptor() ([]byte, []int) {
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *GetServerInfoResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *GetServerInfoResponse) GetAuthDisabled() bool {
+	if x != nil {
+		return x.AuthDisabled
+	}
+	return false
+}
+
 //*
 // Represents a single SQL value with explicit type information.
 // This replaces the dynamic typing of google.protobuf.Value with
@@ -5086,7 +5174,7 @@ type SqlValue struct {
 
 func (x *SqlValue) Reset() {
 	*x = SqlValue{}
-	mi := &file_db_v1_db_service_proto_msgTypes[69]
+	mi := &file_db_v1_db_service_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5098,7 +5186,7 @@ func (x *SqlValue) String() string {
 func (*SqlValue) ProtoMessage() {}
 
 func (x *SqlValue) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[69]
+	mi := &file_db_v1_db_service_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5111,7 +5199,7 @@ func (x *SqlValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SqlValue.ProtoReflect.Descriptor instead.
 func (*SqlValue) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{69}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *SqlValue) GetValue() isSqlValue_Value {
@@ -5217,7 +5305,7 @@ type SqlRow struct {
 
 func (x *SqlRow) Reset() {
 	*x = SqlRow{}
-	mi := &file_db_v1_db_service_proto_msgTypes[70]
+	mi := &file_db_v1_db_service_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5229,7 +5317,7 @@ func (x *SqlRow) String() string {
 func (*SqlRow) ProtoMessage() {}
 
 func (x *SqlRow) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[70]
+	mi := &file_db_v1_db_service_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5242,7 +5330,7 @@ func (x *SqlRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SqlRow.ProtoReflect.Descriptor instead.
 func (*SqlRow) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{70}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *SqlRow) GetValues() []*SqlValue {
@@ -5268,7 +5356,7 @@ type TypedParameters struct {
 
 func (x *TypedParameters) Reset() {
 	*x = TypedParameters{}
-	mi := &file_db_v1_db_service_proto_msgTypes[71]
+	mi := &file_db_v1_db_service_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5280,7 +5368,7 @@ func (x *TypedParameters) String() string {
 func (*TypedParameters) ProtoMessage() {}
 
 func (x *TypedParameters) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[71]
+	mi := &file_db_v1_db_service_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5293,7 +5381,7 @@ func (x *TypedParameters) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedParameters.ProtoReflect.Descriptor instead.
 func (*TypedParameters) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{71}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *TypedParameters) GetPositional() []*SqlValue {
@@ -5328,7 +5416,7 @@ type TypedQueryRequest struct {
 
 func (x *TypedQueryRequest) Reset() {
 	*x = TypedQueryRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[72]
+	mi := &file_db_v1_db_service_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5340,7 +5428,7 @@ func (x *TypedQueryRequest) String() string {
 func (*TypedQueryRequest) ProtoMessage() {}
 
 func (x *TypedQueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[72]
+	mi := &file_db_v1_db_service_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5353,7 +5441,7 @@ func (x *TypedQueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedQueryRequest.ProtoReflect.Descriptor instead.
 func (*TypedQueryRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{72}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *TypedQueryRequest) GetDatabase() string {
@@ -5400,7 +5488,7 @@ type TypedTransactionQueryRequest struct {
 
 func (x *TypedTransactionQueryRequest) Reset() {
 	*x = TypedTransactionQueryRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[73]
+	mi := &file_db_v1_db_service_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5412,7 +5500,7 @@ func (x *TypedTransactionQueryRequest) String() string {
 func (*TypedTransactionQueryRequest) ProtoMessage() {}
 
 func (x *TypedTransactionQueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[73]
+	mi := &file_db_v1_db_service_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5425,7 +5513,7 @@ func (x *TypedTransactionQueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedTransactionQueryRequest.ProtoReflect.Descriptor instead.
 func (*TypedTransactionQueryRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{73}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *TypedTransactionQueryRequest) GetTransactionId() string {
@@ -5463,7 +5551,7 @@ type TypedTransactionalQueryRequest struct {
 
 func (x *TypedTransactionalQueryRequest) Reset() {
 	*x = TypedTransactionalQueryRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[74]
+	mi := &file_db_v1_db_service_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5475,7 +5563,7 @@ func (x *TypedTransactionalQueryRequest) String() string {
 func (*TypedTransactionalQueryRequest) ProtoMessage() {}
 
 func (x *TypedTransactionalQueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[74]
+	mi := &file_db_v1_db_service_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5488,7 +5576,7 @@ func (x *TypedTransactionalQueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedTransactionalQueryRequest.ProtoReflect.Descriptor instead.
 func (*TypedTransactionalQueryRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{74}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *TypedTransactionalQueryRequest) GetSql() string {
@@ -5525,7 +5613,7 @@ type TypedSelectResult struct {
 
 func (x *TypedSelectResult) Reset() {
 	*x = TypedSelectResult{}
-	mi := &file_db_v1_db_service_proto_msgTypes[75]
+	mi := &file_db_v1_db_service_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5537,7 +5625,7 @@ func (x *TypedSelectResult) String() string {
 func (*TypedSelectResult) ProtoMessage() {}
 
 func (x *TypedSelectResult) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[75]
+	mi := &file_db_v1_db_service_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5550,7 +5638,7 @@ func (x *TypedSelectResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedSelectResult.ProtoReflect.Descriptor instead.
 func (*TypedSelectResult) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{75}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *TypedSelectResult) GetColumns() []string {
@@ -5604,7 +5692,7 @@ type TypedQueryResult struct {
 
 func (x *TypedQueryResult) Reset() {
 	*x = TypedQueryResult{}
-	mi := &file_db_v1_db_service_proto_msgTypes[76]
+	mi := &file_db_v1_db_service_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5616,7 +5704,7 @@ func (x *TypedQueryResult) String() string {
 func (*TypedQueryResult) ProtoMessage() {}
 
 func (x *TypedQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[76]
+	mi := &file_db_v1_db_service_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5629,7 +5717,7 @@ func (x *TypedQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedQueryResult.ProtoReflect.Descriptor instead.
 func (*TypedQueryResult) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{76}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *TypedQueryResult) GetResult() isTypedQueryResult_Result {
@@ -5695,7 +5783,7 @@ type TypedQueryResultHeader struct {
 
 func (x *TypedQueryResultHeader) Reset() {
 	*x = TypedQueryResultHeader{}
-	mi := &file_db_v1_db_service_proto_msgTypes[77]
+	mi := &file_db_v1_db_service_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5707,7 +5795,7 @@ func (x *TypedQueryResultHeader) String() string {
 func (*TypedQueryResultHeader) ProtoMessage() {}
 
 func (x *TypedQueryResultHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[77]
+	mi := &file_db_v1_db_service_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5720,7 +5808,7 @@ func (x *TypedQueryResultHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedQueryResultHeader.ProtoReflect.Descriptor instead.
 func (*TypedQueryResultHeader) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{77}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *TypedQueryResultHeader) GetColumns() []string {
@@ -5762,7 +5850,7 @@ type TypedQueryResultRowBatch struct {
 
 func (x *TypedQueryResultRowBatch) Reset() {
 	*x = TypedQueryResultRowBatch{}
-	mi := &file_db_v1_db_service_proto_msgTypes[78]
+	mi := &file_db_v1_db_service_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5774,7 +5862,7 @@ func (x *TypedQueryResultRowBatch) String() string {
 func (*TypedQueryResultRowBatch) ProtoMessage() {}
 
 func (x *TypedQueryResultRowBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[78]
+	mi := &file_db_v1_db_service_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5787,7 +5875,7 @@ func (x *TypedQueryResultRowBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedQueryResultRowBatch.ProtoReflect.Descriptor instead.
 func (*TypedQueryResultRowBatch) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{78}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *TypedQueryResultRowBatch) GetRows() []*SqlRow {
@@ -5816,7 +5904,7 @@ type TypedQueryResponse struct {
 
 func (x *TypedQueryResponse) Reset() {
 	*x = TypedQueryResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[79]
+	mi := &file_db_v1_db_service_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5828,7 +5916,7 @@ func (x *TypedQueryResponse) String() string {
 func (*TypedQueryResponse) ProtoMessage() {}
 
 func (x *TypedQueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[79]
+	mi := &file_db_v1_db_service_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5841,7 +5929,7 @@ func (x *TypedQueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypedQueryResponse.ProtoReflect.Descriptor instead.
 func (*TypedQueryResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{79}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *TypedQueryResponse) GetResponse() isTypedQueryResponse_Response {
@@ -5977,7 +6065,7 @@ type DatabaseConfig struct {
 
 func (x *DatabaseConfig) Reset() {
 	*x = DatabaseConfig{}
-	mi := &file_db_v1_db_service_proto_msgTypes[80]
+	mi := &file_db_v1_db_service_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5989,7 +6077,7 @@ func (x *DatabaseConfig) String() string {
 func (*DatabaseConfig) ProtoMessage() {}
 
 func (x *DatabaseConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[80]
+	mi := &file_db_v1_db_service_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6002,7 +6090,7 @@ func (x *DatabaseConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabaseConfig.ProtoReflect.Descriptor instead.
 func (*DatabaseConfig) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{80}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *DatabaseConfig) GetName() string {
@@ -6106,7 +6194,7 @@ type Attachment struct {
 
 func (x *Attachment) Reset() {
 	*x = Attachment{}
-	mi := &file_db_v1_db_service_proto_msgTypes[81]
+	mi := &file_db_v1_db_service_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6118,7 +6206,7 @@ func (x *Attachment) String() string {
 func (*Attachment) ProtoMessage() {}
 
 func (x *Attachment) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[81]
+	mi := &file_db_v1_db_service_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6131,7 +6219,7 @@ func (x *Attachment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attachment.ProtoReflect.Descriptor instead.
 func (*Attachment) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{81}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *Attachment) GetTargetDatabaseName() string {
@@ -6161,7 +6249,7 @@ type ExplainResponse struct {
 
 func (x *ExplainResponse) Reset() {
 	*x = ExplainResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[82]
+	mi := &file_db_v1_db_service_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6173,7 +6261,7 @@ func (x *ExplainResponse) String() string {
 func (*ExplainResponse) ProtoMessage() {}
 
 func (x *ExplainResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[82]
+	mi := &file_db_v1_db_service_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6186,7 +6274,7 @@ func (x *ExplainResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExplainResponse.ProtoReflect.Descriptor instead.
 func (*ExplainResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{82}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *ExplainResponse) GetNodes() []*QueryPlanNode {
@@ -6213,7 +6301,7 @@ type QueryPlanNode struct {
 
 func (x *QueryPlanNode) Reset() {
 	*x = QueryPlanNode{}
-	mi := &file_db_v1_db_service_proto_msgTypes[83]
+	mi := &file_db_v1_db_service_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6225,7 +6313,7 @@ func (x *QueryPlanNode) String() string {
 func (*QueryPlanNode) ProtoMessage() {}
 
 func (x *QueryPlanNode) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[83]
+	mi := &file_db_v1_db_service_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6238,7 +6326,7 @@ func (x *QueryPlanNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryPlanNode.ProtoReflect.Descriptor instead.
 func (*QueryPlanNode) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{83}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *QueryPlanNode) GetId() int32 {
@@ -6273,7 +6361,7 @@ type ListTablesRequest struct {
 
 func (x *ListTablesRequest) Reset() {
 	*x = ListTablesRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[84]
+	mi := &file_db_v1_db_service_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6285,7 +6373,7 @@ func (x *ListTablesRequest) String() string {
 func (*ListTablesRequest) ProtoMessage() {}
 
 func (x *ListTablesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[84]
+	mi := &file_db_v1_db_service_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6298,7 +6386,7 @@ func (x *ListTablesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTablesRequest.ProtoReflect.Descriptor instead.
 func (*ListTablesRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{84}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *ListTablesRequest) GetDatabase() string {
@@ -6319,7 +6407,7 @@ type ListTablesResponse struct {
 
 func (x *ListTablesResponse) Reset() {
 	*x = ListTablesResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[85]
+	mi := &file_db_v1_db_service_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6331,7 +6419,7 @@ func (x *ListTablesResponse) String() string {
 func (*ListTablesResponse) ProtoMessage() {}
 
 func (x *ListTablesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[85]
+	mi := &file_db_v1_db_service_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6344,7 +6432,7 @@ func (x *ListTablesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTablesResponse.ProtoReflect.Descriptor instead.
 func (*ListTablesResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{85}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *ListTablesResponse) GetTableNames() []string {
@@ -6366,7 +6454,7 @@ type GetTableSchemaRequest struct {
 
 func (x *GetTableSchemaRequest) Reset() {
 	*x = GetTableSchemaRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[86]
+	mi := &file_db_v1_db_service_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6378,7 +6466,7 @@ func (x *GetTableSchemaRequest) String() string {
 func (*GetTableSchemaRequest) ProtoMessage() {}
 
 func (x *GetTableSchemaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[86]
+	mi := &file_db_v1_db_service_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6391,7 +6479,7 @@ func (x *GetTableSchemaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTableSchemaRequest.ProtoReflect.Descriptor instead.
 func (*GetTableSchemaRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{86}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *GetTableSchemaRequest) GetDatabase() string {
@@ -6419,7 +6507,7 @@ type GetDatabaseSchemaRequest struct {
 
 func (x *GetDatabaseSchemaRequest) Reset() {
 	*x = GetDatabaseSchemaRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[87]
+	mi := &file_db_v1_db_service_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6431,7 +6519,7 @@ func (x *GetDatabaseSchemaRequest) String() string {
 func (*GetDatabaseSchemaRequest) ProtoMessage() {}
 
 func (x *GetDatabaseSchemaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[87]
+	mi := &file_db_v1_db_service_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6444,7 +6532,7 @@ func (x *GetDatabaseSchemaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDatabaseSchemaRequest.ProtoReflect.Descriptor instead.
 func (*GetDatabaseSchemaRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{87}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *GetDatabaseSchemaRequest) GetDatabase() string {
@@ -6476,7 +6564,7 @@ type TableSchema struct {
 
 func (x *TableSchema) Reset() {
 	*x = TableSchema{}
-	mi := &file_db_v1_db_service_proto_msgTypes[88]
+	mi := &file_db_v1_db_service_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6488,7 +6576,7 @@ func (x *TableSchema) String() string {
 func (*TableSchema) ProtoMessage() {}
 
 func (x *TableSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[88]
+	mi := &file_db_v1_db_service_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6501,7 +6589,7 @@ func (x *TableSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableSchema.ProtoReflect.Descriptor instead.
 func (*TableSchema) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{88}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *TableSchema) GetName() string {
@@ -6567,7 +6655,7 @@ type ColumnSchema struct {
 
 func (x *ColumnSchema) Reset() {
 	*x = ColumnSchema{}
-	mi := &file_db_v1_db_service_proto_msgTypes[89]
+	mi := &file_db_v1_db_service_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6579,7 +6667,7 @@ func (x *ColumnSchema) String() string {
 func (*ColumnSchema) ProtoMessage() {}
 
 func (x *ColumnSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[89]
+	mi := &file_db_v1_db_service_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6592,7 +6680,7 @@ func (x *ColumnSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ColumnSchema.ProtoReflect.Descriptor instead.
 func (*ColumnSchema) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{89}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *ColumnSchema) GetName() string {
@@ -6649,7 +6737,7 @@ type IndexSchema struct {
 
 func (x *IndexSchema) Reset() {
 	*x = IndexSchema{}
-	mi := &file_db_v1_db_service_proto_msgTypes[90]
+	mi := &file_db_v1_db_service_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6661,7 +6749,7 @@ func (x *IndexSchema) String() string {
 func (*IndexSchema) ProtoMessage() {}
 
 func (x *IndexSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[90]
+	mi := &file_db_v1_db_service_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6674,7 +6762,7 @@ func (x *IndexSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexSchema.ProtoReflect.Descriptor instead.
 func (*IndexSchema) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{90}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *IndexSchema) GetName() string {
@@ -6728,7 +6816,7 @@ type ForeignKeySchema struct {
 
 func (x *ForeignKeySchema) Reset() {
 	*x = ForeignKeySchema{}
-	mi := &file_db_v1_db_service_proto_msgTypes[91]
+	mi := &file_db_v1_db_service_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6740,7 +6828,7 @@ func (x *ForeignKeySchema) String() string {
 func (*ForeignKeySchema) ProtoMessage() {}
 
 func (x *ForeignKeySchema) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[91]
+	mi := &file_db_v1_db_service_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6753,7 +6841,7 @@ func (x *ForeignKeySchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForeignKeySchema.ProtoReflect.Descriptor instead.
 func (*ForeignKeySchema) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{91}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *ForeignKeySchema) GetId() int32 {
@@ -6813,7 +6901,7 @@ type TriggerSchema struct {
 
 func (x *TriggerSchema) Reset() {
 	*x = TriggerSchema{}
-	mi := &file_db_v1_db_service_proto_msgTypes[92]
+	mi := &file_db_v1_db_service_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6825,7 +6913,7 @@ func (x *TriggerSchema) String() string {
 func (*TriggerSchema) ProtoMessage() {}
 
 func (x *TriggerSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[92]
+	mi := &file_db_v1_db_service_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6838,7 +6926,7 @@ func (x *TriggerSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TriggerSchema.ProtoReflect.Descriptor instead.
 func (*TriggerSchema) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{92}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *TriggerSchema) GetName() string {
@@ -6868,7 +6956,7 @@ type DatabaseSchema struct {
 
 func (x *DatabaseSchema) Reset() {
 	*x = DatabaseSchema{}
-	mi := &file_db_v1_db_service_proto_msgTypes[93]
+	mi := &file_db_v1_db_service_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6880,7 +6968,7 @@ func (x *DatabaseSchema) String() string {
 func (*DatabaseSchema) ProtoMessage() {}
 
 func (x *DatabaseSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[93]
+	mi := &file_db_v1_db_service_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6893,7 +6981,7 @@ func (x *DatabaseSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabaseSchema.ProtoReflect.Descriptor instead.
 func (*DatabaseSchema) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{93}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *DatabaseSchema) GetTables() []*TableSchema {
@@ -6923,7 +7011,7 @@ type UpdateDatabaseConfig struct {
 
 func (x *UpdateDatabaseConfig) Reset() {
 	*x = UpdateDatabaseConfig{}
-	mi := &file_db_v1_db_service_proto_msgTypes[94]
+	mi := &file_db_v1_db_service_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6935,7 +7023,7 @@ func (x *UpdateDatabaseConfig) String() string {
 func (*UpdateDatabaseConfig) ProtoMessage() {}
 
 func (x *UpdateDatabaseConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[94]
+	mi := &file_db_v1_db_service_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6948,7 +7036,7 @@ func (x *UpdateDatabaseConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDatabaseConfig.ProtoReflect.Descriptor instead.
 func (*UpdateDatabaseConfig) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{94}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *UpdateDatabaseConfig) GetReadOnly() bool {
@@ -7016,7 +7104,7 @@ type AttachmentList struct {
 
 func (x *AttachmentList) Reset() {
 	*x = AttachmentList{}
-	mi := &file_db_v1_db_service_proto_msgTypes[95]
+	mi := &file_db_v1_db_service_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7028,7 +7116,7 @@ func (x *AttachmentList) String() string {
 func (*AttachmentList) ProtoMessage() {}
 
 func (x *AttachmentList) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[95]
+	mi := &file_db_v1_db_service_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7041,7 +7129,7 @@ func (x *AttachmentList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachmentList.ProtoReflect.Descriptor instead.
 func (*AttachmentList) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{95}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *AttachmentList) GetValues() []*Attachment {
@@ -7060,7 +7148,7 @@ type ExtensionList struct {
 
 func (x *ExtensionList) Reset() {
 	*x = ExtensionList{}
-	mi := &file_db_v1_db_service_proto_msgTypes[96]
+	mi := &file_db_v1_db_service_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7072,7 +7160,7 @@ func (x *ExtensionList) String() string {
 func (*ExtensionList) ProtoMessage() {}
 
 func (x *ExtensionList) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[96]
+	mi := &file_db_v1_db_service_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7085,7 +7173,7 @@ func (x *ExtensionList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtensionList.ProtoReflect.Descriptor instead.
 func (*ExtensionList) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{96}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *ExtensionList) GetValues() []string {
@@ -7104,7 +7192,7 @@ type PragmaMap struct {
 
 func (x *PragmaMap) Reset() {
 	*x = PragmaMap{}
-	mi := &file_db_v1_db_service_proto_msgTypes[97]
+	mi := &file_db_v1_db_service_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7116,7 +7204,7 @@ func (x *PragmaMap) String() string {
 func (*PragmaMap) ProtoMessage() {}
 
 func (x *PragmaMap) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[97]
+	mi := &file_db_v1_db_service_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7129,7 +7217,7 @@ func (x *PragmaMap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PragmaMap.ProtoReflect.Descriptor instead.
 func (*PragmaMap) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{97}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *PragmaMap) GetValues() map[string]string {
@@ -7148,7 +7236,7 @@ type InitCommandList struct {
 
 func (x *InitCommandList) Reset() {
 	*x = InitCommandList{}
-	mi := &file_db_v1_db_service_proto_msgTypes[98]
+	mi := &file_db_v1_db_service_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7160,7 +7248,7 @@ func (x *InitCommandList) String() string {
 func (*InitCommandList) ProtoMessage() {}
 
 func (x *InitCommandList) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[98]
+	mi := &file_db_v1_db_service_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7173,7 +7261,7 @@ func (x *InitCommandList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitCommandList.ProtoReflect.Descriptor instead.
 func (*InitCommandList) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{98}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *InitCommandList) GetValues() []string {
@@ -7197,7 +7285,7 @@ type UpdateDatabaseRequest struct {
 
 func (x *UpdateDatabaseRequest) Reset() {
 	*x = UpdateDatabaseRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[99]
+	mi := &file_db_v1_db_service_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7209,7 +7297,7 @@ func (x *UpdateDatabaseRequest) String() string {
 func (*UpdateDatabaseRequest) ProtoMessage() {}
 
 func (x *UpdateDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[99]
+	mi := &file_db_v1_db_service_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7222,7 +7310,7 @@ func (x *UpdateDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*UpdateDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{99}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *UpdateDatabaseRequest) GetName() string {
@@ -7249,7 +7337,7 @@ type UpdateDatabaseResponse struct {
 
 func (x *UpdateDatabaseResponse) Reset() {
 	*x = UpdateDatabaseResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[100]
+	mi := &file_db_v1_db_service_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7261,7 +7349,7 @@ func (x *UpdateDatabaseResponse) String() string {
 func (*UpdateDatabaseResponse) ProtoMessage() {}
 
 func (x *UpdateDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[100]
+	mi := &file_db_v1_db_service_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7274,7 +7362,7 @@ func (x *UpdateDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*UpdateDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{100}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *UpdateDatabaseResponse) GetSuccess() bool {
@@ -7305,7 +7393,7 @@ type AttachDatabaseRequest struct {
 
 func (x *AttachDatabaseRequest) Reset() {
 	*x = AttachDatabaseRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[101]
+	mi := &file_db_v1_db_service_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7317,7 +7405,7 @@ func (x *AttachDatabaseRequest) String() string {
 func (*AttachDatabaseRequest) ProtoMessage() {}
 
 func (x *AttachDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[101]
+	mi := &file_db_v1_db_service_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7330,7 +7418,7 @@ func (x *AttachDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*AttachDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{101}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *AttachDatabaseRequest) GetParentDatabase() string {
@@ -7357,7 +7445,7 @@ type AttachDatabaseResponse struct {
 
 func (x *AttachDatabaseResponse) Reset() {
 	*x = AttachDatabaseResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[102]
+	mi := &file_db_v1_db_service_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7369,7 +7457,7 @@ func (x *AttachDatabaseResponse) String() string {
 func (*AttachDatabaseResponse) ProtoMessage() {}
 
 func (x *AttachDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[102]
+	mi := &file_db_v1_db_service_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7382,7 +7470,7 @@ func (x *AttachDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*AttachDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{102}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *AttachDatabaseResponse) GetSuccess() bool {
@@ -7413,7 +7501,7 @@ type DetachDatabaseRequest struct {
 
 func (x *DetachDatabaseRequest) Reset() {
 	*x = DetachDatabaseRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[103]
+	mi := &file_db_v1_db_service_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7425,7 +7513,7 @@ func (x *DetachDatabaseRequest) String() string {
 func (*DetachDatabaseRequest) ProtoMessage() {}
 
 func (x *DetachDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[103]
+	mi := &file_db_v1_db_service_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7438,7 +7526,7 @@ func (x *DetachDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetachDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*DetachDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{103}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *DetachDatabaseRequest) GetParentDatabase() string {
@@ -7465,7 +7553,7 @@ type DetachDatabaseResponse struct {
 
 func (x *DetachDatabaseResponse) Reset() {
 	*x = DetachDatabaseResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[104]
+	mi := &file_db_v1_db_service_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7477,7 +7565,7 @@ func (x *DetachDatabaseResponse) String() string {
 func (*DetachDatabaseResponse) ProtoMessage() {}
 
 func (x *DetachDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[104]
+	mi := &file_db_v1_db_service_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7490,7 +7578,7 @@ func (x *DetachDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetachDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*DetachDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{104}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *DetachDatabaseResponse) GetSuccess() bool {
@@ -7518,7 +7606,7 @@ type ListExtensionsRequest struct {
 
 func (x *ListExtensionsRequest) Reset() {
 	*x = ListExtensionsRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[105]
+	mi := &file_db_v1_db_service_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7530,7 +7618,7 @@ func (x *ListExtensionsRequest) String() string {
 func (*ListExtensionsRequest) ProtoMessage() {}
 
 func (x *ListExtensionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[105]
+	mi := &file_db_v1_db_service_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7543,7 +7631,7 @@ func (x *ListExtensionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExtensionsRequest.ProtoReflect.Descriptor instead.
 func (*ListExtensionsRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{105}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *ListExtensionsRequest) GetDatabase() string {
@@ -7562,7 +7650,7 @@ type ListExtensionsResponse struct {
 
 func (x *ListExtensionsResponse) Reset() {
 	*x = ListExtensionsResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[106]
+	mi := &file_db_v1_db_service_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7574,7 +7662,7 @@ func (x *ListExtensionsResponse) String() string {
 func (*ListExtensionsResponse) ProtoMessage() {}
 
 func (x *ListExtensionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[106]
+	mi := &file_db_v1_db_service_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7587,7 +7675,7 @@ func (x *ListExtensionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExtensionsResponse.ProtoReflect.Descriptor instead.
 func (*ListExtensionsResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{106}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *ListExtensionsResponse) GetExtensions() []*ExtensionInfo {
@@ -7620,7 +7708,7 @@ type ExtensionInfo struct {
 
 func (x *ExtensionInfo) Reset() {
 	*x = ExtensionInfo{}
-	mi := &file_db_v1_db_service_proto_msgTypes[107]
+	mi := &file_db_v1_db_service_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7632,7 +7720,7 @@ func (x *ExtensionInfo) String() string {
 func (*ExtensionInfo) ProtoMessage() {}
 
 func (x *ExtensionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[107]
+	mi := &file_db_v1_db_service_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7645,7 +7733,7 @@ func (x *ExtensionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtensionInfo.ProtoReflect.Descriptor instead.
 func (*ExtensionInfo) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{107}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *ExtensionInfo) GetName() string {
@@ -7708,7 +7796,7 @@ type LoadExtensionRequest struct {
 
 func (x *LoadExtensionRequest) Reset() {
 	*x = LoadExtensionRequest{}
-	mi := &file_db_v1_db_service_proto_msgTypes[108]
+	mi := &file_db_v1_db_service_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7720,7 +7808,7 @@ func (x *LoadExtensionRequest) String() string {
 func (*LoadExtensionRequest) ProtoMessage() {}
 
 func (x *LoadExtensionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[108]
+	mi := &file_db_v1_db_service_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7733,7 +7821,7 @@ func (x *LoadExtensionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadExtensionRequest.ProtoReflect.Descriptor instead.
 func (*LoadExtensionRequest) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{108}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *LoadExtensionRequest) GetDatabase() string {
@@ -7760,7 +7848,7 @@ type LoadExtensionResponse struct {
 
 func (x *LoadExtensionResponse) Reset() {
 	*x = LoadExtensionResponse{}
-	mi := &file_db_v1_db_service_proto_msgTypes[109]
+	mi := &file_db_v1_db_service_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7772,7 +7860,7 @@ func (x *LoadExtensionResponse) String() string {
 func (*LoadExtensionResponse) ProtoMessage() {}
 
 func (x *LoadExtensionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[109]
+	mi := &file_db_v1_db_service_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7785,7 +7873,7 @@ func (x *LoadExtensionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadExtensionResponse.ProtoReflect.Descriptor instead.
 func (*LoadExtensionResponse) Descriptor() ([]byte, []int) {
-	return file_db_v1_db_service_proto_rawDescGZIP(), []int{109}
+	return file_db_v1_db_service_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *LoadExtensionResponse) GetSuccess() bool {
@@ -7814,7 +7902,7 @@ type ListApiKeysResponse_ApiKeySummary struct {
 
 func (x *ListApiKeysResponse_ApiKeySummary) Reset() {
 	*x = ListApiKeysResponse_ApiKeySummary{}
-	mi := &file_db_v1_db_service_proto_msgTypes[110]
+	mi := &file_db_v1_db_service_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7826,7 +7914,7 @@ func (x *ListApiKeysResponse_ApiKeySummary) String() string {
 func (*ListApiKeysResponse_ApiKeySummary) ProtoMessage() {}
 
 func (x *ListApiKeysResponse_ApiKeySummary) ProtoReflect() protoreflect.Message {
-	mi := &file_db_v1_db_service_proto_msgTypes[110]
+	mi := &file_db_v1_db_service_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8492,7 +8580,14 @@ var file_db_v1_db_service_proto_rawDesc = []byte{
 	0x74, 0x65, 0x5f, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x5f, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x03, 0x20,
 	0x01, 0x28, 0x0e, 0x32, 0x11, 0x2e, 0x64, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x71, 0x6c, 0x69,
 	0x74, 0x65, 0x43, 0x6f, 0x64, 0x65, 0x52, 0x0f, 0x73, 0x71, 0x6c, 0x69, 0x74, 0x65, 0x45, 0x72,
-	0x72, 0x6f, 0x72, 0x43, 0x6f, 0x64, 0x65, 0x22, 0xbe, 0x01, 0x0a, 0x08, 0x53, 0x71, 0x6c, 0x56,
+	0x72, 0x6f, 0x72, 0x43, 0x6f, 0x64, 0x65, 0x22, 0x16, 0x0a, 0x14, 0x47, 0x65, 0x74, 0x53, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22,
+	0x56, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73,
+	0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69,
+	0x6f, 0x6e, 0x12, 0x23, 0x0a, 0x0d, 0x61, 0x75, 0x74, 0x68, 0x5f, 0x64, 0x69, 0x73, 0x61, 0x62,
+	0x6c, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0c, 0x61, 0x75, 0x74, 0x68, 0x44,
+	0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x22, 0xbe, 0x01, 0x0a, 0x08, 0x53, 0x71, 0x6c, 0x56,
 	0x61, 0x6c, 0x75, 0x65, 0x12, 0x25, 0x0a, 0x0d, 0x69, 0x6e, 0x74, 0x65, 0x67, 0x65, 0x72, 0x5f,
 	0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x48, 0x00, 0x52, 0x0c, 0x69,
 	0x6e, 0x74, 0x65, 0x67, 0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x1f, 0x0a, 0x0a, 0x72,
@@ -9188,7 +9283,7 @@ var file_db_v1_db_service_proto_rawDesc = []byte{
 	0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x61, 0x64, 0x45, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f,
 	0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x64, 0x62, 0x2e, 0x76, 0x31,
 	0x2e, 0x4c, 0x6f, 0x61, 0x64, 0x45, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0x86, 0x09, 0x0a, 0x0c, 0x41, 0x64, 0x6d, 0x69, 0x6e,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xd2, 0x09, 0x0a, 0x0c, 0x41, 0x64, 0x6d, 0x69, 0x6e,
 	0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x41, 0x0a, 0x0a, 0x43, 0x72, 0x65, 0x61, 0x74,
 	0x65, 0x55, 0x73, 0x65, 0x72, 0x12, 0x18, 0x2e, 0x64, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72,
 	0x65, 0x61, 0x74, 0x65, 0x55, 0x73, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
@@ -9260,11 +9355,15 @@ var file_db_v1_db_service_proto_rawDesc = []byte{
 	0x73, 0x65, 0x12, 0x1c, 0x2e, 0x64, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74,
 	0x65, 0x44, 0x61, 0x74, 0x61, 0x62, 0x61, 0x73, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x1a, 0x1d, 0x2e, 0x64, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x44,
-	0x61, 0x74, 0x61, 0x62, 0x61, 0x73, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42,
-	0x2a, 0x5a, 0x28, 0x73, 0x71, 0x6c, 0x69, 0x74, 0x65, 0x2d, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73,
-	0x2f, 0x64, 0x62, 0x2f, 0x76, 0x31, 0x3b, 0x64, 0x62, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x61, 0x74, 0x61, 0x62, 0x61, 0x73, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x4a, 0x0a, 0x0d, 0x47, 0x65, 0x74, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f,
+	0x12, 0x1b, 0x2e, 0x64, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e,
+	0x64, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x49,
+	0x6e, 0x66, 0x6f, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x2a, 0x5a, 0x28, 0x73,
+	0x71, 0x6c, 0x69, 0x74, 0x65, 0x2d, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x64, 0x62, 0x2f,
+	0x76, 0x31, 0x3b, 0x64, 0x62, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -9280,7 +9379,7 @@ func file_db_v1_db_service_proto_rawDescGZIP() []byte {
 }
 
 var file_db_v1_db_service_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_db_v1_db_service_proto_msgTypes = make([]protoimpl.MessageInfo, 117)
+var file_db_v1_db_service_proto_msgTypes = make([]protoimpl.MessageInfo, 119)
 var file_db_v1_db_service_proto_goTypes = []any{
 	(SqliteCode)(0),                           // 0: db.v1.SqliteCode
 	(QueryType)(0),                            // 1: db.v1.QueryType
@@ -9359,94 +9458,96 @@ var file_db_v1_db_service_proto_goTypes = []any{
 	(*CommitResponse)(nil),                    // 74: db.v1.CommitResponse
 	(*RollbackResponse)(nil),                  // 75: db.v1.RollbackResponse
 	(*ErrorResponse)(nil),                     // 76: db.v1.ErrorResponse
-	(*SqlValue)(nil),                          // 77: db.v1.SqlValue
-	(*SqlRow)(nil),                            // 78: db.v1.SqlRow
-	(*TypedParameters)(nil),                   // 79: db.v1.TypedParameters
-	(*TypedQueryRequest)(nil),                 // 80: db.v1.TypedQueryRequest
-	(*TypedTransactionQueryRequest)(nil),      // 81: db.v1.TypedTransactionQueryRequest
-	(*TypedTransactionalQueryRequest)(nil),    // 82: db.v1.TypedTransactionalQueryRequest
-	(*TypedSelectResult)(nil),                 // 83: db.v1.TypedSelectResult
-	(*TypedQueryResult)(nil),                  // 84: db.v1.TypedQueryResult
-	(*TypedQueryResultHeader)(nil),            // 85: db.v1.TypedQueryResultHeader
-	(*TypedQueryResultRowBatch)(nil),          // 86: db.v1.TypedQueryResultRowBatch
-	(*TypedQueryResponse)(nil),                // 87: db.v1.TypedQueryResponse
-	(*DatabaseConfig)(nil),                    // 88: db.v1.DatabaseConfig
-	(*Attachment)(nil),                        // 89: db.v1.Attachment
-	(*ExplainResponse)(nil),                   // 90: db.v1.ExplainResponse
-	(*QueryPlanNode)(nil),                     // 91: db.v1.QueryPlanNode
-	(*ListTablesRequest)(nil),                 // 92: db.v1.ListTablesRequest
-	(*ListTablesResponse)(nil),                // 93: db.v1.ListTablesResponse
-	(*GetTableSchemaRequest)(nil),             // 94: db.v1.GetTableSchemaRequest
-	(*GetDatabaseSchemaRequest)(nil),          // 95: db.v1.GetDatabaseSchemaRequest
-	(*TableSchema)(nil),                       // 96: db.v1.TableSchema
-	(*ColumnSchema)(nil),                      // 97: db.v1.ColumnSchema
-	(*IndexSchema)(nil),                       // 98: db.v1.IndexSchema
-	(*ForeignKeySchema)(nil),                  // 99: db.v1.ForeignKeySchema
-	(*TriggerSchema)(nil),                     // 100: db.v1.TriggerSchema
-	(*DatabaseSchema)(nil),                    // 101: db.v1.DatabaseSchema
-	(*UpdateDatabaseConfig)(nil),              // 102: db.v1.UpdateDatabaseConfig
-	(*AttachmentList)(nil),                    // 103: db.v1.AttachmentList
-	(*ExtensionList)(nil),                     // 104: db.v1.ExtensionList
-	(*PragmaMap)(nil),                         // 105: db.v1.PragmaMap
-	(*InitCommandList)(nil),                   // 106: db.v1.InitCommandList
-	(*UpdateDatabaseRequest)(nil),             // 107: db.v1.UpdateDatabaseRequest
-	(*UpdateDatabaseResponse)(nil),            // 108: db.v1.UpdateDatabaseResponse
-	(*AttachDatabaseRequest)(nil),             // 109: db.v1.AttachDatabaseRequest
-	(*AttachDatabaseResponse)(nil),            // 110: db.v1.AttachDatabaseResponse
-	(*DetachDatabaseRequest)(nil),             // 111: db.v1.DetachDatabaseRequest
-	(*DetachDatabaseResponse)(nil),            // 112: db.v1.DetachDatabaseResponse
-	(*ListExtensionsRequest)(nil),             // 113: db.v1.ListExtensionsRequest
-	(*ListExtensionsResponse)(nil),            // 114: db.v1.ListExtensionsResponse
-	(*ExtensionInfo)(nil),                     // 115: db.v1.ExtensionInfo
-	(*LoadExtensionRequest)(nil),              // 116: db.v1.LoadExtensionRequest
-	(*LoadExtensionResponse)(nil),             // 117: db.v1.LoadExtensionResponse
-	(*ListApiKeysResponse_ApiKeySummary)(nil), // 118: db.v1.ListApiKeysResponse.ApiKeySummary
-	nil,                           // 119: db.v1.CreateDatabaseRequest.PragmasEntry
-	nil,                           // 120: db.v1.Parameters.PositionalHintsEntry
-	nil,                           // 121: db.v1.Parameters.NamedHintsEntry
-	nil,                           // 122: db.v1.TypedParameters.NamedEntry
-	nil,                           // 123: db.v1.DatabaseConfig.PragmasEntry
-	nil,                           // 124: db.v1.PragmaMap.ValuesEntry
-	(*timestamppb.Timestamp)(nil), // 125: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),   // 126: google.protobuf.Duration
-	(*structpb.ListValue)(nil),    // 127: google.protobuf.ListValue
-	(*structpb.Struct)(nil),       // 128: google.protobuf.Struct
-	(*emptypb.Empty)(nil),         // 129: google.protobuf.Empty
+	(*GetServerInfoRequest)(nil),              // 77: db.v1.GetServerInfoRequest
+	(*GetServerInfoResponse)(nil),             // 78: db.v1.GetServerInfoResponse
+	(*SqlValue)(nil),                          // 79: db.v1.SqlValue
+	(*SqlRow)(nil),                            // 80: db.v1.SqlRow
+	(*TypedParameters)(nil),                   // 81: db.v1.TypedParameters
+	(*TypedQueryRequest)(nil),                 // 82: db.v1.TypedQueryRequest
+	(*TypedTransactionQueryRequest)(nil),      // 83: db.v1.TypedTransactionQueryRequest
+	(*TypedTransactionalQueryRequest)(nil),    // 84: db.v1.TypedTransactionalQueryRequest
+	(*TypedSelectResult)(nil),                 // 85: db.v1.TypedSelectResult
+	(*TypedQueryResult)(nil),                  // 86: db.v1.TypedQueryResult
+	(*TypedQueryResultHeader)(nil),            // 87: db.v1.TypedQueryResultHeader
+	(*TypedQueryResultRowBatch)(nil),          // 88: db.v1.TypedQueryResultRowBatch
+	(*TypedQueryResponse)(nil),                // 89: db.v1.TypedQueryResponse
+	(*DatabaseConfig)(nil),                    // 90: db.v1.DatabaseConfig
+	(*Attachment)(nil),                        // 91: db.v1.Attachment
+	(*ExplainResponse)(nil),                   // 92: db.v1.ExplainResponse
+	(*QueryPlanNode)(nil),                     // 93: db.v1.QueryPlanNode
+	(*ListTablesRequest)(nil),                 // 94: db.v1.ListTablesRequest
+	(*ListTablesResponse)(nil),                // 95: db.v1.ListTablesResponse
+	(*GetTableSchemaRequest)(nil),             // 96: db.v1.GetTableSchemaRequest
+	(*GetDatabaseSchemaRequest)(nil),          // 97: db.v1.GetDatabaseSchemaRequest
+	(*TableSchema)(nil),                       // 98: db.v1.TableSchema
+	(*ColumnSchema)(nil),                      // 99: db.v1.ColumnSchema
+	(*IndexSchema)(nil),                       // 100: db.v1.IndexSchema
+	(*ForeignKeySchema)(nil),                  // 101: db.v1.ForeignKeySchema
+	(*TriggerSchema)(nil),                     // 102: db.v1.TriggerSchema
+	(*DatabaseSchema)(nil),                    // 103: db.v1.DatabaseSchema
+	(*UpdateDatabaseConfig)(nil),              // 104: db.v1.UpdateDatabaseConfig
+	(*AttachmentList)(nil),                    // 105: db.v1.AttachmentList
+	(*ExtensionList)(nil),                     // 106: db.v1.ExtensionList
+	(*PragmaMap)(nil),                         // 107: db.v1.PragmaMap
+	(*InitCommandList)(nil),                   // 108: db.v1.InitCommandList
+	(*UpdateDatabaseRequest)(nil),             // 109: db.v1.UpdateDatabaseRequest
+	(*UpdateDatabaseResponse)(nil),            // 110: db.v1.UpdateDatabaseResponse
+	(*AttachDatabaseRequest)(nil),             // 111: db.v1.AttachDatabaseRequest
+	(*AttachDatabaseResponse)(nil),            // 112: db.v1.AttachDatabaseResponse
+	(*DetachDatabaseRequest)(nil),             // 113: db.v1.DetachDatabaseRequest
+	(*DetachDatabaseResponse)(nil),            // 114: db.v1.DetachDatabaseResponse
+	(*ListExtensionsRequest)(nil),             // 115: db.v1.ListExtensionsRequest
+	(*ListExtensionsResponse)(nil),            // 116: db.v1.ListExtensionsResponse
+	(*ExtensionInfo)(nil),                     // 117: db.v1.ExtensionInfo
+	(*LoadExtensionRequest)(nil),              // 118: db.v1.LoadExtensionRequest
+	(*LoadExtensionResponse)(nil),             // 119: db.v1.LoadExtensionResponse
+	(*ListApiKeysResponse_ApiKeySummary)(nil), // 120: db.v1.ListApiKeysResponse.ApiKeySummary
+	nil,                           // 121: db.v1.CreateDatabaseRequest.PragmasEntry
+	nil,                           // 122: db.v1.Parameters.PositionalHintsEntry
+	nil,                           // 123: db.v1.Parameters.NamedHintsEntry
+	nil,                           // 124: db.v1.TypedParameters.NamedEntry
+	nil,                           // 125: db.v1.DatabaseConfig.PragmasEntry
+	nil,                           // 126: db.v1.PragmaMap.ValuesEntry
+	(*timestamppb.Timestamp)(nil), // 127: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 128: google.protobuf.Duration
+	(*structpb.ListValue)(nil),    // 129: google.protobuf.ListValue
+	(*structpb.Struct)(nil),       // 130: google.protobuf.Struct
+	(*emptypb.Empty)(nil),         // 131: google.protobuf.Empty
 }
 var file_db_v1_db_service_proto_depIdxs = []int32{
 	5,   // 0: db.v1.CheckpointRequest.mode:type_name -> db.v1.CheckpointMode
 	6,   // 1: db.v1.CreateUserRequest.role:type_name -> db.v1.Role
-	125, // 2: db.v1.CreateUserResponse.created_at:type_name -> google.protobuf.Timestamp
+	127, // 2: db.v1.CreateUserResponse.created_at:type_name -> google.protobuf.Timestamp
 	35,  // 3: db.v1.ListUsersResponse.users:type_name -> db.v1.User
 	6,   // 4: db.v1.UpdateUserRoleRequest.role:type_name -> db.v1.Role
-	125, // 5: db.v1.CreateApiKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
-	118, // 6: db.v1.ListApiKeysResponse.keys:type_name -> db.v1.ListApiKeysResponse.ApiKeySummary
+	127, // 5: db.v1.CreateApiKeyRequest.expires_at:type_name -> google.protobuf.Timestamp
+	120, // 6: db.v1.ListApiKeysResponse.keys:type_name -> db.v1.ListApiKeysResponse.ApiKeySummary
 	30,  // 7: db.v1.ListDatabasesResponse.databases:type_name -> db.v1.DatabaseInfo
-	89,  // 8: db.v1.DatabaseInfo.current_attachments:type_name -> db.v1.Attachment
-	126, // 9: db.v1.LoginRequest.session_duration:type_name -> google.protobuf.Duration
-	125, // 10: db.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	91,  // 8: db.v1.DatabaseInfo.current_attachments:type_name -> db.v1.Attachment
+	128, // 9: db.v1.LoginRequest.session_duration:type_name -> google.protobuf.Duration
+	127, // 10: db.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
 	35,  // 11: db.v1.LoginResponse.user:type_name -> db.v1.User
 	6,   // 12: db.v1.User.role:type_name -> db.v1.Role
-	119, // 13: db.v1.CreateDatabaseRequest.pragmas:type_name -> db.v1.CreateDatabaseRequest.PragmasEntry
+	121, // 13: db.v1.CreateDatabaseRequest.pragmas:type_name -> db.v1.CreateDatabaseRequest.PragmasEntry
 	1,   // 14: db.v1.QueryRequest.type:type_name -> db.v1.QueryType
 	50,  // 15: db.v1.QueryRequest.parameters:type_name -> db.v1.Parameters
-	127, // 16: db.v1.Parameters.positional:type_name -> google.protobuf.ListValue
-	128, // 17: db.v1.Parameters.named:type_name -> google.protobuf.Struct
-	120, // 18: db.v1.Parameters.positional_hints:type_name -> db.v1.Parameters.PositionalHintsEntry
-	121, // 19: db.v1.Parameters.named_hints:type_name -> db.v1.Parameters.NamedHintsEntry
-	126, // 20: db.v1.BeginTransactionRequest.timeout:type_name -> google.protobuf.Duration
+	129, // 16: db.v1.Parameters.positional:type_name -> google.protobuf.ListValue
+	130, // 17: db.v1.Parameters.named:type_name -> google.protobuf.Struct
+	122, // 18: db.v1.Parameters.positional_hints:type_name -> db.v1.Parameters.PositionalHintsEntry
+	123, // 19: db.v1.Parameters.named_hints:type_name -> db.v1.Parameters.NamedHintsEntry
+	128, // 20: db.v1.BeginTransactionRequest.timeout:type_name -> google.protobuf.Duration
 	2,   // 21: db.v1.BeginTransactionRequest.mode:type_name -> db.v1.TransactionMode
-	125, // 22: db.v1.BeginTransactionResponse.expires_at:type_name -> google.protobuf.Timestamp
+	127, // 22: db.v1.BeginTransactionResponse.expires_at:type_name -> google.protobuf.Timestamp
 	50,  // 23: db.v1.TransactionQueryRequest.parameters:type_name -> db.v1.Parameters
 	60,  // 24: db.v1.TransactionSavepointRequest.savepoint:type_name -> db.v1.SavepointRequest
 	58,  // 25: db.v1.TransactionRequest.begin:type_name -> db.v1.BeginRequest
 	59,  // 26: db.v1.TransactionRequest.query:type_name -> db.v1.TransactionalQueryRequest
 	59,  // 27: db.v1.TransactionRequest.query_stream:type_name -> db.v1.TransactionalQueryRequest
-	82,  // 28: db.v1.TransactionRequest.typed_query:type_name -> db.v1.TypedTransactionalQueryRequest
-	82,  // 29: db.v1.TransactionRequest.typed_query_stream:type_name -> db.v1.TypedTransactionalQueryRequest
+	84,  // 28: db.v1.TransactionRequest.typed_query:type_name -> db.v1.TypedTransactionalQueryRequest
+	84,  // 29: db.v1.TransactionRequest.typed_query_stream:type_name -> db.v1.TypedTransactionalQueryRequest
 	60,  // 30: db.v1.TransactionRequest.savepoint:type_name -> db.v1.SavepointRequest
-	129, // 31: db.v1.TransactionRequest.commit:type_name -> google.protobuf.Empty
-	129, // 32: db.v1.TransactionRequest.rollback:type_name -> google.protobuf.Empty
+	131, // 31: db.v1.TransactionRequest.commit:type_name -> google.protobuf.Empty
+	131, // 32: db.v1.TransactionRequest.rollback:type_name -> google.protobuf.Empty
 	2,   // 33: db.v1.BeginRequest.mode:type_name -> db.v1.TransactionMode
 	50,  // 34: db.v1.TransactionalQueryRequest.parameters:type_name -> db.v1.Parameters
 	7,   // 35: db.v1.SavepointRequest.action:type_name -> db.v1.SavepointAction
@@ -9462,8 +9563,8 @@ var file_db_v1_db_service_proto_depIdxs = []int32{
 	73,  // 45: db.v1.TransactionResponse.begin:type_name -> db.v1.BeginResponse
 	62,  // 46: db.v1.TransactionResponse.query_result:type_name -> db.v1.QueryResult
 	63,  // 47: db.v1.TransactionResponse.stream_result:type_name -> db.v1.QueryResponse
-	84,  // 48: db.v1.TransactionResponse.typed_query_result:type_name -> db.v1.TypedQueryResult
-	87,  // 49: db.v1.TransactionResponse.typed_stream_result:type_name -> db.v1.TypedQueryResponse
+	86,  // 48: db.v1.TransactionResponse.typed_query_result:type_name -> db.v1.TypedQueryResult
+	89,  // 49: db.v1.TransactionResponse.typed_stream_result:type_name -> db.v1.TypedQueryResponse
 	65,  // 50: db.v1.TransactionResponse.savepoint:type_name -> db.v1.SavepointResponse
 	74,  // 51: db.v1.TransactionResponse.commit:type_name -> db.v1.CommitResponse
 	75,  // 52: db.v1.TransactionResponse.rollback:type_name -> db.v1.RollbackResponse
@@ -9472,54 +9573,54 @@ var file_db_v1_db_service_proto_depIdxs = []int32{
 	64,  // 55: db.v1.ExecuteTransactionResponse.responses:type_name -> db.v1.TransactionResponse
 	3,   // 56: db.v1.SelectResult.column_affinities:type_name -> db.v1.ColumnAffinity
 	4,   // 57: db.v1.SelectResult.column_declared_types:type_name -> db.v1.DeclaredType
-	127, // 58: db.v1.SelectResult.rows:type_name -> google.protobuf.ListValue
+	129, // 58: db.v1.SelectResult.rows:type_name -> google.protobuf.ListValue
 	3,   // 59: db.v1.QueryResultHeader.column_affinities:type_name -> db.v1.ColumnAffinity
 	4,   // 60: db.v1.QueryResultHeader.column_declared_types:type_name -> db.v1.DeclaredType
-	127, // 61: db.v1.QueryResultRowBatch.rows:type_name -> google.protobuf.ListValue
+	129, // 61: db.v1.QueryResultRowBatch.rows:type_name -> google.protobuf.ListValue
 	72,  // 62: db.v1.QueryComplete.stats:type_name -> db.v1.ExecutionStats
 	0,   // 63: db.v1.ErrorResponse.sqlite_error_code:type_name -> db.v1.SqliteCode
-	77,  // 64: db.v1.SqlRow.values:type_name -> db.v1.SqlValue
-	77,  // 65: db.v1.TypedParameters.positional:type_name -> db.v1.SqlValue
-	122, // 66: db.v1.TypedParameters.named:type_name -> db.v1.TypedParameters.NamedEntry
+	79,  // 64: db.v1.SqlRow.values:type_name -> db.v1.SqlValue
+	79,  // 65: db.v1.TypedParameters.positional:type_name -> db.v1.SqlValue
+	124, // 66: db.v1.TypedParameters.named:type_name -> db.v1.TypedParameters.NamedEntry
 	1,   // 67: db.v1.TypedQueryRequest.type:type_name -> db.v1.QueryType
-	79,  // 68: db.v1.TypedQueryRequest.parameters:type_name -> db.v1.TypedParameters
-	79,  // 69: db.v1.TypedTransactionQueryRequest.parameters:type_name -> db.v1.TypedParameters
-	79,  // 70: db.v1.TypedTransactionalQueryRequest.parameters:type_name -> db.v1.TypedParameters
+	81,  // 68: db.v1.TypedQueryRequest.parameters:type_name -> db.v1.TypedParameters
+	81,  // 69: db.v1.TypedTransactionQueryRequest.parameters:type_name -> db.v1.TypedParameters
+	81,  // 70: db.v1.TypedTransactionalQueryRequest.parameters:type_name -> db.v1.TypedParameters
 	3,   // 71: db.v1.TypedSelectResult.column_affinities:type_name -> db.v1.ColumnAffinity
 	4,   // 72: db.v1.TypedSelectResult.column_declared_types:type_name -> db.v1.DeclaredType
-	78,  // 73: db.v1.TypedSelectResult.rows:type_name -> db.v1.SqlRow
-	83,  // 74: db.v1.TypedQueryResult.select:type_name -> db.v1.TypedSelectResult
+	80,  // 73: db.v1.TypedSelectResult.rows:type_name -> db.v1.SqlRow
+	85,  // 74: db.v1.TypedQueryResult.select:type_name -> db.v1.TypedSelectResult
 	68,  // 75: db.v1.TypedQueryResult.dml:type_name -> db.v1.DMLResult
 	72,  // 76: db.v1.TypedQueryResult.stats:type_name -> db.v1.ExecutionStats
 	3,   // 77: db.v1.TypedQueryResultHeader.column_affinities:type_name -> db.v1.ColumnAffinity
 	4,   // 78: db.v1.TypedQueryResultHeader.column_declared_types:type_name -> db.v1.DeclaredType
-	78,  // 79: db.v1.TypedQueryResultRowBatch.rows:type_name -> db.v1.SqlRow
-	85,  // 80: db.v1.TypedQueryResponse.header:type_name -> db.v1.TypedQueryResultHeader
-	86,  // 81: db.v1.TypedQueryResponse.batch:type_name -> db.v1.TypedQueryResultRowBatch
+	80,  // 79: db.v1.TypedQueryResultRowBatch.rows:type_name -> db.v1.SqlRow
+	87,  // 80: db.v1.TypedQueryResponse.header:type_name -> db.v1.TypedQueryResultHeader
+	88,  // 81: db.v1.TypedQueryResponse.batch:type_name -> db.v1.TypedQueryResultRowBatch
 	71,  // 82: db.v1.TypedQueryResponse.complete:type_name -> db.v1.QueryComplete
 	68,  // 83: db.v1.TypedQueryResponse.dml:type_name -> db.v1.DMLResult
 	76,  // 84: db.v1.TypedQueryResponse.error:type_name -> db.v1.ErrorResponse
-	123, // 85: db.v1.DatabaseConfig.pragmas:type_name -> db.v1.DatabaseConfig.PragmasEntry
-	89,  // 86: db.v1.DatabaseConfig.attachments:type_name -> db.v1.Attachment
-	91,  // 87: db.v1.ExplainResponse.nodes:type_name -> db.v1.QueryPlanNode
-	97,  // 88: db.v1.TableSchema.columns:type_name -> db.v1.ColumnSchema
-	98,  // 89: db.v1.TableSchema.indexes:type_name -> db.v1.IndexSchema
-	99,  // 90: db.v1.TableSchema.foreign_keys:type_name -> db.v1.ForeignKeySchema
-	100, // 91: db.v1.TableSchema.triggers:type_name -> db.v1.TriggerSchema
-	96,  // 92: db.v1.DatabaseSchema.tables:type_name -> db.v1.TableSchema
-	104, // 93: db.v1.UpdateDatabaseConfig.extensions:type_name -> db.v1.ExtensionList
-	105, // 94: db.v1.UpdateDatabaseConfig.pragmas:type_name -> db.v1.PragmaMap
-	106, // 95: db.v1.UpdateDatabaseConfig.init_commands:type_name -> db.v1.InitCommandList
-	103, // 96: db.v1.UpdateDatabaseConfig.attachments:type_name -> db.v1.AttachmentList
-	89,  // 97: db.v1.AttachmentList.values:type_name -> db.v1.Attachment
-	124, // 98: db.v1.PragmaMap.values:type_name -> db.v1.PragmaMap.ValuesEntry
-	102, // 99: db.v1.UpdateDatabaseRequest.config:type_name -> db.v1.UpdateDatabaseConfig
-	89,  // 100: db.v1.AttachDatabaseRequest.attachment:type_name -> db.v1.Attachment
-	115, // 101: db.v1.ListExtensionsResponse.extensions:type_name -> db.v1.ExtensionInfo
-	125, // 102: db.v1.ListApiKeysResponse.ApiKeySummary.created_at:type_name -> google.protobuf.Timestamp
+	125, // 85: db.v1.DatabaseConfig.pragmas:type_name -> db.v1.DatabaseConfig.PragmasEntry
+	91,  // 86: db.v1.DatabaseConfig.attachments:type_name -> db.v1.Attachment
+	93,  // 87: db.v1.ExplainResponse.nodes:type_name -> db.v1.QueryPlanNode
+	99,  // 88: db.v1.TableSchema.columns:type_name -> db.v1.ColumnSchema
+	100, // 89: db.v1.TableSchema.indexes:type_name -> db.v1.IndexSchema
+	101, // 90: db.v1.TableSchema.foreign_keys:type_name -> db.v1.ForeignKeySchema
+	102, // 91: db.v1.TableSchema.triggers:type_name -> db.v1.TriggerSchema
+	98,  // 92: db.v1.DatabaseSchema.tables:type_name -> db.v1.TableSchema
+	106, // 93: db.v1.UpdateDatabaseConfig.extensions:type_name -> db.v1.ExtensionList
+	107, // 94: db.v1.UpdateDatabaseConfig.pragmas:type_name -> db.v1.PragmaMap
+	108, // 95: db.v1.UpdateDatabaseConfig.init_commands:type_name -> db.v1.InitCommandList
+	105, // 96: db.v1.UpdateDatabaseConfig.attachments:type_name -> db.v1.AttachmentList
+	91,  // 97: db.v1.AttachmentList.values:type_name -> db.v1.Attachment
+	126, // 98: db.v1.PragmaMap.values:type_name -> db.v1.PragmaMap.ValuesEntry
+	104, // 99: db.v1.UpdateDatabaseRequest.config:type_name -> db.v1.UpdateDatabaseConfig
+	91,  // 100: db.v1.AttachDatabaseRequest.attachment:type_name -> db.v1.Attachment
+	117, // 101: db.v1.ListExtensionsResponse.extensions:type_name -> db.v1.ExtensionInfo
+	127, // 102: db.v1.ListApiKeysResponse.ApiKeySummary.created_at:type_name -> google.protobuf.Timestamp
 	3,   // 103: db.v1.Parameters.PositionalHintsEntry.value:type_name -> db.v1.ColumnAffinity
 	3,   // 104: db.v1.Parameters.NamedHintsEntry.value:type_name -> db.v1.ColumnAffinity
-	77,  // 105: db.v1.TypedParameters.NamedEntry.value:type_name -> db.v1.SqlValue
+	79,  // 105: db.v1.TypedParameters.NamedEntry.value:type_name -> db.v1.SqlValue
 	49,  // 106: db.v1.DatabaseService.Query:input_type -> db.v1.QueryRequest
 	49,  // 107: db.v1.DatabaseService.QueryStream:input_type -> db.v1.QueryRequest
 	57,  // 108: db.v1.DatabaseService.Transaction:input_type -> db.v1.TransactionRequest
@@ -9530,22 +9631,22 @@ var file_db_v1_db_service_proto_depIdxs = []int32{
 	55,  // 113: db.v1.DatabaseService.CommitTransaction:input_type -> db.v1.TransactionControlRequest
 	55,  // 114: db.v1.DatabaseService.RollbackTransaction:input_type -> db.v1.TransactionControlRequest
 	61,  // 115: db.v1.DatabaseService.ExecuteTransaction:input_type -> db.v1.ExecuteTransactionRequest
-	80,  // 116: db.v1.DatabaseService.TypedQuery:input_type -> db.v1.TypedQueryRequest
-	80,  // 117: db.v1.DatabaseService.TypedQueryStream:input_type -> db.v1.TypedQueryRequest
-	81,  // 118: db.v1.DatabaseService.TypedTransactionQuery:input_type -> db.v1.TypedTransactionQueryRequest
-	81,  // 119: db.v1.DatabaseService.TypedTransactionQueryStream:input_type -> db.v1.TypedTransactionQueryRequest
+	82,  // 116: db.v1.DatabaseService.TypedQuery:input_type -> db.v1.TypedQueryRequest
+	82,  // 117: db.v1.DatabaseService.TypedQueryStream:input_type -> db.v1.TypedQueryRequest
+	83,  // 118: db.v1.DatabaseService.TypedTransactionQuery:input_type -> db.v1.TypedTransactionQueryRequest
+	83,  // 119: db.v1.DatabaseService.TypedTransactionQueryStream:input_type -> db.v1.TypedTransactionQueryRequest
 	49,  // 120: db.v1.DatabaseService.Explain:input_type -> db.v1.QueryRequest
-	80,  // 121: db.v1.DatabaseService.TypedExplain:input_type -> db.v1.TypedQueryRequest
-	92,  // 122: db.v1.DatabaseService.ListTables:input_type -> db.v1.ListTablesRequest
-	94,  // 123: db.v1.DatabaseService.GetTableSchema:input_type -> db.v1.GetTableSchemaRequest
-	95,  // 124: db.v1.DatabaseService.GetDatabaseSchema:input_type -> db.v1.GetDatabaseSchemaRequest
+	82,  // 121: db.v1.DatabaseService.TypedExplain:input_type -> db.v1.TypedQueryRequest
+	94,  // 122: db.v1.DatabaseService.ListTables:input_type -> db.v1.ListTablesRequest
+	96,  // 123: db.v1.DatabaseService.GetTableSchema:input_type -> db.v1.GetTableSchemaRequest
+	97,  // 124: db.v1.DatabaseService.GetDatabaseSchema:input_type -> db.v1.GetDatabaseSchemaRequest
 	8,   // 125: db.v1.DatabaseService.Vacuum:input_type -> db.v1.VacuumRequest
 	10,  // 126: db.v1.DatabaseService.Checkpoint:input_type -> db.v1.CheckpointRequest
 	12,  // 127: db.v1.DatabaseService.IntegrityCheck:input_type -> db.v1.IntegrityCheckRequest
-	109, // 128: db.v1.DatabaseService.AttachDatabase:input_type -> db.v1.AttachDatabaseRequest
-	111, // 129: db.v1.DatabaseService.DetachDatabase:input_type -> db.v1.DetachDatabaseRequest
-	113, // 130: db.v1.DatabaseService.ListExtensions:input_type -> db.v1.ListExtensionsRequest
-	116, // 131: db.v1.DatabaseService.LoadExtension:input_type -> db.v1.LoadExtensionRequest
+	111, // 128: db.v1.DatabaseService.AttachDatabase:input_type -> db.v1.AttachDatabaseRequest
+	113, // 129: db.v1.DatabaseService.DetachDatabase:input_type -> db.v1.DetachDatabaseRequest
+	115, // 130: db.v1.DatabaseService.ListExtensions:input_type -> db.v1.ListExtensionsRequest
+	118, // 131: db.v1.DatabaseService.LoadExtension:input_type -> db.v1.LoadExtensionRequest
 	14,  // 132: db.v1.AdminService.CreateUser:input_type -> db.v1.CreateUserRequest
 	16,  // 133: db.v1.AdminService.DeleteUser:input_type -> db.v1.DeleteUserRequest
 	18,  // 134: db.v1.AdminService.UpdatePassword:input_type -> db.v1.UpdatePasswordRequest
@@ -9558,54 +9659,56 @@ var file_db_v1_db_service_proto_depIdxs = []int32{
 	33,  // 141: db.v1.AdminService.Logout:input_type -> db.v1.LogoutRequest
 	36,  // 142: db.v1.AdminService.RevokeApiKey:input_type -> db.v1.RevokeApiKeyRequest
 	42,  // 143: db.v1.AdminService.CreateDatabase:input_type -> db.v1.CreateDatabaseRequest
-	88,  // 144: db.v1.AdminService.MountDatabase:input_type -> db.v1.DatabaseConfig
+	90,  // 144: db.v1.AdminService.MountDatabase:input_type -> db.v1.DatabaseConfig
 	45,  // 145: db.v1.AdminService.UnMountDatabase:input_type -> db.v1.UnMountDatabaseRequest
 	47,  // 146: db.v1.AdminService.DeleteDatabase:input_type -> db.v1.DeleteDatabaseRequest
-	107, // 147: db.v1.AdminService.UpdateDatabase:input_type -> db.v1.UpdateDatabaseRequest
-	62,  // 148: db.v1.DatabaseService.Query:output_type -> db.v1.QueryResult
-	63,  // 149: db.v1.DatabaseService.QueryStream:output_type -> db.v1.QueryResponse
-	64,  // 150: db.v1.DatabaseService.Transaction:output_type -> db.v1.TransactionResponse
-	52,  // 151: db.v1.DatabaseService.BeginTransaction:output_type -> db.v1.BeginTransactionResponse
-	62,  // 152: db.v1.DatabaseService.TransactionQuery:output_type -> db.v1.QueryResult
-	63,  // 153: db.v1.DatabaseService.TransactionQueryStream:output_type -> db.v1.QueryResponse
-	65,  // 154: db.v1.DatabaseService.TransactionSavepoint:output_type -> db.v1.SavepointResponse
-	56,  // 155: db.v1.DatabaseService.CommitTransaction:output_type -> db.v1.TransactionControlResponse
-	56,  // 156: db.v1.DatabaseService.RollbackTransaction:output_type -> db.v1.TransactionControlResponse
-	66,  // 157: db.v1.DatabaseService.ExecuteTransaction:output_type -> db.v1.ExecuteTransactionResponse
-	84,  // 158: db.v1.DatabaseService.TypedQuery:output_type -> db.v1.TypedQueryResult
-	87,  // 159: db.v1.DatabaseService.TypedQueryStream:output_type -> db.v1.TypedQueryResponse
-	84,  // 160: db.v1.DatabaseService.TypedTransactionQuery:output_type -> db.v1.TypedQueryResult
-	87,  // 161: db.v1.DatabaseService.TypedTransactionQueryStream:output_type -> db.v1.TypedQueryResponse
-	90,  // 162: db.v1.DatabaseService.Explain:output_type -> db.v1.ExplainResponse
-	90,  // 163: db.v1.DatabaseService.TypedExplain:output_type -> db.v1.ExplainResponse
-	93,  // 164: db.v1.DatabaseService.ListTables:output_type -> db.v1.ListTablesResponse
-	96,  // 165: db.v1.DatabaseService.GetTableSchema:output_type -> db.v1.TableSchema
-	101, // 166: db.v1.DatabaseService.GetDatabaseSchema:output_type -> db.v1.DatabaseSchema
-	9,   // 167: db.v1.DatabaseService.Vacuum:output_type -> db.v1.VacuumResponse
-	11,  // 168: db.v1.DatabaseService.Checkpoint:output_type -> db.v1.CheckpointResponse
-	13,  // 169: db.v1.DatabaseService.IntegrityCheck:output_type -> db.v1.IntegrityCheckResponse
-	110, // 170: db.v1.DatabaseService.AttachDatabase:output_type -> db.v1.AttachDatabaseResponse
-	112, // 171: db.v1.DatabaseService.DetachDatabase:output_type -> db.v1.DetachDatabaseResponse
-	114, // 172: db.v1.DatabaseService.ListExtensions:output_type -> db.v1.ListExtensionsResponse
-	117, // 173: db.v1.DatabaseService.LoadExtension:output_type -> db.v1.LoadExtensionResponse
-	15,  // 174: db.v1.AdminService.CreateUser:output_type -> db.v1.CreateUserResponse
-	17,  // 175: db.v1.AdminService.DeleteUser:output_type -> db.v1.DeleteUserResponse
-	19,  // 176: db.v1.AdminService.UpdatePassword:output_type -> db.v1.UpdatePasswordResponse
-	25,  // 177: db.v1.AdminService.CreateApiKey:output_type -> db.v1.CreateApiKeyResponse
-	27,  // 178: db.v1.AdminService.ListApiKeys:output_type -> db.v1.ListApiKeysResponse
-	21,  // 179: db.v1.AdminService.ListUsers:output_type -> db.v1.ListUsersResponse
-	23,  // 180: db.v1.AdminService.UpdateUserRole:output_type -> db.v1.UpdateUserRoleResponse
-	29,  // 181: db.v1.AdminService.ListDatabases:output_type -> db.v1.ListDatabasesResponse
-	32,  // 182: db.v1.AdminService.Login:output_type -> db.v1.LoginResponse
-	34,  // 183: db.v1.AdminService.Logout:output_type -> db.v1.LogoutResponse
-	37,  // 184: db.v1.AdminService.RevokeApiKey:output_type -> db.v1.RevokeApiKeyResponse
-	43,  // 185: db.v1.AdminService.CreateDatabase:output_type -> db.v1.CreateDatabaseResponse
-	44,  // 186: db.v1.AdminService.MountDatabase:output_type -> db.v1.MountDatabaseResponse
-	46,  // 187: db.v1.AdminService.UnMountDatabase:output_type -> db.v1.UnMountDatabaseResponse
-	48,  // 188: db.v1.AdminService.DeleteDatabase:output_type -> db.v1.DeleteDatabaseResponse
-	108, // 189: db.v1.AdminService.UpdateDatabase:output_type -> db.v1.UpdateDatabaseResponse
-	148, // [148:190] is the sub-list for method output_type
-	106, // [106:148] is the sub-list for method input_type
+	109, // 147: db.v1.AdminService.UpdateDatabase:input_type -> db.v1.UpdateDatabaseRequest
+	77,  // 148: db.v1.AdminService.GetServerInfo:input_type -> db.v1.GetServerInfoRequest
+	62,  // 149: db.v1.DatabaseService.Query:output_type -> db.v1.QueryResult
+	63,  // 150: db.v1.DatabaseService.QueryStream:output_type -> db.v1.QueryResponse
+	64,  // 151: db.v1.DatabaseService.Transaction:output_type -> db.v1.TransactionResponse
+	52,  // 152: db.v1.DatabaseService.BeginTransaction:output_type -> db.v1.BeginTransactionResponse
+	62,  // 153: db.v1.DatabaseService.TransactionQuery:output_type -> db.v1.QueryResult
+	63,  // 154: db.v1.DatabaseService.TransactionQueryStream:output_type -> db.v1.QueryResponse
+	65,  // 155: db.v1.DatabaseService.TransactionSavepoint:output_type -> db.v1.SavepointResponse
+	56,  // 156: db.v1.DatabaseService.CommitTransaction:output_type -> db.v1.TransactionControlResponse
+	56,  // 157: db.v1.DatabaseService.RollbackTransaction:output_type -> db.v1.TransactionControlResponse
+	66,  // 158: db.v1.DatabaseService.ExecuteTransaction:output_type -> db.v1.ExecuteTransactionResponse
+	86,  // 159: db.v1.DatabaseService.TypedQuery:output_type -> db.v1.TypedQueryResult
+	89,  // 160: db.v1.DatabaseService.TypedQueryStream:output_type -> db.v1.TypedQueryResponse
+	86,  // 161: db.v1.DatabaseService.TypedTransactionQuery:output_type -> db.v1.TypedQueryResult
+	89,  // 162: db.v1.DatabaseService.TypedTransactionQueryStream:output_type -> db.v1.TypedQueryResponse
+	92,  // 163: db.v1.DatabaseService.Explain:output_type -> db.v1.ExplainResponse
+	92,  // 164: db.v1.DatabaseService.TypedExplain:output_type -> db.v1.ExplainResponse
+	95,  // 165: db.v1.DatabaseService.ListTables:output_type -> db.v1.ListTablesResponse
+	98,  // 166: db.v1.DatabaseService.GetTableSchema:output_type -> db.v1.TableSchema
+	103, // 167: db.v1.DatabaseService.GetDatabaseSchema:output_type -> db.v1.DatabaseSchema
+	9,   // 168: db.v1.DatabaseService.Vacuum:output_type -> db.v1.VacuumResponse
+	11,  // 169: db.v1.DatabaseService.Checkpoint:output_type -> db.v1.CheckpointResponse
+	13,  // 170: db.v1.DatabaseService.IntegrityCheck:output_type -> db.v1.IntegrityCheckResponse
+	112, // 171: db.v1.DatabaseService.AttachDatabase:output_type -> db.v1.AttachDatabaseResponse
+	114, // 172: db.v1.DatabaseService.DetachDatabase:output_type -> db.v1.DetachDatabaseResponse
+	116, // 173: db.v1.DatabaseService.ListExtensions:output_type -> db.v1.ListExtensionsResponse
+	119, // 174: db.v1.DatabaseService.LoadExtension:output_type -> db.v1.LoadExtensionResponse
+	15,  // 175: db.v1.AdminService.CreateUser:output_type -> db.v1.CreateUserResponse
+	17,  // 176: db.v1.AdminService.DeleteUser:output_type -> db.v1.DeleteUserResponse
+	19,  // 177: db.v1.AdminService.UpdatePassword:output_type -> db.v1.UpdatePasswordResponse
+	25,  // 178: db.v1.AdminService.CreateApiKey:output_type -> db.v1.CreateApiKeyResponse
+	27,  // 179: db.v1.AdminService.ListApiKeys:output_type -> db.v1.ListApiKeysResponse
+	21,  // 180: db.v1.AdminService.ListUsers:output_type -> db.v1.ListUsersResponse
+	23,  // 181: db.v1.AdminService.UpdateUserRole:output_type -> db.v1.UpdateUserRoleResponse
+	29,  // 182: db.v1.AdminService.ListDatabases:output_type -> db.v1.ListDatabasesResponse
+	32,  // 183: db.v1.AdminService.Login:output_type -> db.v1.LoginResponse
+	34,  // 184: db.v1.AdminService.Logout:output_type -> db.v1.LogoutResponse
+	37,  // 185: db.v1.AdminService.RevokeApiKey:output_type -> db.v1.RevokeApiKeyResponse
+	43,  // 186: db.v1.AdminService.CreateDatabase:output_type -> db.v1.CreateDatabaseResponse
+	44,  // 187: db.v1.AdminService.MountDatabase:output_type -> db.v1.MountDatabaseResponse
+	46,  // 188: db.v1.AdminService.UnMountDatabase:output_type -> db.v1.UnMountDatabaseResponse
+	48,  // 189: db.v1.AdminService.DeleteDatabase:output_type -> db.v1.DeleteDatabaseResponse
+	110, // 190: db.v1.AdminService.UpdateDatabase:output_type -> db.v1.UpdateDatabaseResponse
+	78,  // 191: db.v1.AdminService.GetServerInfo:output_type -> db.v1.GetServerInfoResponse
+	149, // [149:192] is the sub-list for method output_type
+	106, // [106:149] is the sub-list for method input_type
 	106, // [106:106] is the sub-list for extension type_name
 	106, // [106:106] is the sub-list for extension extendee
 	0,   // [0:106] is the sub-list for field type_name
@@ -9654,33 +9757,33 @@ func file_db_v1_db_service_proto_init() {
 		(*TransactionResponse_Rollback)(nil),
 		(*TransactionResponse_Error)(nil),
 	}
-	file_db_v1_db_service_proto_msgTypes[69].OneofWrappers = []any{
+	file_db_v1_db_service_proto_msgTypes[71].OneofWrappers = []any{
 		(*SqlValue_IntegerValue)(nil),
 		(*SqlValue_RealValue)(nil),
 		(*SqlValue_TextValue)(nil),
 		(*SqlValue_BlobValue)(nil),
 		(*SqlValue_NullValue)(nil),
 	}
-	file_db_v1_db_service_proto_msgTypes[76].OneofWrappers = []any{
+	file_db_v1_db_service_proto_msgTypes[78].OneofWrappers = []any{
 		(*TypedQueryResult_Select)(nil),
 		(*TypedQueryResult_Dml)(nil),
 	}
-	file_db_v1_db_service_proto_msgTypes[79].OneofWrappers = []any{
+	file_db_v1_db_service_proto_msgTypes[81].OneofWrappers = []any{
 		(*TypedQueryResponse_Header)(nil),
 		(*TypedQueryResponse_Batch)(nil),
 		(*TypedQueryResponse_Complete)(nil),
 		(*TypedQueryResponse_Dml)(nil),
 		(*TypedQueryResponse_Error)(nil),
 	}
-	file_db_v1_db_service_proto_msgTypes[94].OneofWrappers = []any{}
-	file_db_v1_db_service_proto_msgTypes[105].OneofWrappers = []any{}
+	file_db_v1_db_service_proto_msgTypes[96].OneofWrappers = []any{}
+	file_db_v1_db_service_proto_msgTypes[107].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_db_v1_db_service_proto_rawDesc,
 			NumEnums:      8,
-			NumMessages:   117,
+			NumMessages:   119,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

@@ -17,9 +17,19 @@
 </header>
 
 <script>
-  import { performLogout, isAdmin, getUsername } from "../lib/client";
+  import {
+    performLogout,
+    isAdmin,
+    getUsername,
+    isAuthDisabled,
+  } from "../lib/client";
 
   const logoutBtn = document.getElementById("logout-btn");
+
+  if (isAuthDisabled()) {
+    if (logoutBtn) logoutBtn.style.display = "none";
+  }
+
   logoutBtn?.addEventListener("click", async () => {
     if (confirm("Are you sure you want to logout?")) {
       await performLogout();
@@ -28,13 +38,18 @@
 
   // Role-based UI adjustments
   const usersLink = document.querySelector('.nav-link[href="/studio/users"]');
-  if (usersLink && !isAdmin()) {
-    const username = getUsername();
-    usersLink.textContent = "Manage User";
-    const href = username
-      ? `/studio/manage-user?username=${username}`
-      : "/studio/manage-user";
-    usersLink.setAttribute("href", href);
+
+  if (usersLink) {
+    if (isAuthDisabled()) {
+      (usersLink as HTMLElement).style.display = "none";
+    } else if (!isAdmin()) {
+      const username = getUsername();
+      usersLink.textContent = "Manage User";
+      const href = username
+        ? `/studio/manage-user?username=${username}`
+        : "/studio/manage-user";
+      usersLink.setAttribute("href", href);
+    }
   }
 </script>
 

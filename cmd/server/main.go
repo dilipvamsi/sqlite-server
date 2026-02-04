@@ -2,241 +2,132 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
-	"connectrpc.com/connect"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
-	"sqlite-server/internal/auth"
-	"sqlite-server/internal/docs"
-	"sqlite-server/internal/landing"
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
-	servicesv1 "sqlite-server/internal/services/v1"
-	"sqlite-server/internal/sqldrivers"
-	"sqlite-server/internal/studio"
-
-	"google.golang.org/protobuf/encoding/protojson"
+	"sqlite-server/internal/server"
 )
 
-// ===================================================================================
-// Main Application Entry Point
-// ===================================================================================
-
 func main() {
-	// 1. Argument Parsing & Configuration
-	var configFile string
-	switch len(os.Args) {
-	case 1:
-		configFile = "config.json"
-		log.Printf("No configuration file specified, using default: %s", configFile)
-	case 2:
-		configFile = os.Args[1]
-		log.Printf("Using configuration file: %s", configFile)
-	default:
-		fmt.Fprintf(os.Stderr, "Error: Too many arguments.\nUsage: %s [config_file]\n", os.Args[0])
-		os.Exit(1)
+	// 1. Initial configuration and flag parsing
+	cfg := parseFlags()
+
+	if cfg.ShowVersion {
+		fmt.Printf("sqlite-server version %s\n", server.Version)
+		os.Exit(0)
 	}
 
-	configs, err := sqldrivers.LoadJsonDBConfigs(configFile)
-	if err != nil {
-		log.Fatalf("Fatal: could not load configurations from '%s': %v", configFile, err)
-	}
+	// 2. Initialize the Server
+	srv := server.New(cfg)
 
-	// 2. Service Initialization
-	extDir := os.Getenv("SQLITE_SERVER_EXTENSIONS")
-	if extDir == "" {
-		extDir = "./extensions"
-	}
-	log.Printf("[EXT] Extensions path: %s", extDir)
-
-	// Check if auth is enabled (default: true)
-	authEnabled := os.Getenv("SQLITE_SERVER_AUTH_ENABLED") != "false"
-
-	var interceptors connect.HandlerOption
-	var authStore *auth.MetaStore
-	var authInterceptor *servicesv1.AuthInterceptor
-
-	activeConfigs := configs
-
-	if authEnabled {
-		// Initialize Auth MetaStore
-		var err error
-		authStore, err = auth.NewMetaStore("_meta.db")
-		if err != nil {
-			log.Fatalf("Fatal: could not initialize auth store: %v", err)
-		}
-		defer authStore.Close()
-
-		// --- CONFIG SYNC & VALIDATION ---
-		// 1. Strict Validation of config.json
-		// These definitions MUST be valid. If they fail, we panic.
-		syncedNames := make(map[string]bool)
-		for _, cfg := range configs {
-			// Validate connectivity
-			db, err := sqldrivers.NewSqliteDb(cfg, false)
-			if err != nil {
-				log.Fatalf("Fatal: config.json database '%s' failed to open: %v", cfg.Name, err)
-			}
-			if err := db.Ping(); err != nil {
-				db.Close()
-				log.Fatalf("Fatal: config.json database '%s' failed to connect: %v", cfg.Name, err)
-			}
-			db.Close() // Close check connection
-
-			// Sync to MetaStore (as mounted/unmanaged)
-			settingsBytes, _ := protojson.Marshal(cfg)
-			err = authStore.UpsertDatabaseConfig(context.Background(), cfg.Name, cfg.DbPath, false, string(settingsBytes))
-			if err != nil {
-				log.Printf("Warning: failed to sync config '%s' to metadata: %v", cfg.Name, err)
-			}
-			syncedNames[cfg.Name] = true
-		}
-
-		// 2. Load Persisted dynamic configs
-		storedConfigs, err := authStore.ListDatabaseConfigs(context.Background())
-		if err != nil {
-			log.Printf("Warning: failed to list stored configs: %v", err)
-		} else {
-			for _, sc := range storedConfigs {
-				if syncedNames[sc.Name] {
-					continue // Already loaded from strict config
-				}
-
-				var cfg dbv1.DatabaseConfig
-				if err := protojson.Unmarshal([]byte(sc.Settings), &cfg); err != nil {
-					log.Printf("Warning: checking stored db '%s': invalid settings json", sc.Name)
-					continue
-				}
-				// Ensure vital fields match storage
-				cfg.Name = sc.Name
-				cfg.DbPath = sc.Path
-
-				activeConfigs = append(activeConfigs, &cfg)
-			}
-		}
-
-		// Create Default Admin (if needed)
-		if _, err := authStore.EnsureDefaultAdmin(); err != nil {
-			log.Printf("Warning: failed to ensure default admin: %v", err)
-		}
-
-		// Chain Logging and Auth interceptors
-		authInterceptor = servicesv1.NewAuthInterceptor(authStore)
-		interceptors = connect.WithInterceptors(
-			servicesv1.LoggingInterceptor(),
-			authInterceptor,
-		)
-		log.Println("[AUTH] Authentication ENABLED")
-	} else {
-		// No auth, just logging AND inject Admin Context for bypassing checks
-		interceptors = connect.WithInterceptors(
-			servicesv1.LoggingInterceptor(),
-			servicesv1.NewNoAuthInterceptor(),
-		)
-		log.Println("[AUTH] Authentication DISABLED (SQLITE_SERVER_AUTH_ENABLED=false) - Running in Anonymous Admin Mode")
-	}
-
-	// NewDbServer starts the background 'Reaper' goroutine.
-	// It will skip any dynamic configs that fail to open (graceful degradation).
-	dbServer := servicesv1.NewDbServer(activeConfigs, authStore)
-
-	// 3. HTTP Server Setup
-	corsOrigin := os.Getenv("SQLITE_SERVER_CORS_ORIGIN")
-	if corsOrigin != "" {
-		log.Printf("[CORS] Enabled for origin: %s", corsOrigin)
-	}
-
-	path, handler := dbv1connect.NewDatabaseServiceHandler(dbServer, interceptors)
-	mux := http.NewServeMux()
-	mux.Handle(path, handler)
-
-	// Register AdminService (only if auth is enabled)
-	if authEnabled && authStore != nil {
-		adminServer := servicesv1.NewAdminServer(authStore, dbServer, authInterceptor)
-		adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
-		mux.Handle(adminPath, adminHandler)
-	}
-
-	// 3a. Studio UI
-	mux.Handle("/studio/", studio.NewHandler("/studio/"))
-
-	// 3b. API Documentation
-	mux.Handle("/docs/", docs.Handler())
-
-	// 3c. Landing Page (root)
-	serverPort := 50051 // Default port
-	mux.HandleFunc("/", landing.Handler(serverPort))
-
-	srv := &http.Server{
-		Addr: ":50051",
-		// h2c is required for gRPC over cleartext (no TLS).
-		Handler: h2c.NewHandler(newCORSHandler(mux, corsOrigin), &http2.Server{}),
-		// Good practice: Set timeouts to prevent slowloris attacks
-		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
-
-	// 4. Start Server in a Goroutine
-	// This allows the main thread to block waiting for a shutdown signal.
+	// 3. Start the Server in a background goroutine
 	go func() {
-		log.Printf("Starting gRPC/HTTP server on localhost:%d...", serverPort)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Fatal: listen failed: %v", err)
+		if err := srv.Start(); err != nil {
+			log.Fatalf("Fatal: server failed: %v", err)
 		}
 	}()
 
-	// 5. Graceful Shutdown Logic
-	// Create a channel to listen for interrupt signals (Ctrl+C, SIGTERM).
+	// 4. Handle Graceful Shutdown
+	handleGracefulShutdown(srv, cfg.ShutdownTimeout)
+}
+
+// parseFlags initializes the FlagSet and parses CLI arguments/environment variables.
+func parseFlags() *server.Config {
+	cfg := &server.Config{}
+	fs := flag.NewFlagSet("sqlite-server", flag.ExitOnError)
+
+	// Define flags with both environment variable fallbacks and default values
+	fs.StringVar(&cfg.Mounts, "mounts", getEnv("SQLITE_SERVER_MOUNTS", ""), "Path to the JSON database mount configurations file")
+	fs.IntVar(&cfg.Port, "port", getEnvInt("SQLITE_SERVER_PORT", 50051), "Port to listen on")
+	fs.StringVar(&cfg.Host, "host", getEnv("SQLITE_SERVER_HOST", "localhost"), "Host to bind to")
+	fs.StringVar(&cfg.ExtDir, "extensions", getEnv("SQLITE_SERVER_EXTENSIONS", "./extensions"), "Path to the extensions directory")
+	fs.BoolVar(&cfg.AuthDisabled, "auth-disabled", getEnvBool("SQLITE_SERVER_AUTH_ENABLED", true) == false, "Disable authentication")
+	fs.StringVar(&cfg.CorsOrigin, "cors-origin", getEnv("SQLITE_SERVER_CORS_ORIGIN", ""), "Allowed CORS origin")
+	fs.StringVar(&cfg.MetaDB, "meta-db", getEnv("SQLITE_SERVER_META_DB", "_meta.db"), "Path to the metadata database")
+	fs.StringVar(&cfg.DbDir, "db-dir", getEnv("SQLITE_SERVER_DB_DIR", "./databases"), "Base directory for all database files")
+	fs.BoolVar(&cfg.MountsOverwrite, "mounts-overwrite", false, "Overwrite existing database configurations in metadata with mounts file")
+	fs.StringVar(&cfg.InitialAdmin, "initial-admin", getEnv("SQLITE_SERVER_INITIAL_ADMIN", "admin"), "Username for the initial admin user")
+	fs.StringVar(&cfg.InitialPassword, "initial-password", getEnv("SQLITE_SERVER_INITIAL_PASSWORD", ""), "Password for the initial admin user (if not set, random will be generated)")
+	fs.IntVar(&cfg.IdleTimeout, "idle-timeout", getEnvInt("SQLITE_SERVER_IDLE_TIMEOUT", 120), "Idle connection timeout in seconds")
+	fs.IntVar(&cfg.ShutdownTimeout, "shutdown-timeout", getEnvInt("SQLITE_SERVER_SHUTDOWN_TIMEOUT", 10), "Graceful shutdown timeout in seconds")
+	fs.BoolVar(&cfg.ShowVersion, "version", false, "Print server version and exit")
+
+	// Custom Usage to support --flag style and clean documentation
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\nFlags:\n", os.Args[0])
+		fs.VisitAll(func(f *flag.Flag) {
+			s := fmt.Sprintf("  --%s", f.Name)
+			name, usage := flag.UnquoteUsage(f)
+			if len(name) > 0 {
+				s += " " + name
+			}
+			fmt.Fprintf(os.Stderr, "%-20s\n    \t%s", s, usage)
+			if f.DefValue != "" {
+				fmt.Fprintf(os.Stderr, " (default %v)", f.DefValue)
+			}
+			fmt.Fprint(os.Stderr, "\n")
+		})
+	}
+
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		log.Fatalf("Fatal: failed to parse flags: %v", err)
+	}
+	return cfg
+}
+
+// handleGracefulShutdown waits for termination signals and shuts down the server cleanly.
+func handleGracefulShutdown(srv *server.Server, timeout int) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-	// Block here until a signal is received.
 	<-quit
 	log.Println("Shutting down server...")
 
-	// Create a context with a timeout to allow active requests to finish.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Create a context with timeout for the graceful shutdown period
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	// A. Stop accepting new HTTP requests and wait for active ones to complete.
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("HTTP server forced to shutdown: %v", err)
+	if err := srv.Stop(ctx); err != nil {
+		log.Printf("Shutdown error: %v", err)
 	}
-
-	// B. Stop the DbServer background processes (Transaction Reaper).
-	// This ensures the background goroutine exits cleanly.
-	dbServer.Stop()
-
-	log.Println("Server exited properly.")
 }
 
-// newCORSHandler wraps the mux with CORS middleware if an origin is specified.
-func newCORSHandler(h http.Handler, allowedOrigin string) http.Handler {
-	if allowedOrigin == "" {
-		return h
+// getEnv retrieves an environment variable or returns a fallback string.
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
 	}
+	return fallback
+}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, CONNECT")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Connect-Protocol-Version, Authorization")
-		w.Header().Set("Access-Control-Max-Age", "7200") // 2 hours
+// getEnvInt retrieves an environment variable as an integer or returns a fallback.
+func getEnvInt(key string, fallback int) int {
+	valueStr, ok := os.LookupEnv(key)
+	if !ok {
+		return fallback
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
 
-		// Handle preflight requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		h.ServeHTTP(w, r)
-	})
+// getEnvBool retrieves an environment variable as a boolean or returns a fallback.
+func getEnvBool(key string, fallback bool) bool {
+	valueStr, ok := os.LookupEnv(key)
+	if !ok {
+		return fallback
+	}
+	value, err := strconv.ParseBool(valueStr)
+	if err != nil {
+		return fallback
+	}
+	return value
 }

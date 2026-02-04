@@ -22,22 +22,30 @@ import (
 // AdminServer implements the AdminService gRPC handler
 type AdminServer struct {
 	dbv1connect.UnimplementedAdminServiceHandler
-	store    *auth.MetaStore
-	dbServer *DbServer
-	cache    AuthCacheInvalidator
+	store        *auth.MetaStore
+	dbServer     *DbServer
+	cache        AuthCacheInvalidator
+	authDisabled bool
+	version      string
 }
 
 // NewAdminServer creates a new AdminServer instance
-func NewAdminServer(store *auth.MetaStore, dbServer *DbServer, cache AuthCacheInvalidator) *AdminServer {
+func NewAdminServer(store *auth.MetaStore, dbServer *DbServer, cache AuthCacheInvalidator, authDisabled bool, version string) *AdminServer {
 	return &AdminServer{
-		store:    store,
-		dbServer: dbServer,
-		cache:    cache,
+		store:        store,
+		dbServer:     dbServer,
+		cache:        cache,
+		authDisabled: authDisabled,
+		version:      version,
 	}
 }
 
 // CreateUser creates a new user account
 func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.CreateUserRequest]) (*connect.Response[dbv1.CreateUserResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
+	}
+
 	// Verify admin role
 	if err := AuthorizeAdmin(ctx); err != nil {
 		return nil, err
@@ -62,6 +70,10 @@ func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.
 
 // ListUsers returns all users
 func (s *AdminServer) ListUsers(ctx context.Context, req *connect.Request[dbv1.ListUsersRequest]) (*connect.Response[dbv1.ListUsersResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
+	}
+
 	// Verify admin role
 	if err := AuthorizeAdmin(ctx); err != nil {
 		return nil, err
@@ -88,6 +100,10 @@ func (s *AdminServer) ListUsers(ctx context.Context, req *connect.Request[dbv1.L
 
 // UpdateUserRole updates a user's role
 func (s *AdminServer) UpdateUserRole(ctx context.Context, req *connect.Request[dbv1.UpdateUserRoleRequest]) (*connect.Response[dbv1.UpdateUserRoleResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
+	}
+
 	// Verify admin role
 	if err := AuthorizeAdmin(ctx); err != nil {
 		return nil, err
@@ -111,8 +127,10 @@ func (s *AdminServer) UpdateUserRole(ctx context.Context, req *connect.Request[d
 	}), nil
 }
 
-// UpdatePassword updates a user's password
 func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[dbv1.UpdatePasswordRequest]) (*connect.Response[dbv1.UpdatePasswordResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
+	}
 
 	// Allow if admin OR if updating own password
 	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
@@ -134,6 +152,10 @@ func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[d
 
 // DeleteUser removes a user account
 func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.DeleteUserRequest]) (*connect.Response[dbv1.DeleteUserResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
+	}
+
 	// Verify admin role
 	if err := AuthorizeAdmin(ctx); err != nil {
 		return nil, err
@@ -205,6 +227,10 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 
 // CreateApiKey generates a new API key for a user
 func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv1.CreateApiKeyRequest]) (*connect.Response[dbv1.CreateApiKeyResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("API key management is disabled when running in no-auth mode"))
+	}
+
 	var expiresAt *time.Time
 	if req.Msg.ExpiresAt != nil {
 		if err := req.Msg.ExpiresAt.CheckValid(); err != nil {
@@ -241,6 +267,10 @@ func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv
 
 // ListApiKeys returns all API keys for a user
 func (s *AdminServer) ListApiKeys(ctx context.Context, req *connect.Request[dbv1.ListApiKeysRequest]) (*connect.Response[dbv1.ListApiKeysResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("API key management is disabled when running in no-auth mode"))
+	}
+
 	// Allow if admin OR if listing own keys
 	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
 		return nil, err
@@ -277,6 +307,10 @@ func (s *AdminServer) ListApiKeys(ctx context.Context, req *connect.Request[dbv1
 
 // RevokeApiKey deletes an API key
 func (s *AdminServer) RevokeApiKey(ctx context.Context, req *connect.Request[dbv1.RevokeApiKeyRequest]) (*connect.Response[dbv1.RevokeApiKeyResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("API key management is disabled when running in no-auth mode"))
+	}
+
 	// Verify admin role or self-revocation
 	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
 		return nil, err
@@ -500,6 +534,10 @@ func (s *AdminServer) DeleteDatabase(ctx context.Context, req *connect.Request[d
 
 // Login authenticates a user and returns a session API key.
 func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.LoginRequest]) (*connect.Response[dbv1.LoginResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("authentication is disabled on this server"))
+	}
+
 	// 1. Verify credentials from request body
 	user, err := s.store.ValidateUser(ctx, req.Msg.Username, req.Msg.Password)
 	if err != nil {
@@ -537,6 +575,10 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 
 // Logout invalidates the provided session key.
 func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[dbv1.LogoutRequest]) (*connect.Response[dbv1.LogoutResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("authentication is disabled on this server"))
+	}
+
 	// If not admin, they can only logout their own session key.
 	// We authorize the username in the request body.
 	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
@@ -638,5 +680,10 @@ func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[d
 	}), nil
 }
 
-// BackupDatabase and RestoreDatabase are not implemented yet
-// They will use the UnimplementedAdminServiceHandler defaults
+// GetServerInfo retrieves server metadata and capability info
+func (s *AdminServer) GetServerInfo(ctx context.Context, req *connect.Request[dbv1.GetServerInfoRequest]) (*connect.Response[dbv1.GetServerInfoResponse], error) {
+	return connect.NewResponse(&dbv1.GetServerInfoResponse{
+		Version:      s.version,
+		AuthDisabled: s.authDisabled,
+	}), nil
+}

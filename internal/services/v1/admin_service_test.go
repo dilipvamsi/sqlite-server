@@ -39,7 +39,7 @@ func setupAdminTestServer(t *testing.T) (*AdminServer, *auth.MetaStore, *DbServe
 		t.Cleanup(func() { os.RemoveAll("databases") })
 	}
 
-	return NewAdminServer(store, dbServer, nil), store, dbServer
+	return NewAdminServer(store, dbServer, nil, false, "v0.0.1-test"), store, dbServer
 }
 
 func userContext(userID int64, username string, role dbv1.Role) context.Context {
@@ -138,7 +138,7 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 
 	t.Run("invalidates cache on success", func(t *testing.T) {
 		mockCache := &mockCacheInval{}
-		serverWithCache := NewAdminServer(store, nil, mockCache)
+		serverWithCache := NewAdminServer(store, nil, mockCache, false, "v0.0.1-test")
 
 		_, err := store.CreateUser(context.Background(), "cacheuser", "pass", dbv1.Role_ROLE_READ_ONLY)
 		require.NoError(t, err)
@@ -1355,6 +1355,50 @@ func TestAdminServer_DeleteUser_Extended(t *testing.T) {
 		_, err := server.DeleteUser(adminCtx, req)
 		require.Error(t, err)
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	})
+}
+
+func TestAdminServer_GetServerInfo(t *testing.T) {
+	server, _, _ := setupAdminTestServer(t)
+	ctx := context.Background()
+
+	resp, err := server.GetServerInfo(ctx, connect.NewRequest(&dbv1.GetServerInfoRequest{}))
+	require.NoError(t, err)
+	assert.Equal(t, "v0.0.1-test", resp.Msg.Version)
+	assert.False(t, resp.Msg.AuthDisabled)
+
+	// Test with auth disabled
+	serverDisabled := NewAdminServer(nil, nil, nil, true, "v0.0.1-disabled")
+	resp, err = serverDisabled.GetServerInfo(ctx, connect.NewRequest(&dbv1.GetServerInfoRequest{}))
+	require.NoError(t, err)
+	assert.True(t, resp.Msg.AuthDisabled)
+}
+
+func TestAdminServer_TargetedCoverage(t *testing.T) {
+	server, store, _ := setupAdminTestServer(t)
+	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+
+	t.Run("DeleteUser authDisabled failure", func(t *testing.T) {
+		sDisabled := NewAdminServer(store, nil, nil, true, "")
+		_, err := sDisabled.DeleteUser(adminCtx, connect.NewRequest(&dbv1.DeleteUserRequest{Username: "any"}))
+		assert.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+	})
+
+	t.Run("CreateApiKey authDisabled failure", func(t *testing.T) {
+		sDisabled := NewAdminServer(store, nil, nil, true, "")
+		_, err := sDisabled.CreateApiKey(adminCtx, connect.NewRequest(&dbv1.CreateApiKeyRequest{Username: "any"}))
+		assert.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
+	})
+
+	t.Run("CreateApiKey user not found", func(t *testing.T) {
+		_, err := server.CreateApiKey(adminCtx, connect.NewRequest(&dbv1.CreateApiKeyRequest{Username: "ghost_user", Name: "key"}))
+		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+	})
+
+	t.Run("CreateApiKey internal error", func(t *testing.T) {
+		store.GetDB().Close()
+		_, err := server.CreateApiKey(adminCtx, connect.NewRequest(&dbv1.CreateApiKeyRequest{Username: "admin", Name: "key"}))
+		assert.Equal(t, connect.CodeInternal, connect.CodeOf(err))
 	})
 }
 

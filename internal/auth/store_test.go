@@ -111,6 +111,21 @@ func TestNewMetaStore(t *testing.T) {
 		_, err = NewMetaStore(dbPath)
 		require.Error(t, err)
 	})
+
+	t.Run("fails on migrate error (invalid file content)", func(t *testing.T) {
+		tmpFile := filepath.Join(t.TempDir(), "invalid.db")
+		os.WriteFile(tmpFile, []byte("this is not a sqlite database"), 0644)
+
+		// sqlite3 might still open it, but migrate will surely fail when trying to Exec schema
+		_, err := NewMetaStore(tmpFile)
+		require.Error(t, err)
+	})
+
+	t.Run("fails on open error (invalid parameter)", func(t *testing.T) {
+		// DSN that forces sql.Open or Ping to fail due to bad parameters
+		_, err := NewMetaStore("file:test?_journal=INVALID")
+		require.Error(t, err)
+	})
 }
 
 func TestMetaStore_Migrate_Error(t *testing.T) {
@@ -135,7 +150,7 @@ func TestMetaStore_EnsureDefaultAdmin(t *testing.T) {
 		require.NoError(t, err)
 		defer store.Close()
 
-		password, err := store.EnsureDefaultAdmin()
+		password, err := store.EnsureDefaultAdmin("", "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, password)
 
@@ -153,11 +168,11 @@ func TestMetaStore_EnsureDefaultAdmin(t *testing.T) {
 		defer store.Close()
 
 		// Create admin first time
-		_, err = store.EnsureDefaultAdmin()
+		_, err = store.EnsureDefaultAdmin("", "")
 		require.NoError(t, err)
 
 		// Call again - should return empty password (no action)
-		password, err := store.EnsureDefaultAdmin()
+		password, err := store.EnsureDefaultAdmin("", "")
 		require.NoError(t, err)
 		assert.Empty(t, password)
 	})
@@ -173,7 +188,7 @@ func TestMetaStore_EnsureDefaultAdmin(t *testing.T) {
 		require.NoError(t, err)
 		defer store.Close()
 
-		password, err := store.EnsureDefaultAdmin()
+		password, err := store.EnsureDefaultAdmin("", "")
 		require.NoError(t, err)
 		assert.Equal(t, "env-password-123", password)
 	})
@@ -190,7 +205,7 @@ func TestMetaStore_ValidateUser(t *testing.T) {
 	// Create admin with known password
 	os.Setenv("SQLITE_SERVER_ADMIN_PASSWORD", "test-password-456")
 	defer os.Unsetenv("SQLITE_SERVER_ADMIN_PASSWORD")
-	_, err = store.EnsureDefaultAdmin()
+	_, err = store.EnsureDefaultAdmin("", "")
 	require.NoError(t, err)
 
 	ctx := context.Background()

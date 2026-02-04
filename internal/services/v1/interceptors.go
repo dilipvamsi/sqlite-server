@@ -77,8 +77,9 @@ func LoggingInterceptor() connect.UnaryInterceptorFunc {
 // WrapUnary implements connect.Interceptor
 func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		// 1. Allow Login to proceed without auth
-		if req.Spec().Procedure == "/db.v1.AdminService/Login" {
+		// 1. Allow Login and ServerInfo to proceed without auth
+		procedure := req.Spec().Procedure
+		if procedure == "/db.v1.AdminService/Login" || procedure == "/db.v1.AdminService/GetServerInfo" {
 			return next(ctx, req)
 		}
 
@@ -308,6 +309,12 @@ func (w *authStreamWrapper) Receive(msg any) error {
 // WrapStreamingHandler implements connect.Interceptor
 func (authInterceptor *AuthInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		// 1. Allow metadata info to proceed without auth
+		procedure := conn.Spec().Procedure
+		if procedure == "/db.v1.AdminService/GetServerInfo" {
+			return next(ctx, conn)
+		}
+
 		authHeader := conn.RequestHeader().Get("Authorization")
 		if authHeader == "" {
 			return connect.NewError(connect.CodeUnauthenticated, errors.New("missing authorization header"))

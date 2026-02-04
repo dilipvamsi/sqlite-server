@@ -161,8 +161,10 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 # Go binaries
-server
 main
 
 # Downloaded extensions
 extensions/*
+
+# Temp
+tmp/*

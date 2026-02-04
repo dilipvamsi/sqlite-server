@@ -300,6 +300,28 @@ function deserialize_db_v1_GetDatabaseSchemaRequest(buffer_arg) {
   return db_v1_db_service_pb.GetDatabaseSchemaRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_db_v1_GetServerInfoRequest(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.GetServerInfoRequest)) {
+    throw new Error('Expected argument of type db.v1.GetServerInfoRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_GetServerInfoRequest(buffer_arg) {
+  return db_v1_db_service_pb.GetServerInfoRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_db_v1_GetServerInfoResponse(arg) {
+  if (!(arg instanceof db_v1_db_service_pb.GetServerInfoResponse)) {
+    throw new Error('Expected argument of type db.v1.GetServerInfoResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_db_v1_GetServerInfoResponse(buffer_arg) {
+  return db_v1_db_service_pb.GetServerInfoResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_db_v1_GetTableSchemaRequest(arg) {
   if (!(arg instanceof db_v1_db_service_pb.GetTableSchemaRequest)) {
     throw new Error('Expected argument of type db.v1.GetTableSchemaRequest');
@@ -1474,6 +1496,19 @@ updateDatabase: {
     requestDeserialize: deserialize_db_v1_UpdateDatabaseRequest,
     responseSerialize: serialize_db_v1_UpdateDatabaseResponse,
     responseDeserialize: deserialize_db_v1_UpdateDatabaseResponse,
+  },
+  // *
+// Retrieves server metadata and capability info.
+getServerInfo: {
+    path: '/db.v1.AdminService/GetServerInfo',
+    requestStream: false,
+    responseStream: false,
+    requestType: db_v1_db_service_pb.GetServerInfoRequest,
+    responseType: db_v1_db_service_pb.GetServerInfoResponse,
+    requestSerialize: serialize_db_v1_GetServerInfoRequest,
+    requestDeserialize: deserialize_db_v1_GetServerInfoRequest,
+    responseSerialize: serialize_db_v1_GetServerInfoResponse,
+    responseDeserialize: deserialize_db_v1_GetServerInfoResponse,
   },
 };
 

@@ -949,7 +949,14 @@ busy_timeout=5000"></textarea>
     }
   }
 
-  loadDatabases();
+  import { initServerStatus } from "../lib/client";
+
+  async function init() {
+    await initServerStatus();
+    await loadDatabases();
+  }
+
+  init();
 </script>
 
 <style is:global>

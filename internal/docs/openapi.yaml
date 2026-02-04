@@ -19,9 +19,6 @@ info:
 security:
   - bearerAuth: []
   - basicAuth: []
-security:
-  - bearerAuth: []
-  - basicAuth: []
 paths:
   /db.v1.AdminService/CreateApiKey:
     post:
@@ -203,6 +200,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/db.v1.DeleteUserResponse'
+  /db.v1.AdminService/GetServerInfo:
+    post:
+      tags:
+        - db.v1.AdminService
+      summary: "*\r  Retrieves server metadata and capability info."
+      description: "*\r\n Retrieves server metadata and capability info."
+      operationId: db.v1.AdminService.GetServerInfo
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/db.v1.GetServerInfoRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/db.v1.GetServerInfoResponse'
   /db.v1.AdminService/ListApiKeys:
     post:
       tags:
@@ -1371,16 +1404,6 @@ components:
       type: http
       scheme: basic
       description: "Username and password for initial authentication"
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: API Key
-      description: "API Key obtained from Login endpoint (format: sk_...)"
-    basicAuth:
-      type: http
-      scheme: basic
-      description: "Username and password for initial authentication"
   schemas:
     connect-protocol-version:
       type: number
@@ -1950,6 +1973,12 @@ components:
         readOnly:
           type: boolean
           title: read_only
+        loadedExtensions:
+          type: array
+          items:
+            type: string
+          title: loaded_extensions
+          description: List of managed extension folder names currently loaded.
       title: DatabaseInfo
       additionalProperties: false
     db.v1.DatabaseSchema:
@@ -2237,6 +2266,21 @@ components:
       title: GetDatabaseSchemaRequest
       additionalProperties: false
       description: "*\r\n Request to get the complete database schema."
+    db.v1.GetServerInfoRequest:
+      type: object
+      title: GetServerInfoRequest
+      additionalProperties: false
+    db.v1.GetServerInfoResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          title: version
+        authDisabled:
+          type: boolean
+          title: auth_disabled
+      title: GetServerInfoResponse
+      additionalProperties: false
     db.v1.GetTableSchemaRequest:
       type: object
       properties:

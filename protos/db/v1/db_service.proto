@@ -544,6 +544,11 @@ service AdminService {
    * This operation forces a reload of the database connections.
    */
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
+
+  /**
+   * Retrieves server metadata and capability info.
+   */
+  rpc GetServerInfo(GetServerInfoRequest) returns (GetServerInfoResponse);
 }
 
 // -----------------------------------------------------------------------------
@@ -1414,6 +1419,15 @@ message ErrorResponse {
   // The precise SQLite error code for programmatic handling.
   // Reference: https://www.sqlite.org/rescode.html
   SqliteCode sqlite_error_code = 3;
+}
+
+// --- Server Information Messages ---
+
+message GetServerInfoRequest {}
+
+message GetServerInfoResponse {
+  string version = 1;
+  bool auth_disabled = 2;
 }
 
 // =============================================================================

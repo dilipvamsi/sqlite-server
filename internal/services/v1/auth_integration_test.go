@@ -29,7 +29,7 @@ func setupAuthIntegrationServer(t *testing.T) (dbv1connect.DatabaseServiceClient
 	require.NoError(t, err)
 
 	// Default Admin (created by NewMetaStore usually, but let's ensure)
-	adminPwd, err := store.EnsureDefaultAdmin()
+	adminPwd, err := store.EnsureDefaultAdmin("", "")
 	require.NoError(t, err)
 
 	// Get Admin Key
@@ -59,7 +59,7 @@ func setupAuthIntegrationServer(t *testing.T) (dbv1connect.DatabaseServiceClient
 	mux.Handle(path, handler)
 	// 1. Setup Admin Server
 	// Pass nil for cache invalidator as tests don't check cache side-effects explicitly yet
-	adminServer := NewAdminServer(store, server, nil)
+	adminServer := NewAdminServer(store, server, nil, false, "v0.0.1-integration-test")
 	adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
 	mux.Handle(adminPath, adminHandler)
 

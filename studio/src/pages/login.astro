@@ -49,11 +49,23 @@ import Layout from "../layouts/Layout.astro";
     AUTH_KEY,
     AUTH_KEY_ID,
     AUTH_USER_ID,
+    initServerStatus,
+    isAuthDisabled,
   } from "../lib/client";
   import { AdminService } from "../gen/db/v1/db_service_pb";
 
   const form = document.getElementById("login-form");
   const errorMessage = document.getElementById("error-message");
+
+  // Check status and existing session
+  async function checkInitStatus() {
+    await initServerStatus();
+    if (isAuthDisabled() || localStorage.getItem(AUTH_KEY)) {
+      window.location.href = "/studio/";
+    }
+  }
+
+  checkInitStatus();
 
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -94,12 +106,6 @@ import Layout from "../layouts/Layout.astro";
       errorMessage.style.display = "block";
     }
   });
-
-  // Check if already logged in
-  if (localStorage.getItem(AUTH_KEY)) {
-    // Optional: verify token validity? For now, just redirect.
-    window.location.href = "/studio/";
-  }
 </script>
 
 <style>
