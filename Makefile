@@ -90,12 +90,12 @@ build-static: ## Build a mostly-static binary (with extension support)
 .PHONY: run
 run: build ## Build and run the server with default config
 	@echo "Running $(BINARY_OUT)..."
-	$(BINARY_OUT) $(DEFAULT_CONFIG)
+	$(BINARY_OUT)
 
 .PHONY: run-dev
 run-dev: ## Run directly using 'go run' (fast development)
 	@echo "Starting server in dev mode..."
-	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(DEFAULT_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go
 
 # ==============================================================================
 # Debugging
@@ -195,29 +195,29 @@ build-load-test-setup-cipher: $(TEST_DATA_DIR) $(BUILD_DIR)/tests/setup-read-db$
 .PHONY: run-load-test-setup
 run-load-test-setup: build-load-test-setup build ## Setup DBs and run server with loadtest config (NO AUTH)
 	@echo "🚀 Starting server with LOADTEST config (AUTH DISABLED)..."
-	SQLITE_SERVER_AUTH_ENABLED=false $(BINARY_OUT) $(LOADTEST_CONFIG)
+	SQLITE_SERVER_AUTH_ENABLED=false $(BINARY_OUT) --mounts $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-setup-auth
 run-load-test-setup-auth: build-load-test-setup build ## Setup DBs and run server WITH auth enabled
 	@echo "🔐 Starting server with LOADTEST config (AUTH ENABLED)..."
 	@echo "   Credentials: admin / admin"
-	SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true $(BINARY_OUT) $(LOADTEST_CONFIG)
+	SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true $(BINARY_OUT) --mounts $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-dev
 run-load-test-dev: build-load-test-setup ## Setup DBs and run server with loadtest config (NO AUTH) using go run
 	@echo "🚀 Starting server (DEV) with LOADTEST config (AUTH DISABLED)..."
-	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_AUTH_ENABLED=false CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_AUTH_ENABLED=false CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go --mounts $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-auth-dev
 run-load-test-auth-dev: build-load-test-setup ## Setup DBs and run server WITH auth enabled using go run
 	@echo "🔐 Starting server (DEV) with LOADTEST config (AUTH ENABLED)..."
 	@echo "   Credentials: admin / admin"
-	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go $(LOADTEST_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go --mounts $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-setup-cipher
 run-load-test-setup-cipher: build-load-test-setup-cipher build ## Setup encrypted DBs and run server with cipher config
 	@echo "🚀 Starting server with LOADTEST CIPHER config..."
-	$(BINARY_OUT) $(LOADTEST_CIPHER_CONFIG)
+	$(BINARY_OUT) --mounts $(LOADTEST_CIPHER_CONFIG)
 
 BENCH_BINS := $(BUILD_DIR)/tests/read-db$(EXT) \
               $(BUILD_DIR)/tests/read-stream-db$(EXT) \

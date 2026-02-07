@@ -412,6 +412,11 @@ func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName st
 				columnNames = append(columnNames, colName.String)
 			}
 		}
+
+		if err := infoRows.Err(); err != nil {
+			infoRows.Close()
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("index info iteration failed: %w", err))
+		}
 		infoRows.Close()
 
 		// Get the CREATE INDEX SQL (if available)

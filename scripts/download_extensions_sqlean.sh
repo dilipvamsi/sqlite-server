@@ -6,7 +6,11 @@
 
 set -e
 
-VERSION=${1:-"0.28.0"}
+ARG1=${1:-"0.28.0"}
+VERSION=$ARG1
+if [[ "$ARG1" == *"@"* ]]; then
+    VERSION=$(echo "$ARG1" | cut -d'@' -f2)
+fi
 EXTENSIONS_DIR="./extensions"
 TMP_DIR="./tmp_extensions"
 

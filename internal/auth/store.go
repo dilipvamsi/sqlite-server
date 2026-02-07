@@ -355,6 +355,11 @@ func (s *MetaStore) ListUsers(ctx context.Context) ([]User, error) {
 		user.Role = ParseRole(role)
 		users = append(users, user)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list users iteration failed: %w", err)
+	}
+
 	return users, nil
 }
 
@@ -448,6 +453,11 @@ func (s *MetaStore) ListApiKeys(ctx context.Context, userID int64) ([]ApiKey, er
 		}
 		keys = append(keys, key)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list api keys iteration failed: %w", err)
+	}
+
 	return keys, nil
 }
 
@@ -592,5 +602,10 @@ func (s *MetaStore) ListDatabaseConfigs(ctx context.Context) ([]DatabaseConfig, 
 		}
 		configs = append(configs, config)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list database configs iteration failed: %w", err)
+	}
+
 	return configs, nil
 }

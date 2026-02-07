@@ -529,6 +529,10 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
 	// Step 3: Complete
 	stats := &dbv1.ExecutionStats{
 		DurationMs: float64(time.Since(startTime).Milliseconds()),
@@ -589,6 +593,9 @@ func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, para
 			rowsRead++
 			protoRow := valuesToProto(buf.values, affinities)
 			selectResult.Rows = append(selectResult.Rows, protoRow)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
 		stats := &dbv1.ExecutionStats{
 			DurationMs: float64(time.Since(startTime).Milliseconds()),
@@ -987,6 +994,10 @@ func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, pa
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
 	// Step 3: Complete
 	stats := &dbv1.ExecutionStats{
 		DurationMs: float64(time.Since(startTime).Milliseconds()),
@@ -1039,6 +1050,9 @@ func typedExecuteQueryAndBuffer(ctx context.Context, q querier, sqlQuery string,
 			rowsRead++
 			typedRow := valuesToTypedProto(buf.values, affinities)
 			selectResult.Rows = append(selectResult.Rows, typedRow)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
 
 		stats := &dbv1.ExecutionStats{

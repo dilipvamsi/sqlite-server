@@ -6,7 +6,12 @@
 
 set -e
 
-VERSION=${1:-"v0.1.6"}
+ARG1=${1:-"v0.1.6"}
+VERSION=$ARG1
+if [[ "$ARG1" == *"@"* ]]; then
+    VERSION=$(echo "$ARG1" | cut -d'@' -f2)
+fi
+
 CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//')
 EXTENSIONS_DIR="./extensions"
 EXT_NAME="vec"

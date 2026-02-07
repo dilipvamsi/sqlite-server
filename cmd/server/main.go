@@ -8,9 +8,11 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"sqlite-server/internal/extensions/extensiondownloader"
 	"sqlite-server/internal/server"
 )
 
@@ -20,6 +22,24 @@ func main() {
 
 	if cfg.ShowVersion {
 		fmt.Printf("sqlite-server version %s\n", server.Version)
+		os.Exit(0)
+	}
+
+	// 1.5. Download extensions if requested (exit after completion)
+	if cfg.DownloadAllExtensions {
+		log.Println("Downloading all extensions...")
+		if err := extensiondownloader.DownloadExtensions(cfg.ExtDir, []string{"all"}); err != nil {
+			log.Fatalf("Fatal: failed to download extensions: %v", err)
+		}
+		log.Println("All extensions downloaded successfully.")
+		os.Exit(0)
+	} else if cfg.DownloadExtensions != "" {
+		log.Println("Downloading extensions...")
+		list := strings.Split(cfg.DownloadExtensions, ",")
+		if err := extensiondownloader.DownloadExtensions(cfg.ExtDir, list); err != nil {
+			log.Fatalf("Fatal: failed to download extensions: %v", err)
+		}
+		log.Println("Extensions downloaded successfully.")
 		os.Exit(0)
 	}
 
@@ -57,6 +77,8 @@ func parseFlags() *server.Config {
 	fs.IntVar(&cfg.IdleTimeout, "idle-timeout", getEnvInt("SQLITE_SERVER_IDLE_TIMEOUT", 120), "Idle connection timeout in seconds")
 	fs.IntVar(&cfg.ShutdownTimeout, "shutdown-timeout", getEnvInt("SQLITE_SERVER_SHUTDOWN_TIMEOUT", 10), "Graceful shutdown timeout in seconds")
 	fs.BoolVar(&cfg.ShowVersion, "version", false, "Print server version and exit")
+	fs.StringVar(&cfg.DownloadExtensions, "download-extensions", getEnv("SQLITE_SERVER_DOWNLOAD_EXTENSIONS", ""), "Comma-separated list of extensions to download/update on startup (e.g. 'sqlean,vec,http' or 'all')")
+	fs.BoolVar(&cfg.DownloadAllExtensions, "download-all-extensions", false, "Download all available extensions on startup")
 
 	// Custom Usage to support --flag style and clean documentation
 	fs.Usage = func() {
@@ -78,6 +100,11 @@ func parseFlags() *server.Config {
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("Fatal: failed to parse flags: %v", err)
 	}
+
+	if fs.NArg() > 0 {
+		log.Fatalf("Fatal: unexpected positional arguments: %v", fs.Args())
+	}
+
 	return cfg
 }
 

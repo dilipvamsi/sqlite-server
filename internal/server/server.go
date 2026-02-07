@@ -35,20 +35,22 @@ func init() {
 
 // Config holds the configuration for the SQLite server.
 type Config struct {
-	Mounts          string // Path to initial database mounts JSON
-	Port            int    // Port to listen on
-	Host            string // Host/IP to bind to
-	ExtDir          string // Directory for SQLite extensions
-	AuthDisabled    bool   // Whether to bypass authentication
-	CorsOrigin      string // Allowed CORS origin
-	MetaDB          string // Path to the metadata SQLite database
-	DbDir           string // Base directory for database files
-	MountsOverwrite bool   // Whether to overwrite metadata with mounts file
-	InitialAdmin    string // Default admin username
-	InitialPassword string // Default admin password
-	IdleTimeout     int    // Idle connection timeout in seconds
-	ShutdownTimeout int    // Graceful shutdown timeout in seconds
-	ShowVersion     bool   // Whether to show version and exit
+	Mounts                string // Path to initial database mounts JSON
+	Port                  int    // Port to listen on
+	Host                  string // Host/IP to bind to
+	ExtDir                string // Directory for SQLite extensions
+	AuthDisabled          bool   // Whether to bypass authentication
+	CorsOrigin            string // Allowed CORS origin
+	MetaDB                string // Path to the metadata SQLite database
+	DbDir                 string // Base directory for database files
+	MountsOverwrite       bool   // Whether to overwrite metadata with mounts file
+	InitialAdmin          string // Default admin username
+	InitialPassword       string // Default admin password
+	IdleTimeout           int    // Idle connection timeout in seconds
+	ShutdownTimeout       int    // Graceful shutdown timeout in seconds
+	ShowVersion           bool   // Whether to show version and exit
+	DownloadExtensions    string // Comma-separated list of extensions to download
+	DownloadAllExtensions bool   // Whether to download all extensions
 }
 
 // Server represents the SQLite server instance.

@@ -6,7 +6,12 @@
 
 set -e
 
-VERSION=${1:-"v2.0.0"}
+ARG1=${1:-"v3.0.0"}
+VERSION=$ARG1
+if [[ "$ARG1" == *"@"* ]]; then
+    VERSION=$(echo "$ARG1" | cut -d'@' -f2)
+fi
+
 EXTENSIONS_DIR="./extensions"
 EXT_NAME="mview"
 CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//')

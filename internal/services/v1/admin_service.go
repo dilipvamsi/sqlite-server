@@ -406,9 +406,13 @@ func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[d
 
 	// 2. Mount database
 	if err := s.dbServer.MountDatabase(config); err != nil {
-		// Rollback persistent config? For now just return error
-		_ = s.store.RemoveDatabaseConfig(ctx, name)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		if !strings.Contains(err.Error(), "already mounted") {
+			// Rollback persistent config only for other errors
+			_ = s.store.RemoveDatabaseConfig(ctx, name)
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		// If already mounted, we treat it as success or log it,
+		// but since Upsert succeeded, we are in a consistent state now.
 	}
 
 	// 3. Log success

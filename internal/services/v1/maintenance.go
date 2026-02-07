@@ -118,6 +118,10 @@ func (s *DbServer) IntegrityCheck(ctx context.Context, req *connect.Request[dbv1
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("integrity check iteration failed: %w", err))
+	}
+
 	success := len(errors) == 0
 	message := "Integrity check passed"
 	if !success {
