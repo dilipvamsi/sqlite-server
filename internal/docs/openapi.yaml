@@ -1,17 +1,16 @@
 openapi: 3.1.0
 info:
   title: SQLite Server API
-  description: |
-    Production-ready gRPC/HTTP bridge for SQLite databases.
-    
+    SQLite Server is a production-ready, multi-database SQL engine.
+
     ## Authentication
     Most endpoints require authentication via Bearer token (API Key) or Basic Auth.
-    
+
     **To authenticate:**
     1. Use the /sqlrpc.v1.AdminService/Login endpoint with username/password
     2. Copy the apiKey from the response
     3. Click "Authorize" above and enter your API key
-    
+
     **Format:** Bearer sk_... (include the Bearer prefix)
   version: "1.0.0"
   contact:

@@ -23,16 +23,16 @@ func main() {
 	var result []string
 
 	extraInfo := `  description: |
-    Production-ready gRPC/HTTP bridge for SQLite databases.
-    
+    SQLite Server is a production-ready, multi-database SQL engine.
+
     ## Authentication
     Most endpoints require authentication via Bearer token (API Key) or Basic Auth.
-    
+
     **To authenticate:**
     1. Use the /db.v1.AdminService/Login endpoint with username/password
     2. Copy the apiKey from the response
     3. Click "Authorize" above and enter your API key
-    
+
     **Format:** Bearer sk_... (include the Bearer prefix)
   version: "1.0.0"
   contact:
@@ -53,13 +53,27 @@ func main() {
   - bearerAuth: []
   - basicAuth: []`
 
-	inInfo := false
+	skipDescription := false
 	for _, line := range lines {
 		// Replace title
-		if strings.HasPrefix(line, "  title: db.v1") {
+		if strings.HasPrefix(line, "  title: db.v1") || strings.HasPrefix(line, "  title: sqlrpc.v1") {
 			result = append(result, "  title: SQLite Server API")
 			result = append(result, extraInfo)
+			skipDescription = true
 			continue
+		}
+
+		if skipDescription && strings.HasPrefix(line, "  description: |") {
+			continue
+		}
+		if skipDescription && strings.HasPrefix(line, "    ") {
+			continue
+		}
+		if skipDescription && line == "" {
+			continue
+		}
+		if skipDescription {
+			skipDescription = false
 		}
 
 		// Inject global security after info
@@ -80,23 +94,15 @@ func main() {
 		}
 
 		// Cleanup tags (simplified tags)
-		if strings.HasPrefix(line, "  - name: db.v1.DatabaseService") {
+		if strings.HasPrefix(line, "  - name: db.v1.DatabaseService") || strings.HasPrefix(line, "  - name: sqlrpc.v1.DatabaseService") {
 			result = append(result, "  - name: db.v1.DatabaseService")
 			result = append(result, "    description: Database operations including queries and transactions")
-			inInfo = true
 			continue
 		}
-		if strings.HasPrefix(line, "  - name: db.v1.AdminService") {
+		if strings.HasPrefix(line, "  - name: db.v1.AdminService") || strings.HasPrefix(line, "  - name: sqlrpc.v1.AdminService") {
 			result = append(result, "  - name: db.v1.AdminService")
 			result = append(result, "    description: Administrative operations for user management and system configuration")
-			inInfo = true
 			continue
-		}
-		if inInfo && strings.HasPrefix(line, "    description:") {
-			continue
-		}
-		if inInfo && !strings.HasPrefix(line, "    ") && line != "" && !strings.HasPrefix(line, "  - name:") {
-			inInfo = false
 		}
 
 		result = append(result, line)

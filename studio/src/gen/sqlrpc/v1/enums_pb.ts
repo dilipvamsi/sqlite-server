@@ -674,7 +674,7 @@ export enum Role {
   UNSPECIFIED = 0,
 
   /**
-   * Less than 10 are reader roles
+   * Less than or equal 10 are reader roles
    * Restricted analytics/reporting user.
    * The platform STRICTLY provisions read-only connections (mode=ro) for
    * this role. Execution of any data modification (DML) logic will be aborted
@@ -685,7 +685,7 @@ export enum Role {
   READ_ONLY = 10,
 
   /**
-   * Less than 20 and greater than 10 are writer roles
+   * Less than or equal 20 and greater than 10 are writer roles
    * Standard application user.
    * Receives access to the fully permissive Read-Write LRU connection.
    *
@@ -694,7 +694,7 @@ export enum Role {
   READ_WRITE = 20,
 
   /**
-   * Less than 30 and greater than 20 are database manager roles
+   * Less than or equal 30 and greater than 20 are database manager roles
    * Tenant admin. Can provision, secure, and drop databases within the
    * platform. Gets Read-Write connections to target databases but cannot manage
    * platform users.
@@ -704,7 +704,7 @@ export enum Role {
   DATABASE_MANAGER = 30,
 
   /**
-   * Less than 40 and greater than 30 are admin roles
+   * Less than or equal 40 and greater than 30 are admin roles
    * Platform admin. Has full access to the control plane (manage
    * users/roles). Implicitly gets Read-Write connections to all tenant
    * databases.

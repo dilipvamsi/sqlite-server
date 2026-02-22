@@ -573,22 +573,22 @@ type Role int32
 
 const (
 	Role_ROLE_UNSPECIFIED Role = 0
-	// Less than 10 are reader roles
+	// Less than or equal 10 are reader roles
 	// Restricted analytics/reporting user.
 	// The platform STRICTLY provisions read-only connections (mode=ro) for
 	// this role. Execution of any data modification (DML) logic will be aborted
 	// by the underlying connection.
 	Role_ROLE_READ_ONLY Role = 10
-	// Less than 20 and greater than 10 are writer roles
+	// Less than or equal 20 and greater than 10 are writer roles
 	// Standard application user.
 	// Receives access to the fully permissive Read-Write LRU connection.
 	Role_ROLE_READ_WRITE Role = 20
-	// Less than 30 and greater than 20 are database manager roles
+	// Less than or equal 30 and greater than 20 are database manager roles
 	// Tenant admin. Can provision, secure, and drop databases within the
 	// platform. Gets Read-Write connections to target databases but cannot manage
 	// platform users.
 	Role_ROLE_DATABASE_MANAGER Role = 30
-	// Less than 40 and greater than 30 are admin roles
+	// Less than or equal 40 and greater than 30 are admin roles
 	// Platform admin. Has full access to the control plane (manage
 	// users/roles). Implicitly gets Read-Write connections to all tenant
 	// databases.

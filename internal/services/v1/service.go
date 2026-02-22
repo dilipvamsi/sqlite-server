@@ -2,7 +2,7 @@
  * @file service.go
  * @package servicesv1
  * @description The definitive implementation of the `DatabaseService` gRPC contract for the
- * Sqlite-Server. This service acts as a high-performance, type-safe bridge between gRPC
+ * Sqlite-Server. This service acts as a production-ready, multi-database SQL engine between gRPC
  * clients and underlying SQLite database files.
  *
  * ARCHITECTURAL DESIGN PHILOSOPHY:
@@ -19,7 +19,7 @@
  *    - "Zero-Copy Optimizations": Where possible (e.g., string to byte conversion),
  *      unsafe pointers are used to avoid unnecessary allocations.
  *
- * 3. TYPE SAFETY BRIDGE:
+ * 3. TYPE SAFETY LAYER:
  *    SQLite is dynamically typed; gRPC is statically typed. This service implements a
  *    "Sparse Hint" system. It inspects SQLite column metadata at runtime and strictly
  *    maps dynamic types (e.g., "VARCHAR(255)") to proto Enums (e.g., COLUMN_TYPE_TEXT),

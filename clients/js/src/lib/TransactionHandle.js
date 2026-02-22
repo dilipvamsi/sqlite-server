@@ -105,7 +105,7 @@ class TransactionHandle {
 
     /**
      * @type {AsyncQueue | null}
-     * Bridges the gRPC 'data' events to an AsyncIterator for row streaming.
+     * Connects the gRPC 'data' events to an AsyncIterator for row streaming.
      */
     this.activeQueue = null;
 

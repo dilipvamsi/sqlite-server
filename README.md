@@ -1,6 +1,6 @@
 # SQLite Server
 
-**SQLite Server** is a production-ready, high-performance gRPC bridge for SQLite. It exposes multiple SQLite database files over a network via a strictly typed, schema-safe API.
+**SQLite Server** is a production-ready, high-performance multi-database SQL engine. It exposes multiple SQLite database files over a network via a strictly typed, schema-safe API.
 
 It is designed to solve the common limitations of using SQLite in networked architectures by providing connection pooling, safe streaming for large datasets, and hybrid transaction management.
 
@@ -106,7 +106,7 @@ The service supports two distinct transaction patterns to suit different client 
 *   **Atomic Scripts:** Single-call transaction scripts for batch operations.
 
 ### 4. "Sparse Hint" Type System
-SQLite is dynamically typed, but gRPC/Protobuf is statically typed. To bridge this gap without overhead:
+SQLite is dynamically typed, but gRPC/Protobuf is statically typed. To resolve this gap without overhead:
 *   Standard values are sent as native JSON/Protobuf types.
 *   Ambiguous values (e.g., `BLOB` vs Base64 String, `INT64` vs JSON Number) use a **Sparse Hint** map.
 *   The client only provides type hints for specific columns when necessary.
