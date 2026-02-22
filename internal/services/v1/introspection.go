@@ -19,7 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
@@ -35,8 +35,8 @@ import (
 // into a structured tree of QueryPlanNode messages.
 func (s *DbServer) Explain(
 	ctx context.Context,
-	req *connect.Request[dbv1.QueryRequest],
-) (*connect.Response[dbv1.ExplainResponse], error) {
+	req *connect.Request[sqlrpcv1.QueryRequest],
+) (*connect.Response[sqlrpcv1.ExplainResponse], error) {
 	// Validate request
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -64,14 +64,14 @@ func (s *DbServer) Explain(
 	defer rows.Close()
 
 	// Parse results into QueryPlanNode
-	var nodes []*dbv1.QueryPlanNode
+	var nodes []*sqlrpcv1.QueryPlanNode
 	for rows.Next() {
 		var id, parent, notused int32
 		var detail string
 		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("scanning explain row: %w", err))
 		}
-		nodes = append(nodes, &dbv1.QueryPlanNode{
+		nodes = append(nodes, &sqlrpcv1.QueryPlanNode{
 			Id:       id,
 			ParentId: parent,
 			Detail:   detail,
@@ -82,7 +82,7 @@ func (s *DbServer) Explain(
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.ExplainResponse{
+	return connect.NewResponse(&sqlrpcv1.ExplainResponse{
 		Nodes: nodes,
 	}), nil
 }
@@ -93,8 +93,8 @@ func (s *DbServer) Explain(
 // the same structured tree of QueryPlanNode messages.
 func (s *DbServer) TypedExplain(
 	ctx context.Context,
-	req *connect.Request[dbv1.TypedQueryRequest],
-) (*connect.Response[dbv1.ExplainResponse], error) {
+	req *connect.Request[sqlrpcv1.TypedQueryRequest],
+) (*connect.Response[sqlrpcv1.ExplainResponse], error) {
 	// Validate request
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -122,14 +122,14 @@ func (s *DbServer) TypedExplain(
 	defer rows.Close()
 
 	// Parse results into QueryPlanNode
-	var nodes []*dbv1.QueryPlanNode
+	var nodes []*sqlrpcv1.QueryPlanNode
 	for rows.Next() {
 		var id, parent, notused int32
 		var detail string
 		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("scanning explain row: %w", err))
 		}
-		nodes = append(nodes, &dbv1.QueryPlanNode{
+		nodes = append(nodes, &sqlrpcv1.QueryPlanNode{
 			Id:       id,
 			ParentId: parent,
 			Detail:   detail,
@@ -140,7 +140,7 @@ func (s *DbServer) TypedExplain(
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.ExplainResponse{
+	return connect.NewResponse(&sqlrpcv1.ExplainResponse{
 		Nodes: nodes,
 	}), nil
 }
@@ -152,8 +152,8 @@ func (s *DbServer) TypedExplain(
 // ListTables returns a list of all table names in the database.
 func (s *DbServer) ListTables(
 	ctx context.Context,
-	req *connect.Request[dbv1.ListTablesRequest],
-) (*connect.Response[dbv1.ListTablesResponse], error) {
+	req *connect.Request[sqlrpcv1.ListTablesRequest],
+) (*connect.Response[sqlrpcv1.ListTablesResponse], error) {
 	// Validate request
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -186,7 +186,7 @@ func (s *DbServer) ListTables(
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.ListTablesResponse{
+	return connect.NewResponse(&sqlrpcv1.ListTablesResponse{
 		TableNames: tableNames,
 	}), nil
 }
@@ -198,8 +198,8 @@ func (s *DbServer) ListTables(
 // GetTableSchema returns detailed schema information for a single table.
 func (s *DbServer) GetTableSchema(
 	ctx context.Context,
-	req *connect.Request[dbv1.GetTableSchemaRequest],
-) (*connect.Response[dbv1.TableSchema], error) {
+	req *connect.Request[sqlrpcv1.GetTableSchemaRequest],
+) (*connect.Response[sqlrpcv1.TableSchema], error) {
 	// Validate request
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -226,8 +226,8 @@ func (s *DbServer) GetTableSchema(
 // GetDatabaseSchema returns the complete schema for all tables in the database.
 func (s *DbServer) GetDatabaseSchema(
 	ctx context.Context,
-	req *connect.Request[dbv1.GetDatabaseSchemaRequest],
-) (*connect.Response[dbv1.DatabaseSchema], error) {
+	req *connect.Request[sqlrpcv1.GetDatabaseSchemaRequest],
+) (*connect.Response[sqlrpcv1.DatabaseSchema], error) {
 	// Validate request
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -262,7 +262,7 @@ func (s *DbServer) GetDatabaseSchema(
 	}
 
 	// Build schema for each table
-	var tables []*dbv1.TableSchema
+	var tables []*sqlrpcv1.TableSchema
 	for _, tableName := range tableNames {
 		schema, err := s.buildTableSchema(ctx, db, tableName)
 		if err != nil {
@@ -271,7 +271,7 @@ func (s *DbServer) GetDatabaseSchema(
 		tables = append(tables, schema)
 	}
 
-	return connect.NewResponse(&dbv1.DatabaseSchema{
+	return connect.NewResponse(&sqlrpcv1.DatabaseSchema{
 		Tables: tables,
 	}), nil
 }
@@ -281,8 +281,8 @@ func (s *DbServer) GetDatabaseSchema(
 // =============================================================================
 
 // buildTableSchema builds the complete schema for a single table.
-func (s *DbServer) buildTableSchema(ctx context.Context, db *sql.DB, tableName string) (*dbv1.TableSchema, error) {
-	schema := &dbv1.TableSchema{
+func (s *DbServer) buildTableSchema(ctx context.Context, db *sql.DB, tableName string) (*sqlrpcv1.TableSchema, error) {
+	schema := &sqlrpcv1.TableSchema{
 		Name: tableName,
 	}
 
@@ -330,14 +330,14 @@ func (s *DbServer) buildTableSchema(ctx context.Context, db *sql.DB, tableName s
 }
 
 // getTableColumns returns column information using PRAGMA table_info.
-func (s *DbServer) getTableColumns(ctx context.Context, db *sql.DB, tableName string) ([]*dbv1.ColumnSchema, error) {
+func (s *DbServer) getTableColumns(ctx context.Context, db *sql.DB, tableName string) ([]*sqlrpcv1.ColumnSchema, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%q)", tableName))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	defer rows.Close()
 
-	var columns []*dbv1.ColumnSchema
+	var columns []*sqlrpcv1.ColumnSchema
 	for rows.Next() {
 		var cid int
 		var name, colType string
@@ -348,7 +348,7 @@ func (s *DbServer) getTableColumns(ctx context.Context, db *sql.DB, tableName st
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 
-		columns = append(columns, &dbv1.ColumnSchema{
+		columns = append(columns, &sqlrpcv1.ColumnSchema{
 			Name:         name,
 			Type:         colType,
 			NotNull:      notNull != 0,
@@ -361,7 +361,7 @@ func (s *DbServer) getTableColumns(ctx context.Context, db *sql.DB, tableName st
 }
 
 // getTableIndexes returns index information using PRAGMA index_list and index_info.
-func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName string) ([]*dbv1.IndexSchema, error) {
+func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName string) ([]*sqlrpcv1.IndexSchema, error) {
 	// 1. Get list of indexes first and collect into slice to avoid connection pool exhaustion
 	listRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_list(%q)", tableName))
 	if err != nil {
@@ -392,7 +392,7 @@ func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName st
 	}
 
 	// 2. Fetch details for each index
-	var indexes []*dbv1.IndexSchema
+	var indexes []*sqlrpcv1.IndexSchema
 	for _, meta := range metas {
 		// Get columns in this index
 		infoRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_info(%q)", meta.name))
@@ -424,7 +424,7 @@ func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName st
 		_ = db.QueryRowContext(ctx,
 			"SELECT sql FROM sqlite_schema WHERE type='index' AND name = ?", meta.name).Scan(&sqlStmt)
 
-		indexes = append(indexes, &dbv1.IndexSchema{
+		indexes = append(indexes, &sqlrpcv1.IndexSchema{
 			Name:    meta.name,
 			Unique:  meta.unique,
 			Columns: columnNames,
@@ -436,14 +436,14 @@ func (s *DbServer) getTableIndexes(ctx context.Context, db *sql.DB, tableName st
 }
 
 // getTableForeignKeys returns foreign key information using PRAGMA foreign_key_list.
-func (s *DbServer) getTableForeignKeys(ctx context.Context, db *sql.DB, tableName string) ([]*dbv1.ForeignKeySchema, error) {
+func (s *DbServer) getTableForeignKeys(ctx context.Context, db *sql.DB, tableName string) ([]*sqlrpcv1.ForeignKeySchema, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA foreign_key_list(%q)", tableName))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	defer rows.Close()
 
-	var foreignKeys []*dbv1.ForeignKeySchema
+	var foreignKeys []*sqlrpcv1.ForeignKeySchema
 	for rows.Next() {
 		var id, seq int
 		var table, from, to, onUpdate, onDelete, match string
@@ -452,7 +452,7 @@ func (s *DbServer) getTableForeignKeys(ctx context.Context, db *sql.DB, tableNam
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 
-		foreignKeys = append(foreignKeys, &dbv1.ForeignKeySchema{
+		foreignKeys = append(foreignKeys, &sqlrpcv1.ForeignKeySchema{
 			Id:         int32(id),
 			Table:      table,
 			FromColumn: from,
@@ -466,7 +466,7 @@ func (s *DbServer) getTableForeignKeys(ctx context.Context, db *sql.DB, tableNam
 }
 
 // getTableTriggers returns trigger information from sqlite_schema.
-func (s *DbServer) getTableTriggers(ctx context.Context, db *sql.DB, tableName string) ([]*dbv1.TriggerSchema, error) {
+func (s *DbServer) getTableTriggers(ctx context.Context, db *sql.DB, tableName string) ([]*sqlrpcv1.TriggerSchema, error) {
 	rows, err := db.QueryContext(ctx,
 		"SELECT name, sql FROM sqlite_schema WHERE type='trigger' AND tbl_name = ?", tableName)
 	if err != nil {
@@ -474,7 +474,7 @@ func (s *DbServer) getTableTriggers(ctx context.Context, db *sql.DB, tableName s
 	}
 	defer rows.Close()
 
-	var triggers []*dbv1.TriggerSchema
+	var triggers []*sqlrpcv1.TriggerSchema
 	for rows.Next() {
 		var name string
 		var sqlStmt sql.NullString
@@ -483,7 +483,7 @@ func (s *DbServer) getTableTriggers(ctx context.Context, db *sql.DB, tableName s
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 
-		triggers = append(triggers, &dbv1.TriggerSchema{
+		triggers = append(triggers, &sqlrpcv1.TriggerSchema{
 			Name: name,
 			Sql:  sqlStmt.String,
 		})

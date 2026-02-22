@@ -3,7 +3,7 @@ package servicesv1
 import (
 	"errors"
 	"log"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 	"github.com/mattn/go-sqlite3"
@@ -13,17 +13,17 @@ import (
 
 // extractSqliteCode attempts to cast the error to a sqlite3.Error and return its extended code.
 // Returns 0 if it's not a sqlite error.
-func extractSqliteCode(err error) dbv1.SqliteCode {
+func extractSqliteCode(err error) sqlrpcv1.SqliteCode {
 	var sqliteErr sqlite3.Error
 	if errors.As(err, &sqliteErr) {
 		// Use ExtendedCode for more granular detail (e.g. SQLITE_CONSTRAINT_UNIQUE)
-		return dbv1.SqliteCode(sqliteErr.ExtendedCode)
+		return sqlrpcv1.SqliteCode(sqliteErr.ExtendedCode)
 	}
 	return 0
 }
 
 // sqliteToConnectCode maps SQLite error codes to appropriate gRPC/Connect codes.
-func sqliteToConnectCode(sqliteCode dbv1.SqliteCode) connect.Code {
+func sqliteToConnectCode(sqliteCode sqlrpcv1.SqliteCode) connect.Code {
 	// Mask off extended bits to check primary codes if needed, or check specific extended codes.
 	// Reference: https://www.sqlite.org/rescode.html
 	primary := sqliteCode & 0xFF
@@ -43,7 +43,7 @@ func sqliteToConnectCode(sqliteCode dbv1.SqliteCode) connect.Code {
 }
 
 // makeUnaryError wraps the error in a connect.Error and attaches the
-// dbv1.ErrorResponse as detailed metadata. This allows the client to see
+// sqlrpcv1.ErrorResponse as detailed metadata. This allows the client to see
 // the 'sqlite_error_code' even in unary RPCs.
 func makeUnaryError(err error, sql string) *connect.Error {
 	code := extractSqliteCode(err)
@@ -58,7 +58,7 @@ func makeUnaryError(err error, sql string) *connect.Error {
 	connectErr := connect.NewError(connectCode, err)
 
 	// Construct the structured ErrorResponse defined in your proto
-	detailVal := &dbv1.ErrorResponse{
+	detailVal := &sqlrpcv1.ErrorResponse{
 		Message:         err.Error(),
 		FailedSql:       sql,
 		SqliteErrorCode: code,
@@ -76,7 +76,7 @@ func makeUnaryError(err error, sql string) *connect.Error {
 
 // transactionSender abstracts the stream for testing
 type transactionSender interface {
-	Send(*dbv1.TransactionResponse) error
+	Send(*sqlrpcv1.TransactionResponse) error
 }
 
 // sendAppError writes an application-level error message to the stream.
@@ -84,9 +84,9 @@ type transactionSender interface {
 func sendAppError(stream transactionSender, reqID string, err error, sql string) {
 	errResp := makeStreamError(err, sql)
 
-	res := &dbv1.TransactionResponse{
+	res := &sqlrpcv1.TransactionResponse{
 		// ResponseID isn't in proto, assuming logic from previous context
-		Response: &dbv1.TransactionResponse_Error{Error: errResp},
+		Response: &sqlrpcv1.TransactionResponse_Error{Error: errResp},
 	}
 	if err := stream.Send(res); err != nil {
 		log.Printf("Failed to send error to client: %v for reqID: %s", err, reqID)
@@ -94,8 +94,8 @@ func sendAppError(stream transactionSender, reqID string, err error, sql string)
 }
 
 // makeStreamError helper to create the ErrorResponse message for streams
-func makeStreamError(err error, sql string) *dbv1.ErrorResponse {
-	return &dbv1.ErrorResponse{
+func makeStreamError(err error, sql string) *sqlrpcv1.ErrorResponse {
+	return &sqlrpcv1.ErrorResponse{
 		Message:         err.Error(),
 		FailedSql:       sql,
 		SqliteErrorCode: extractSqliteCode(err),

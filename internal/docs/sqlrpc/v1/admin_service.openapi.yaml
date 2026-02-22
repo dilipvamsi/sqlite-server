@@ -1,0 +1,1818 @@
+openapi: 3.1.0
+info:
+  title: sqlrpc.v1
+paths:
+  /sqlrpc.v1.AdminService/CreateAPIKey:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  API Key Management: Create.  Provisions a new secure API key for authentication.'
+      description: |-
+        *
+         API Key Management: Create.
+         Provisions a new secure API key for authentication.
+      operationId: sqlrpc.v1.AdminService.CreateAPIKey
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.CreateAPIKeyRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.CreateAPIKeyResponse'
+  /sqlrpc.v1.AdminService/CreateDatabase:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Database Lifecycle: Create.  Provisions a new, isolated SQLite database for a tenant.'
+      description: |-
+        *
+         Database Lifecycle: Create.
+         Provisions a new, isolated SQLite database for a tenant.
+      operationId: sqlrpc.v1.AdminService.CreateDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.CreateDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.CreateDatabaseResponse'
+  /sqlrpc.v1.AdminService/CreateUser:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  User Management: Create.  Provisions a new user identity in the platform.'
+      description: |-
+        *
+         User Management: Create.
+         Provisions a new user identity in the platform.
+      operationId: sqlrpc.v1.AdminService.CreateUser
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.CreateUserRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.CreateUserResponse'
+  /sqlrpc.v1.AdminService/DeleteAPIKey:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  API Key Management: Delete.  Revokes a specific API key immediately.'
+      description: |-
+        *
+         API Key Management: Delete.
+         Revokes a specific API key immediately.
+      operationId: sqlrpc.v1.AdminService.DeleteAPIKey
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.DeleteAPIKeyRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.DeleteAPIKeyResponse'
+  /sqlrpc.v1.AdminService/DeleteDatabase:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Database Lifecycle: Delete.  Permanently removes the database file and its tenant registration.'
+      description: |-
+        *
+         Database Lifecycle: Delete.
+         Permanently removes the database file and its tenant registration.
+      operationId: sqlrpc.v1.AdminService.DeleteDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.DeleteDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.DeleteDatabaseResponse'
+  /sqlrpc.v1.AdminService/DeleteUser:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  User Management: Delete.  Permanently removes a user and invalidates all their associated API keys.'
+      description: |-
+        *
+         User Management: Delete.
+         Permanently removes a user and invalidates all their associated API keys.
+      operationId: sqlrpc.v1.AdminService.DeleteUser
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.DeleteUserRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.DeleteUserResponse'
+  /sqlrpc.v1.AdminService/GetServerInfo:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Platform Info.  Returns global system metadata, versioning, and status.'
+      description: |-
+        *
+         Platform Info.
+         Returns global system metadata, versioning, and status.
+      operationId: sqlrpc.v1.AdminService.GetServerInfo
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.GetServerInfoRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.ServerInfo'
+  /sqlrpc.v1.AdminService/ListAPIKeys:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  API Key Management: List.  Returns all active API keys for a specific user.'
+      description: |-
+        *
+         API Key Management: List.
+         Returns all active API keys for a specific user.
+      operationId: sqlrpc.v1.AdminService.ListAPIKeys
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.ListAPIKeysRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.ListAPIKeysResponse'
+  /sqlrpc.v1.AdminService/ListDatabases:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Database Lifecycle: List.  Returns all managed tenant databases in the platform.'
+      description: |-
+        *
+         Database Lifecycle: List.
+         Returns all managed tenant databases in the platform.
+      operationId: sqlrpc.v1.AdminService.ListDatabases
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.ListDatabasesRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.ListDatabasesResponse'
+  /sqlrpc.v1.AdminService/ListUsers:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  User Management: List.  Returns all system users and their assigned roles.'
+      description: |-
+        *
+         User Management: List.
+         Returns all system users and their assigned roles.
+      operationId: sqlrpc.v1.AdminService.ListUsers
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.ListUsersRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.ListUsersResponse'
+  /sqlrpc.v1.AdminService/Login:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Authentication: Login.  Authenticates credentials and yields a session token/API key.'
+      description: |-
+        *
+         Authentication: Login.
+         Authenticates credentials and yields a session token/API key.
+      operationId: sqlrpc.v1.AdminService.Login
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.LoginRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.LoginResponse'
+  /sqlrpc.v1.AdminService/Logout:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Authentication: Logout.  Terminates the active session.'
+      description: |-
+        *
+         Authentication: Logout.
+         Terminates the active session.
+      operationId: sqlrpc.v1.AdminService.Logout
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.LogoutRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.LogoutResponse'
+  /sqlrpc.v1.AdminService/MountDatabase:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Database Lifecycle: Mount existing.  Registers and attaches an existing SQLite file into the platform.'
+      description: |-
+        *
+         Database Lifecycle: Mount existing.
+         Registers and attaches an existing SQLite file into the platform.
+      operationId: sqlrpc.v1.AdminService.MountDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.MountDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.MountDatabaseResponse'
+  /sqlrpc.v1.AdminService/UnMountDatabase:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Database Lifecycle: Unmount.  Gently removes an active database from the platform without deleting the  file.'
+      description: |-
+        *
+         Database Lifecycle: Unmount.
+         Gently removes an active database from the platform without deleting the
+         file.
+      operationId: sqlrpc.v1.AdminService.UnMountDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.UnMountDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.UnMountDatabaseResponse'
+  /sqlrpc.v1.AdminService/UpdateDatabase:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  Database Lifecycle: Update.  Modifies non-destructive configuration for an existing tenant.'
+      description: |-
+        *
+         Database Lifecycle: Update.
+         Modifies non-destructive configuration for an existing tenant.
+      operationId: sqlrpc.v1.AdminService.UpdateDatabase
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.UpdateDatabaseRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.UpdateDatabaseResponse'
+  /sqlrpc.v1.AdminService/UpdatePassword:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  User Management: Update Password.  Enables a user to modify their own credential or an admin to reset it.'
+      description: |-
+        *
+         User Management: Update Password.
+         Enables a user to modify their own credential or an admin to reset it.
+      operationId: sqlrpc.v1.AdminService.UpdatePassword
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.UpdatePasswordRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.UpdatePasswordResponse'
+  /sqlrpc.v1.AdminService/UpdateUserRole:
+    post:
+      tags:
+        - sqlrpc.v1.AdminService
+      summary: '*  User Management: Update Role.  Modifies the RBAC tier for an existing user.'
+      description: |-
+        *
+         User Management: Update Role.
+         Modifies the RBAC tier for an existing user.
+      operationId: sqlrpc.v1.AdminService.UpdateUserRole
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.UpdateUserRoleRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.UpdateUserRoleResponse'
+components:
+  schemas:
+    connect-protocol-version:
+      type: number
+      title: Connect-Protocol-Version
+      enum:
+        - 1
+      description: Define the version of the Connect protocol
+      const: 1
+    connect-timeout-header:
+      type: number
+      title: Connect-Timeout-Ms
+      description: Define the timeout, in ms
+    connect.error:
+      type: object
+      properties:
+        code:
+          type: string
+          examples:
+            - not_found
+          enum:
+            - canceled
+            - unknown
+            - invalid_argument
+            - deadline_exceeded
+            - not_found
+            - already_exists
+            - permission_denied
+            - resource_exhausted
+            - failed_precondition
+            - aborted
+            - out_of_range
+            - unimplemented
+            - internal
+            - unavailable
+            - data_loss
+            - unauthenticated
+          description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+        message:
+          type: string
+          description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/connect.error_details.Any'
+          description: A list of messages that carry the error details. There is no limit on the number of messages.
+      title: Connect Error
+      additionalProperties: true
+      description: 'Error type returned by Connect: https://connectrpc.com/docs/go/errors/#http-representation'
+    connect.error_details.Any:
+      type: object
+      properties:
+        type:
+          type: string
+          description: 'A URL that acts as a globally unique identifier for the type of the serialized message. For example: `type.googleapis.com/google.rpc.ErrorInfo`. This is used to determine the schema of the data in the `value` field and is the discriminator for the `debug` field.'
+        value:
+          type: string
+          format: binary
+          description: The Protobuf message, serialized as bytes and base64-encoded. The specific message type is identified by the `type` field.
+        debug:
+          oneOf:
+            - type: object
+              title: Any
+              additionalProperties: true
+              description: Detailed error information.
+          discriminator:
+            propertyName: type
+          title: Debug
+          description: Deserialized error detail payload. The 'type' field indicates the schema. This field is for easier debugging and should not be relied upon for application logic.
+      additionalProperties: true
+      description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message, with an additional debug field for ConnectRPC error details.
+    google.protobuf.Duration:
+      type: string
+      format: duration
+      description: |-
+        A Duration represents a signed, fixed-length span of time represented
+         as a count of seconds and fractions of seconds at nanosecond
+         resolution. It is independent of any calendar and concepts like "day"
+         or "month". It is related to Timestamp in that the difference between
+         two Timestamp values is a Duration and it can be added or subtracted
+         from a Timestamp. Range is approximately +-10,000 years.
+
+         # Examples
+
+         Example 1: Compute Duration from two Timestamps in pseudo code.
+
+             Timestamp start = ...;
+             Timestamp end = ...;
+             Duration duration = ...;
+
+             duration.seconds = end.seconds - start.seconds;
+             duration.nanos = end.nanos - start.nanos;
+
+             if (duration.seconds < 0 && duration.nanos > 0) {
+               duration.seconds += 1;
+               duration.nanos -= 1000000000;
+             } else if (duration.seconds > 0 && duration.nanos < 0) {
+               duration.seconds -= 1;
+               duration.nanos += 1000000000;
+             }
+
+         Example 2: Compute Timestamp from Timestamp + Duration in pseudo code.
+
+             Timestamp start = ...;
+             Duration duration = ...;
+             Timestamp end = ...;
+
+             end.seconds = start.seconds + duration.seconds;
+             end.nanos = start.nanos + duration.nanos;
+
+             if (end.nanos < 0) {
+               end.seconds -= 1;
+               end.nanos += 1000000000;
+             } else if (end.nanos >= 1000000000) {
+               end.seconds += 1;
+               end.nanos -= 1000000000;
+             }
+
+         Example 3: Compute Duration from datetime.timedelta in Python.
+
+             td = datetime.timedelta(days=3, minutes=10)
+             duration = Duration()
+             duration.FromTimedelta(td)
+
+         # JSON Mapping
+
+         In JSON format, the Duration type is encoded as a string rather than an
+         object, where the string ends in the suffix "s" (indicating seconds) and
+         is preceded by the number of seconds, with nanoseconds expressed as
+         fractional seconds. For example, 3 seconds with 0 nanoseconds should be
+         encoded in JSON format as "3s", while 3 seconds and 1 nanosecond should
+         be expressed in JSON format as "3.000000001s", and 3 seconds and 1
+         microsecond should be expressed in JSON format as "3.000001s".
+    google.protobuf.Timestamp:
+      type: string
+      examples:
+        - "2023-01-15T01:30:15.01Z"
+        - "2024-12-25T12:00:00Z"
+      format: date-time
+      description: |-
+        A Timestamp represents a point in time independent of any time zone or local
+         calendar, encoded as a count of seconds and fractions of seconds at
+         nanosecond resolution. The count is relative to an epoch at UTC midnight on
+         January 1, 1970, in the proleptic Gregorian calendar which extends the
+         Gregorian calendar backwards to year one.
+
+         All minutes are 60 seconds long. Leap seconds are "smeared" so that no leap
+         second table is needed for interpretation, using a [24-hour linear
+         smear](https://developers.google.com/time/smear).
+
+         The range is from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z. By
+         restricting to that range, we ensure that we can convert to and from [RFC
+         3339](https://www.ietf.org/rfc/rfc3339.txt) date strings.
+
+         # Examples
+
+         Example 1: Compute Timestamp from POSIX `time()`.
+
+             Timestamp timestamp;
+             timestamp.set_seconds(time(NULL));
+             timestamp.set_nanos(0);
+
+         Example 2: Compute Timestamp from POSIX `gettimeofday()`.
+
+             struct timeval tv;
+             gettimeofday(&tv, NULL);
+
+             Timestamp timestamp;
+             timestamp.set_seconds(tv.tv_sec);
+             timestamp.set_nanos(tv.tv_usec * 1000);
+
+         Example 3: Compute Timestamp from Win32 `GetSystemTimeAsFileTime()`.
+
+             FILETIME ft;
+             GetSystemTimeAsFileTime(&ft);
+             UINT64 ticks = (((UINT64)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+
+             // A Windows tick is 100 nanoseconds. Windows epoch 1601-01-01T00:00:00Z
+             // is 11644473600 seconds before Unix epoch 1970-01-01T00:00:00Z.
+             Timestamp timestamp;
+             timestamp.set_seconds((INT64) ((ticks / 10000000) - 11644473600LL));
+             timestamp.set_nanos((INT32) ((ticks % 10000000) * 100));
+
+         Example 4: Compute Timestamp from Java `System.currentTimeMillis()`.
+
+             long millis = System.currentTimeMillis();
+
+             Timestamp timestamp = Timestamp.newBuilder().setSeconds(millis / 1000)
+                 .setNanos((int) ((millis % 1000) * 1000000)).build();
+
+         Example 5: Compute Timestamp from Java `Instant.now()`.
+
+             Instant now = Instant.now();
+
+             Timestamp timestamp =
+                 Timestamp.newBuilder().setSeconds(now.getEpochSecond())
+                     .setNanos(now.getNano()).build();
+
+         Example 6: Compute Timestamp from current time in Python.
+
+             timestamp = Timestamp()
+             timestamp.GetCurrentTime()
+
+         # JSON Mapping
+
+         In JSON format, the Timestamp type is encoded as a string in the
+         [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) format. That is, the
+         format is "{year}-{month}-{day}T{hour}:{min}:{sec}[.{frac_sec}]Z"
+         where {year} is always expressed using four digits while {month}, {day},
+         {hour}, {min}, and {sec} are zero-padded to two digits each. The fractional
+         seconds, which can go up to 9 digits (i.e. up to 1 nanosecond resolution),
+         are optional. The "Z" suffix indicates the timezone ("UTC"); the timezone
+         is required. A proto3 JSON serializer should always use UTC (as indicated by
+         "Z") when printing the Timestamp type and a proto3 JSON parser should be
+         able to accept both UTC and other timezones (as indicated by an offset).
+
+         For example, "2017-01-15T01:30:15.01Z" encodes 15.01 seconds past
+         01:30 UTC on January 15, 2017.
+
+         In JavaScript, one can convert a Date object to this format using the
+         standard
+         [toISOString()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString)
+         method. In Python, a standard `datetime.datetime` object can be converted
+         to this format using
+         [`strftime`](https://docs.python.org/2/library/time.html#time.strftime) with
+         the time format spec '%Y-%m-%dT%H:%M:%S.%fZ'. Likewise, in Java, one can use
+         the Joda Time's [`ISODateTimeFormat.dateTime()`](
+         http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
+         ) to obtain a formatter capable of generating timestamps in this format.
+    sqlrpc.v1.APIKey:
+      type: object
+      properties:
+        id:
+          type: string
+          title: id
+          description: Unique key identifier (prefix-based, e.g. ak_...).
+        keyPreview:
+          type: string
+          title: key_preview
+          description: Masked representation for identification (e.g. sk_...1234).
+        name:
+          type: string
+          title: name
+          description: Descriptive label for the key's purpose.
+        createdAt:
+          title: created_at
+          description: Timestamp when the key was provisioned.
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+        expiresAt:
+          title: expires_at
+          description: Optional expiration timestamp. Returns null if the key never expires.
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+      title: APIKey
+      additionalProperties: false
+      description: |-
+        *
+         Metadata describing an active authentication key.
+    sqlrpc.v1.Attachment:
+      type: object
+      properties:
+        targetDatabaseName:
+          type: string
+          title: target_database_name
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Name of the tenant database to attach.
+        alias:
+          type: string
+          title: alias
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Schema alias to prefix queries (e.g. ATTACH AS <alias>).
+      title: Attachment
+      additionalProperties: false
+      description: |-
+        *
+         Attachment defines a dynamic mounting of a secondary database into a
+         connection.
+    sqlrpc.v1.AttachmentList:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.Attachment'
+          title: values
+          description: Collection of attachment configurations.
+      title: AttachmentList
+      additionalProperties: false
+      description: |-
+        *
+         AttachmentList provides a wrapper for a collection of database attachments.
+    sqlrpc.v1.CreateAPIKeyRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Target username for the key.
+        name:
+          type: string
+          title: name
+          maxLength: 128
+          minLength: 1
+          description: Descriptive label for the key.
+        expiresAt:
+          title: expires_at
+          description: Optional expiration timestamp.
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+      title: CreateAPIKeyRequest
+      additionalProperties: false
+      description: |-
+        *
+         Payload to provision a new authentication credential.
+    sqlrpc.v1.CreateAPIKeyResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          title: api_key
+          description: The actual secure credential string.
+        keyId:
+          type: string
+          title: key_id
+          description: Unique key ID.
+        metadata:
+          title: metadata
+          description: Metadata for the provisioned key.
+          $ref: '#/components/schemas/sqlrpc.v1.APIKey'
+      title: CreateAPIKeyResponse
+      additionalProperties: false
+      description: |-
+        *
+         Contains the plaintext API key (only yielded once upon creation).
+    sqlrpc.v1.CreateDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Unique name for the database.
+        isEncrypted:
+          type: boolean
+          title: is_encrypted
+          description: Enable encryption (SQLCipher) if true.
+        key:
+          type: string
+          title: key
+          description: Encryption key for SQLCipher.
+        extensions:
+          type: array
+          items:
+            type: string
+          title: extensions
+          description: List of extensions to preload.
+        pragmas:
+          type: object
+          title: pragmas
+          additionalProperties:
+            type: string
+            title: value
+          description: Map of PRAGMAs to apply.
+        maxOpenConns:
+          type: integer
+          title: max_open_conns
+          format: int32
+          description: Limit for concurrent connections.
+        maxIdleConns:
+          type: integer
+          title: max_idle_conns
+          format: int32
+          description: Limit for idle connections.
+        connMaxLifetimeMs:
+          type: integer
+          title: conn_max_lifetime_ms
+          format: int32
+          description: Connection lifetime in milliseconds.
+      title: CreateDatabaseRequest
+      additionalProperties: false
+      description: |-
+        *
+         Payload to create a new managed database.
+    sqlrpc.v1.CreateDatabaseRequest.PragmasEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          type: string
+          title: value
+      title: PragmasEntry
+      additionalProperties: false
+    sqlrpc.v1.CreateDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the creation succeeded.
+        message:
+          type: string
+          title: message
+          description: Success or error message.
+      title: CreateDatabaseResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirmation of database creation.
+    sqlrpc.v1.CreateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Unique system-wide username.
+        role:
+          title: role
+          description: Initial RBAC tier.
+          $ref: '#/components/schemas/sqlrpc.v1.Role'
+        password:
+          type: string
+          title: password
+          minLength: 8
+          description: Secure password.
+      title: CreateUserRequest
+      additionalProperties: false
+      description: |-
+        *
+         Payload to provision a new user identity.
+    sqlrpc.v1.CreateUserResponse:
+      type: object
+      properties:
+        userId:
+          type:
+            - integer
+            - string
+          title: user_id
+          format: int64
+          description: Database internal identifier for the user.
+        username:
+          type: string
+          title: username
+          description: Final processed username.
+        createdAt:
+          title: created_at
+          description: Timestamp of record creation.
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+      title: CreateUserResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirmation of successful user creation.
+    sqlrpc.v1.DatabaseInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          description: Logical tenant identifier.
+        path:
+          type: string
+          title: path
+          description: Absolute path to the underlying SQLite file.
+        isManaged:
+          type: boolean
+          title: is_managed
+          description: True if the database is registered in the platform's control plane.
+        currentAttachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.Attachment'
+          title: current_attachments
+          description: List of databases currently attached to this connection.
+        readOnly:
+          type: boolean
+          title: read_only
+          description: If true, the database is mounted in strictly read-only mode.
+        loadedExtensions:
+          type: array
+          items:
+            type: string
+          title: loaded_extensions
+          description: List of managed extension identifiers currently loaded.
+      title: DatabaseInfo
+      additionalProperties: false
+      description: |-
+        *
+         DatabaseInfo describes the current state and metadata for a managed tenant
+         database.
+    sqlrpc.v1.DeleteAPIKeyRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          description: Target username for the revocation.
+        keyId:
+          type: string
+          title: key_id
+          minLength: 1
+          description: Fully qualified key ID to revoke.
+      title: DeleteAPIKeyRequest
+      additionalProperties: false
+      description: |-
+        *
+         Unary request to revoke an active credential.
+    sqlrpc.v1.DeleteAPIKeyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the key was revoked successfully.
+      title: DeleteAPIKeyResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirms the successful revocation of the API key.
+    sqlrpc.v1.DeleteDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant name to remove.
+      title: DeleteDatabaseRequest
+      additionalProperties: false
+      description: |-
+        *
+         Command to decommission a tenant database and wipe its data.
+    sqlrpc.v1.DeleteDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the deletion succeeded.
+        message:
+          type: string
+          title: message
+          description: Success or error message.
+      title: DeleteDatabaseResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirms the successful destruction of the database.
+    sqlrpc.v1.DeleteUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Target username to remove.
+      title: DeleteUserRequest
+      additionalProperties: false
+      description: |-
+        *
+         Unary request to decommission a user identity.
+    sqlrpc.v1.DeleteUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the user was deleted successfully.
+      title: DeleteUserResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirms the successful removal of the user identity.
+    sqlrpc.v1.ExtensionList:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            type: string
+          title: values
+          description: Collection of extension folder names.
+      title: ExtensionList
+      additionalProperties: false
+      description: |-
+        *
+         ExtensionList provides a wrapper for a collection of extension identifiers.
+    sqlrpc.v1.GetServerInfoRequest:
+      type: object
+      title: GetServerInfoRequest
+      additionalProperties: false
+      description: |-
+        *
+         Unary request for server metadata.
+    sqlrpc.v1.InitCommandList:
+      type: object
+      properties:
+        values:
+          type: array
+          items:
+            type: string
+          title: values
+          description: Collection of SQL statements to execute on initialization.
+      title: InitCommandList
+      additionalProperties: false
+      description: |-
+        *
+         InitCommandList provides a wrapper for a collection of SQL initialization
+         commands.
+    sqlrpc.v1.ListAPIKeysRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Target username whose keys should be retrieved.
+      title: ListAPIKeysRequest
+      additionalProperties: false
+      description: |-
+        *
+         Request to list active keys for a specific identity.
+    sqlrpc.v1.ListAPIKeysResponse:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.APIKey'
+          title: keys
+          description: Collection of active keys for the target user.
+      title: ListAPIKeysResponse
+      additionalProperties: false
+      description: |-
+        *
+         Catalog of active API keys and their metadata.
+    sqlrpc.v1.ListDatabasesRequest:
+      type: object
+      title: ListDatabasesRequest
+      additionalProperties: false
+      description: |-
+        *
+         Unary request to retrieve the full catalog of tenant databases.
+    sqlrpc.v1.ListDatabasesResponse:
+      type: object
+      properties:
+        databases:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.DatabaseInfo'
+          title: databases
+          description: Collection of discovered tenant databases.
+      title: ListDatabasesResponse
+      additionalProperties: false
+      description: |-
+        *
+         Catalog of databases managed by the platform.
+    sqlrpc.v1.ListUsersRequest:
+      type: object
+      title: ListUsersRequest
+      additionalProperties: false
+      description: |-
+        *
+         Unary request to retrieve the full list of platform users.
+    sqlrpc.v1.ListUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.User'
+          title: users
+          description: Collection of system users and their roles.
+      title: ListUsersResponse
+      additionalProperties: false
+      description: |-
+        *
+         Result containing the catalog of system users.
+    sqlrpc.v1.LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          minLength: 1
+          description: System-wide username.
+        password:
+          type: string
+          title: password
+          minLength: 1
+          description: Plaintext password.
+        sessionDuration:
+          title: session_duration
+          description: Optional requested session duration.
+          $ref: '#/components/schemas/google.protobuf.Duration'
+      title: LoginRequest
+      additionalProperties: false
+      description: |-
+        *
+         Payload for credential-based authentication.
+    sqlrpc.v1.LoginResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          title: api_key
+          description: The temporary API key/token for subsequent requests.
+        keyId:
+          type: string
+          title: key_id
+          description: Final processed username.
+        expiresAt:
+          title: expires_at
+          description: Timestamp when the session key expires.
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+        user:
+          title: user
+          description: User metadata for the authenticated identity.
+          $ref: '#/components/schemas/sqlrpc.v1.User'
+      title: LoginResponse
+      additionalProperties: false
+      description: |-
+        *
+         Authentication result containing the secure session token.
+    sqlrpc.v1.LogoutRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          description: Username of the session.
+        keyId:
+          type: string
+          title: key_id
+          description: Key ID or token to invalidate.
+      title: LogoutRequest
+      additionalProperties: false
+      description: |-
+        *
+         Request to invalidate an active session.
+    sqlrpc.v1.LogoutResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the session was terminated successfully.
+      title: LogoutResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirms the successful session termination.
+    sqlrpc.v1.MountDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Unique name to assign to the mounted database.
+        path:
+          type: string
+          title: path
+          minLength: 1
+          description: Absolute physical path to the SQLite source file on the server.
+        readOnly:
+          type: boolean
+          title: read_only
+          description: Mount as read-only if true.
+        isEncrypted:
+          type: boolean
+          title: is_encrypted
+          description: Enable encryption (SQLCipher) if true.
+        key:
+          type: string
+          title: key
+          description: Encryption key for SQLCipher.
+        extensions:
+          type: array
+          items:
+            type: string
+          title: extensions
+          description: List of extensions to preload.
+        pragmas:
+          type: object
+          title: pragmas
+          additionalProperties:
+            type: string
+            title: value
+          description: Map of PRAGMAs to apply.
+        maxOpenConns:
+          type: integer
+          title: max_open_conns
+          format: int32
+          description: Limit for concurrent connections.
+        maxIdleConns:
+          type: integer
+          title: max_idle_conns
+          format: int32
+          description: Limit for idle connections.
+        connMaxLifetimeMs:
+          type: integer
+          title: conn_max_lifetime_ms
+          format: int32
+          description: Connection lifetime in milliseconds.
+      title: MountDatabaseRequest
+      additionalProperties: false
+      description: |-
+        *
+         Payload to register an existing SQLite file into the platform.
+    sqlrpc.v1.MountDatabaseRequest.PragmasEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          type: string
+          title: value
+      title: PragmasEntry
+      additionalProperties: false
+    sqlrpc.v1.MountDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the mounting succeeded.
+        message:
+          type: string
+          title: message
+          description: Success or error message.
+      title: MountDatabaseResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirmation of database mounting.
+    sqlrpc.v1.PragmaMap:
+      type: object
+      properties:
+        values:
+          type: object
+          title: values
+          additionalProperties:
+            type: string
+            title: value
+          description: Collection of key-value pairs representing PRAGMA settings.
+      title: PragmaMap
+      additionalProperties: false
+      description: |-
+        *
+         PragmaMap provides a wrapper for a collection of SQLite PRAGMA settings.
+    sqlrpc.v1.PragmaMap.ValuesEntry:
+      type: object
+      properties:
+        key:
+          type: string
+          title: key
+        value:
+          type: string
+          title: value
+      title: ValuesEntry
+      additionalProperties: false
+    sqlrpc.v1.Role:
+      type: string
+      title: Role
+      enum:
+        - ROLE_UNSPECIFIED
+        - ROLE_READ_ONLY
+        - ROLE_READ_WRITE
+        - ROLE_DATABASE_MANAGER
+        - ROLE_ADMIN
+      description: |-
+        *
+         Role defines the RBAC permission tier for a platform identity.
+         Determines connection provisioning (e.g., Read-Only users receive strictly
+         read-only connections).
+    sqlrpc.v1.ServerInfo:
+      type: object
+      properties:
+        version:
+          type: string
+          title: version
+          description: Server version string.
+        serverTime:
+          title: server_time
+          description: Current server wall-clock time.
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
+        architecture:
+          type: string
+          title: architecture
+          description: Platform architecture (e.g. linux/amd64).
+        goVersion:
+          type: string
+          title: go_version
+          description: Go runtime version.
+        sqliteVersion:
+          type: string
+          title: sqlite_version
+          description: Underlying SQLite engine version.
+        databaseCount:
+          type: integer
+          title: database_count
+          format: int32
+          description: Total count of registered tenants.
+        uptimeSeconds:
+          type:
+            - integer
+            - string
+          title: uptime_seconds
+          format: int64
+          description: Server uptime in seconds.
+        authDisabled:
+          type: boolean
+          title: auth_disabled
+          description: True if the server is running without authentication.
+      title: ServerInfo
+      additionalProperties: false
+      description: |-
+        *
+         Result containing server metadata.
+    sqlrpc.v1.UnMountDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant name to unmount.
+      title: UnMountDatabaseRequest
+      additionalProperties: false
+      description: |-
+        *
+         Command to remove a database registration without wiping data.
+    sqlrpc.v1.UnMountDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the unmounting succeeded.
+        message:
+          type: string
+          title: message
+          description: Success or error message.
+      title: UnMountDatabaseResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirms the successful unmounting of the database.
+    sqlrpc.v1.UpdateDatabaseConfig:
+      type: object
+      properties:
+        readOnly:
+          type:
+            - boolean
+            - "null"
+          title: read_only
+          description: Toggle read-only mode for the tenant.
+        extensions:
+          title: extensions
+          description: Partial list of extensions to load/unload.
+          $ref: '#/components/schemas/sqlrpc.v1.ExtensionList'
+        pragmas:
+          title: pragmas
+          description: Partial map of PRAGMAs to modify.
+          $ref: '#/components/schemas/sqlrpc.v1.PragmaMap'
+        maxOpenConns:
+          type:
+            - integer
+            - "null"
+          title: max_open_conns
+          format: int32
+          description: New limit for concurrent connections.
+        maxIdleConns:
+          type:
+            - integer
+            - "null"
+          title: max_idle_conns
+          format: int32
+          description: New limit for idle connections in the pool.
+        connMaxLifetimeMs:
+          type:
+            - integer
+            - "null"
+          title: conn_max_lifetime_ms
+          format: int32
+          description: New lifetime limit for physical connections.
+        initCommands:
+          title: init_commands
+          description: New list of initialization SQL commands.
+          $ref: '#/components/schemas/sqlrpc.v1.InitCommandList'
+        attachments:
+          title: attachments
+          description: New collection of database attachments.
+          $ref: '#/components/schemas/sqlrpc.v1.AttachmentList'
+      title: UpdateDatabaseConfig
+      additionalProperties: false
+      description: |-
+        *
+         UpdateDatabaseConfig allows for non-destructive updates to a tenant's
+         configuration on the fly.
+    sqlrpc.v1.UpdateDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          title: name
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant name to modify.
+        config:
+          title: config
+          description: Partial configuration updates.
+          $ref: '#/components/schemas/sqlrpc.v1.UpdateDatabaseConfig'
+      title: UpdateDatabaseRequest
+      required:
+        - config
+      additionalProperties: false
+      description: |-
+        *
+         Payload to update a tenant's runtime configuration.
+    sqlrpc.v1.UpdateDatabaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the update was persists successfully.
+        message:
+          type: string
+          title: message
+          description: Success or error message.
+      title: UpdateDatabaseResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirmation of database update.
+    sqlrpc.v1.UpdatePasswordRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          description: Target username to modify.
+        newPassword:
+          type: string
+          title: new_password
+          minLength: 8
+          description: New secure password.
+      title: UpdatePasswordRequest
+      additionalProperties: false
+      description: |-
+        *
+         Payload to modify a user's credential.
+    sqlrpc.v1.UpdatePasswordResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the update was persists successfully.
+      title: UpdatePasswordResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirmation of password update.
+    sqlrpc.v1.UpdateUserRoleRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          title: username
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Target username to modify.
+        role:
+          title: role
+          description: New RBAC tier to assign.
+          $ref: '#/components/schemas/sqlrpc.v1.Role'
+      title: UpdateUserRoleRequest
+      additionalProperties: false
+      description: |-
+        *
+         Payload to modify a user's permissions.
+    sqlrpc.v1.UpdateUserRoleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          title: success
+          description: True if the update was persists successfully.
+      title: UpdateUserRoleResponse
+      additionalProperties: false
+      description: |-
+        *
+         Confirmation of user role modification.
+    sqlrpc.v1.User:
+      type: object
+      properties:
+        id:
+          type:
+            - integer
+            - string
+          title: id
+          format: int64
+          description: Primary key for the user identity.
+        username:
+          type: string
+          title: username
+          description: Unique identifier for the user.
+        role:
+          title: role
+          description: RBAC permission tier assigned to the user.
+          $ref: '#/components/schemas/sqlrpc.v1.Role'
+      title: User
+      additionalProperties: false
+      description: |-
+        *
+         User represents a platform identity with role-based access controls.
+security: []
+tags:
+  - name: sqlrpc.v1.AdminService
+    description: |-
+      *
+       AdminService provides the control plane for the platform.
+       It manages the lifecycle of tenant databases, user identities, and API keys. --- User & Role Management ---

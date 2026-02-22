@@ -1,0 +1,965 @@
+syntax = "proto3";
+
+package sqlrpc.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+import "sqlrpc/v1/enums.proto";
+import "sqlrpc/v1/types.proto";
+
+option go_package = "sqlite-server/internal/protos/sqlrpc/v1;sqlrpcv1";
+
+// =============================================================================
+// DATABASE SERVICE DEFINITION
+// =============================================================================
+/**
+ * DatabaseService provides the primary data plane for the platform.
+ * It facilitates isolated, tenant-aware access to individual databases. The
+ * service automatically handles read/write connection routing and strictly
+ * enforces read-only connection limits for read-only users.
+ */
+// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+// buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+service DatabaseService {
+  // --- Stateless Operations ---
+
+  /**
+   * Read Endpoint (Unary).
+   * Uses the global shared LRU connection pool, routing to a Read-Only
+   * connection for ROLE_READ_ONLY users.
+   */
+  rpc Query(QueryRequest) returns (QueryResult);
+
+  /**
+   * Write Endpoint (Unary DML).
+   * Uses the global shared LRU connection pool, strictly routing to a
+   * Read-Write connection. Denied for ROLE_READ_ONLY.
+   */
+  rpc Exec(QueryRequest) returns (ExecResponse);
+
+  /**
+   * Read Endpoint (Streaming).
+   * Routed via the shared LRU pool to a Read-Only connection. Yields chunked
+   * results.
+   */
+  rpc QueryStream(QueryRequest) returns (stream QueryResponse);
+
+  // --- Stateful Operations (Model A: Bidirectional Stream) ---
+
+  /**
+   * Bidirectional Streaming Transaction.
+   * Maintains a persistent, multiplexed stream for executing multiple
+   * statements sequentially under a single transaction, holding the shared LRU
+   * connection until completion.
+   */
+  rpc Transaction(stream TransactionRequest)
+      returns (stream TransactionResponse);
+
+  // --- Stateful Operations (Model B: Unary ID-Based) ---
+
+  /**
+   * Transaction Control.
+   * Acquires an active connection from the global shared LRU pool based on the
+   * user's role (RO vs RW).
+   */
+  rpc BeginTransaction(BeginTransactionRequest)
+      returns (BeginTransactionResponse);
+
+  /**
+   * Read Endpoint within a Transaction.
+   * Inherits the active transaction context tied to the shared LRU connection
+   * pool.
+   */
+  rpc TransactionQuery(TransactionQueryRequest) returns (QueryResult);
+
+  /**
+   * Write Endpoint within a Transaction.
+   * Fails if the underlying transaction connection is Read-Only.
+   */
+  rpc TransactionExec(TransactionQueryRequest) returns (ExecResponse);
+
+  /**
+   * Read Endpoint (Streaming) within a Transaction.
+   */
+  rpc TransactionQueryStream(TransactionQueryRequest)
+      returns (stream QueryResponse);
+
+  /**
+   * Savepoint Control within a Transaction.
+   * Enables nested transaction boundaries (SAVEPOINT, RELEASE, ROLLBACK TO)
+   * within an active Unary ID-Based transaction.
+   */
+  rpc TransactionSavepoint(TransactionSavepointRequest)
+      returns (SavepointResponse);
+
+  /**
+   * Transaction Commit.
+   * Commits an active Unary ID-Based transaction and releases the connection
+   * back to the shared LRU pool.
+   */
+  rpc CommitTransaction(TransactionControlRequest)
+      returns (TransactionControlResponse);
+
+  /**
+   * Transaction Rollback.
+   * Rolls back an active Unary ID-Based transaction and releases the connection
+   * back to the shared LRU pool.
+   */
+  rpc RollbackTransaction(TransactionControlRequest)
+      returns (TransactionControlResponse);
+
+  // --- Utility Operations ---
+
+  /**
+   * Atomic Script Execution.
+   * Executes a predefined sequence of queries within a single transaction
+   * atomically. Handled completely server-side to minimize network latency
+   * between statements.
+   */
+  rpc ExecuteTransaction(ExecuteTransactionRequest)
+      returns (ExecuteTransactionResponse);
+
+  /**
+   * Typed Read Endpoint (Unary).
+   * Automatically routed to a Read-Only replica connection for ROLE_READ_ONLY
+   * users.
+   */
+  rpc TypedQuery(TypedQueryRequest) returns (TypedQueryResult);
+
+  /**
+   * Typed Write Endpoint (Unary DML).
+   * Uses the global shared LRU connection pool, strictly routing to a
+   * Read-Write connection.
+   */
+  rpc TypedExec(TypedQueryRequest) returns (ExecResponse);
+
+  /**
+   * Typed Read Endpoint (Streaming).
+   * Routes to the global Read-Only or Read-Write LRU connection depending on
+   * user role.
+   */
+  rpc TypedQueryStream(TypedQueryRequest) returns (stream TypedQueryResponse);
+
+  // --- Typed Stateful Operations (Unary ID-Based) ---
+
+  /**
+   * Typed Read Endpoint within a Transaction.
+   */
+  rpc TypedTransactionQuery(TypedTransactionQueryRequest)
+      returns (TypedQueryResult);
+
+  /**
+   * Typed Write Endpoint within a Transaction.
+   * Denied on Read-Only transactions.
+   */
+  rpc TypedTransactionExec(TypedTransactionQueryRequest) returns (ExecResponse);
+
+  /**
+   * Streaming Interface.
+   * Yields partitioned tenant data blocks over a managed stream.
+   */
+  rpc TypedTransactionQueryStream(TypedTransactionQueryRequest)
+      returns (stream TypedQueryResponse);
+
+  /**
+   * Introspection: Query Plan Explanation.
+   * Returns the EXPLAIN QUERY PLAN breakdown for a given statement without
+   * running the statement itself.
+   */
+  rpc Explain(QueryRequest) returns (ExplainResponse);
+
+  /**
+   * Typed Introspection: Query Plan Explanation.
+   * Provides the EXPLAIN QUERY PLAN breakdown using strictly-typed parameters.
+   */
+  rpc TypedExplain(TypedQueryRequest) returns (ExplainResponse);
+
+  /**
+   * Database Introspection: List Tables.
+   * Returns a list of all table names currently present in the target database.
+   */
+  rpc ListTables(ListTablesRequest) returns (ListTablesResponse);
+
+  /**
+   * Database Introspection: Get Table Schema.
+   * Returns the structural schema definitions for a specific table.
+   */
+  rpc GetTableSchema(GetTableSchemaRequest) returns (TableSchema);
+
+  /**
+   * Database Introspection: Get Database Schema.
+   * Returns the structural schema definitions for the entire underlying
+   * database.
+   */
+  rpc GetDatabaseSchema(GetDatabaseSchemaRequest) returns (DatabaseSchema);
+
+  // --- Maintenance Operations ---
+
+  /**
+   * Maintenance: Vacuum.
+   * Rebuilds the database file, repacking it into a minimal amount of disk
+   * space.
+   */
+  rpc Vacuum(VacuumRequest) returns (VacuumResponse);
+
+  /**
+   * Maintenance: Checkpoint.
+   * Synchronizes the write-ahead log (WAL) with the main database file.
+   */
+  rpc Checkpoint(CheckpointRequest) returns (CheckpointResponse);
+
+  /**
+   * Maintenance: Integrity Check.
+   * Runs PRAGMA integrity_check to scan for out-of-order records, missing
+   * pages, or corruption.
+   */
+  rpc IntegrityCheck(IntegrityCheckRequest) returns (IntegrityCheckResponse);
+
+  /**
+   * Maintenance: Attach Database.
+   * Dynamically mounts a secondary database into the current tenant's namespace
+   * context.
+   */
+  rpc AttachDatabase(AttachDatabaseRequest) returns (AttachDatabaseResponse);
+
+  /**
+   * Maintenance: Detach Database.
+   * Safely detaches a previously attached secondary database from the active
+   * context.
+   */
+  rpc DetachDatabase(DetachDatabaseRequest) returns (DetachDatabaseResponse);
+
+  // --- Extension Management ---
+
+  /**
+   * Extensions: List.
+   * Returns a catalog of available and loaded SQLite extensions.
+   */
+  rpc ListExtensions(ListExtensionsRequest) returns (ListExtensionsResponse);
+
+  /**
+   * Extensions: Load.
+   * Dynamically loads a compatible SQLite extension into the target database.
+   */
+  rpc LoadExtension(LoadExtensionRequest) returns (LoadExtensionResponse);
+}
+
+// =============================================================================
+// CORE QUERY & DATABASE OPERATIONS MESSAGES
+// =============================================================================
+/**
+ * QueryRequest defines a standard SQL execution payload.
+ */
+message QueryRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // SQL statement to execute.
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Parameters to bind to the statement.
+  Parameters parameters = 4;
+}
+
+/**
+ * QueryResult contains the results and telemetry for a standard query.
+ */
+message QueryResult {
+  // Ordered list of column names.
+  repeated string columns = 1;
+
+  // Affinities determined by the SQLite engine for each column.
+  repeated ColumnAffinity column_affinities = 2;
+
+  // Declared types from the table schema for each column.
+  repeated DeclaredType column_declared_types = 3;
+
+  // Raw type strings returned by the underlying driver.
+  repeated string column_raw_types = 4;
+
+  // List of rows, where each row is a ListValue of cell values.
+  repeated google.protobuf.ListValue rows = 5;
+
+  // Performance and execution telemetry.
+  ExecutionStats stats = 6;
+}
+
+/**
+ * ExecResponse contains metadata for a completed mutation operation (DML).
+ */
+message ExecResponse {
+  // Results specific to data modification.
+  DMLResult dml = 1;
+
+  // Performance and execution telemetry.
+  ExecutionStats stats = 2;
+}
+
+/**
+ * DMLResult summarizes modifications to the database.
+ */
+message DMLResult {
+  // Number of rows modified, inserted, or deleted.
+  int64 rows_affected = 1;
+
+  // ID of the last row inserted into the database.
+  int64 last_insert_id = 2;
+
+  // Performance and execution telemetry.
+  ExecutionStats stats = 3;
+}
+
+// =============================================================================
+// TRANSACTIONAL OPERATIONS MESSAGES
+// =============================================================================
+/**
+ * BeginTransactionRequest initiates a multi-statement transaction.
+ */
+message BeginTransactionRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Optional timeout for the transaction before automatic rollback.
+  google.protobuf.Duration timeout = 2;
+
+  // SQLite lock mode to acquire.
+  TransactionLockMode mode = 3
+      [ (buf.validate.field).enum.defined_only = true ];
+}
+
+/**
+ * BeginTransactionResponse provides the identifier for an active transaction.
+ */
+message BeginTransactionResponse {
+  // Unique transaction identifier (UUID-v7 based).
+  string transaction_id = 1;
+
+  // Timestamp when the transaction is scheduled to expire.
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+/**
+ * TransactionQueryRequest executes a statement within an active transaction.
+ */
+message TransactionQueryRequest {
+  // Absolute identifier for the active transaction.
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 128} ];
+
+  // SQL statement to execute.
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Parameters to bind to the statement.
+  Parameters parameters = 3;
+}
+
+/**
+ * TransactionSavepointRequest manages nested transaction boundaries.
+ */
+message TransactionSavepointRequest {
+  // Absolute identifier for the active transaction.
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 128} ];
+
+  // Savepoint configuration and action (CREATE, RELEASE, ROLLBACK).
+  SavepointRequest savepoint = 2 [ (buf.validate.field).required = true ];
+}
+
+/**
+ * SavepointResponse confirms a savepoint operation.
+ */
+message SavepointResponse {
+  bool success = 1;
+
+  // Name of the savepoint processed.
+  string name = 2;
+
+  // Action performed on the savepoint.
+  SavepointAction action = 3;
+}
+
+/**
+ * TransactionControlRequest completes or aborts a transaction.
+ */
+message TransactionControlRequest {
+  // Absolute identifier for the active transaction.
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 128} ];
+}
+
+/**
+ * TransactionControlResponse confirms the status of the transaction conclusion.
+ */
+message TransactionControlResponse { bool success = 1; }
+
+/**
+ * ExecuteTransactionRequest runs an atomic SQL script server-side.
+ */
+message ExecuteTransactionRequest {
+  // Sequence of commands starting with 'begin' and ending with
+  // 'commit/rollback'.
+  repeated TransactionRequest requests = 1 [
+    (buf.validate.field).repeated.min_items = 2,
+    (buf.validate.field).repeated.max_items = 100,
+    (buf.validate.field).cel = {
+      id : "transaction.sequence_start"
+      message : "The first command in an ExecuteTransaction script must be "
+                "'begin'"
+      expression : "has(this[0].begin)"
+    },
+    (buf.validate.field).cel = {
+      id : "transaction.sequence_end"
+      message : "The script must explicitly end with 'commit' or 'rollback'"
+      expression : "has(this[this.size() - 1].commit) || has(this[this.size() "
+                   "- 1].rollback)"
+    }
+  ];
+}
+
+/**
+ * ExecuteTransactionResponse contains individual results for the atomic script.
+ */
+message ExecuteTransactionResponse {
+  repeated TransactionResponse responses = 1;
+}
+
+// =============================================================================
+// TYPED API MESSAGES
+// =============================================================================
+/**
+ * TypedQueryRequest executes a query using strictly-typed parameters.
+ */
+message TypedQueryRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // SQL statement to execute.
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Strictly-typed parameters.
+  TypedParameters parameters = 4;
+}
+
+/**
+ * TypedTransactionQueryRequest executes a typed query within an active
+ * transaction.
+ */
+message TypedTransactionQueryRequest {
+  // Absolute identifier for the active transaction.
+  string transaction_id = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 128} ];
+
+  // SQL statement to execute.
+  string sql = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Strictly-typed parameters.
+  TypedParameters parameters = 3;
+}
+
+/**
+ * TypedQueryResult contains strictly-typed results and telemetry.
+ */
+message TypedQueryResult {
+  repeated string columns = 1;
+  // Affinities determined by the SQLite engine for each column.
+  repeated ColumnAffinity column_affinities = 2;
+
+  // Declared types from the table schema for each column.
+  repeated DeclaredType column_declared_types = 3;
+
+  // Raw type strings returned by the underlying driver.
+  repeated string column_raw_types = 4;
+
+  // Ordered list of typed rows.
+  repeated SqlRow rows = 5;
+
+  // Performance and execution telemetry.
+  ExecutionStats stats = 6;
+}
+
+// =============================================================================
+// STREAMING SERVICE MESSAGES
+// =============================================================================
+/**
+ * QueryResponse defines a chunked result from a streaming query.
+ */
+message QueryResponse {
+  oneof response {
+    QueryResultHeader header = 1;
+    QueryResultRowBatch batch = 2;
+    QueryComplete complete = 3;
+    ErrorResponse error = 5;
+  }
+}
+
+/**
+ * TypedQueryResponse defines a chunked result from a typed streaming query.
+ */
+message TypedQueryResponse {
+  oneof response {
+    // Initial response containing column metadata.
+    TypedQueryResultHeader header = 1;
+
+    // Batch of typed result rows.
+    TypedQueryResultRowBatch batch = 2;
+
+    // Final response indicating stream completion and stats.
+    QueryComplete complete = 3;
+
+    // Error information if the query failed during streaming.
+    ErrorResponse error = 5;
+  }
+}
+
+message QueryResultHeader {
+  repeated string columns = 1;
+  repeated ColumnAffinity column_affinities = 2;
+  repeated DeclaredType column_declared_types = 3;
+  repeated string column_raw_types = 4;
+}
+
+/**
+ * QueryResultRowBatch contains a collection of rows for an untyped query.
+ */
+message QueryResultRowBatch {
+  // Collection of rows, where each row is a ListValue.
+  repeated google.protobuf.ListValue rows = 1;
+}
+
+/**
+ * TypedQueryResultHeader provides metadata for a typed streaming query.
+ */
+message TypedQueryResultHeader {
+  // Ordered list of column names.
+  repeated string columns = 1;
+
+  // Affinities determined by the SQLite engine for each column.
+  repeated ColumnAffinity column_affinities = 2;
+
+  // Declared types from the table schema for each column.
+  repeated DeclaredType column_declared_types = 3;
+
+  // Raw type strings returned by the underlying driver.
+  repeated string column_raw_types = 4;
+}
+
+/**
+ * TypedQueryResultRowBatch contains a collection of rows for a typed query.
+ */
+message TypedQueryResultRowBatch {
+  // Collection of strictly-typed rows.
+  repeated SqlRow rows = 1;
+}
+
+/**
+ * QueryComplete signals the successful end of a streaming operation.
+ */
+message QueryComplete {
+  // Final execution telemetry.
+  ExecutionStats stats = 1;
+}
+
+message ErrorResponse {
+  // Human-readable error message.
+  string message = 1;
+
+  // The SQL statement that failed execution.
+  string failed_sql = 2;
+
+  // Corresponding SQLite error code.
+  SqliteCode sqlite_error_code = 3;
+}
+
+// =============================================================================
+// BIDIRECTIONAL STREAMING MESSAGES
+// =============================================================================
+/**
+ * TransactionRequest defines a command in a multiplexed transaction stream.
+ */
+message TransactionRequest {
+  oneof command {
+    option (buf.validate.oneof).required = true;
+
+    // Start the transaction (must be first).
+    BeginRequest begin = 1;
+
+    // Untyped query execution within the transaction.
+    TransactionalQueryRequest query = 2;
+
+    // Untyped streaming query execution within the transaction.
+    TransactionalQueryRequest query_stream = 3;
+
+    // Strictly-typed query execution within the transaction.
+    TypedTransactionalQueryRequest typed_query = 4;
+
+    // Strictly-typed streaming query execution within the transaction.
+    TypedTransactionalQueryRequest typed_query_stream = 5;
+
+    // Unary mutation operation (DML).
+    TransactionalQueryRequest exec = 6;
+
+    // Strictly-typed mutation operation (DML).
+    TypedTransactionalQueryRequest typed_exec = 7;
+
+    // Transactional control: create/manage savepoints.
+    SavepointRequest savepoint = 8;
+
+    // Transactional control: commit the transaction.
+    google.protobuf.Empty commit = 9;
+
+    // Transactional control: rollback the transaction.
+    google.protobuf.Empty rollback = 10;
+  }
+}
+
+/**
+ * TransactionResponse defines a result in a multiplexed transaction stream.
+ */
+message TransactionResponse {
+  oneof response {
+    // Confirmation of transaction start.
+    BeginResponse begin = 1;
+
+    // Result for an untyped query.
+    QueryResult query_result = 2;
+
+    // Partial response for a streaming untyped query.
+    QueryResponse stream_result = 3;
+
+    // Result for a strictly-typed query.
+    TypedQueryResult typed_query_result = 4;
+
+    // Partial response for a streaming strictly-typed query.
+    TypedQueryResponse typed_stream_result = 5;
+
+    // Savepoint operation confirmation.
+    SavepointResponse savepoint = 7;
+
+    // Commit operation confirmation.
+    CommitResponse commit = 8;
+
+    // Rollback operation confirmation.
+    RollbackResponse rollback = 9;
+
+    // Result for a mutation operation.
+    ExecResponse exec_result = 11;
+
+    // Encapsulated error message if a command fails.
+    ErrorResponse error = 10;
+  }
+}
+
+// =============================================================================
+// INTROSPECTION & UTILITY MESSAGES
+// =============================================================================
+/**
+ * ExplainResponse provides the breakdown of the query execution plan.
+ */
+message ExplainResponse { repeated QueryPlanNode nodes = 1; }
+
+/**
+ * ListTablesRequest lists all tables in a tenant database.
+ */
+message ListTablesRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+/**
+ * ListTablesResponse contains the names of discovered tables.
+ */
+message ListTablesResponse { repeated string table_names = 1; }
+
+/**
+ * GetTableSchemaRequest retrieves structure for a specific table.
+ */
+message GetTableSchemaRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Target table name to inspect.
+  string table_name = 2
+      [ (buf.validate.field).string = {min_len : 1 max_len : 256} ];
+}
+
+/**
+ * GetDatabaseSchemaRequest retrieves structure for the entire database.
+ */
+message GetDatabaseSchemaRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+// =============================================================================
+// MAINTENANCE MESSAGES
+// =============================================================================
+/**
+ * VacuumRequest rebuilt the database to reclaim space.
+ */
+message VacuumRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Optional target file to vacuum into.
+  optional string into_file = 2;
+}
+
+/**
+ * VacuumResponse confirms the database rebuild completion.
+ */
+message VacuumResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+/**
+ * CheckpointRequest synchronizes WAL with the main database file.
+ */
+message CheckpointRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Synchronize strategy.
+  CheckpointMode mode = 2 [ (buf.validate.field).enum.defined_only = true ];
+}
+
+/**
+ * CheckpointResponse provides statistics about the WAL synchronization.
+ */
+message CheckpointResponse {
+  bool success = 1;
+  string message = 2;
+  int64 busy_checkpoints = 3;
+  int64 log_checkpoints = 4;
+  int64 checkpointed_pages = 5;
+}
+
+/**
+ * IntegrityCheckRequest searches for physical corruption in the database.
+ */
+message IntegrityCheckRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Limits the number of error strings returned.
+  optional int32 max_errors = 2;
+}
+
+/**
+ * IntegrityCheckResponse identifies any corruption found.
+ */
+message IntegrityCheckResponse {
+  bool success = 1;
+  string message = 2;
+
+  // List of physical or logical structural errors found.
+  repeated string errors = 3;
+}
+
+/**
+ * AttachDatabaseRequest dynamic mounts a secondary tenant database.
+ */
+message AttachDatabaseRequest {
+  // Primary tenant context.
+  string parent_database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Alias and tenant name to attach.
+  Attachment attachment = 2 [ (buf.validate.field).required = true ];
+}
+
+/**
+ * AttachDatabaseResponse confirms the database mounting.
+ */
+message AttachDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+/**
+ * DetachDatabaseRequest removes a secondary database from the context.
+ */
+message DetachDatabaseRequest {
+  // Primary tenant context.
+  string parent_database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Alias used for the attachment.
+  string alias = 2 [ (buf.validate.field).string = {min_len : 1 max_len : 64} ];
+}
+
+/**
+ * DetachDatabaseResponse confirms the database unmounting.
+ */
+message DetachDatabaseResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// =============================================================================
+// INTERNAL TRANSACTIONAL UTILITIES
+// =============================================================================
+/**
+ * BeginRequest encapsulates parameters for starting a streaming transaction.
+ */
+message BeginRequest {
+  // Tenant target identifier for connection routing.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // SQLite lock mode to acquire for the transaction.
+  TransactionLockMode mode = 2
+      [ (buf.validate.field).enum.defined_only = true ];
+}
+
+/**
+ * TransactionalQueryRequest defines an untyped statement payload for streaming.
+ */
+message TransactionalQueryRequest {
+  // SQL statement to execute.
+  string sql = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Positional and named parameters.
+  Parameters parameters = 2;
+}
+
+/**
+ * SavepointAction defines the lifecycle stages of a nested transaction.
+ */
+enum SavepointAction {
+  // Default value, indicates an uninitialized action.
+  SAVEPOINT_ACTION_UNSPECIFIED = 0;
+
+  // Creates a new named savepoint.
+  SAVEPOINT_ACTION_CREATE = 1;
+
+  // Releases an existing savepoint (consolidating changes).
+  SAVEPOINT_ACTION_RELEASE = 2;
+
+  // Aborts changes back to the named savepoint.
+  SAVEPOINT_ACTION_ROLLBACK = 3;
+}
+
+/**
+ * SavepointRequest encapsulates a savepoint command.
+ */
+message SavepointRequest {
+  // Human-readable identifier for the savepoint.
+  string name = 1
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Operation to perform on the savepoint.
+  SavepointAction action = 2 [ (buf.validate.field).enum.defined_only = true ];
+}
+
+/**
+ * BeginResponse yields the unique identifier for a successful stream start.
+ */
+message BeginResponse {
+  // Status of the start operation.
+  bool success = 1;
+
+  // Unique identifier for the transaction context.
+  string transaction_id = 2 [ (buf.validate.field).string = {uuid : true} ];
+}
+
+/**
+ * CommitResponse confirms the persistence of transactional changes.
+ */
+message CommitResponse {
+  // True if the transaction was committed successfully.
+  bool success = 1;
+}
+
+/**
+ * RollbackResponse confirms the abortion of transactional changes.
+ */
+message RollbackResponse {
+  // True if the transaction was rolled back successfully.
+  bool success = 1;
+}
+
+/**
+ * TypedTransactionalQueryRequest defines a typed statement payload for
+ * streaming.
+ */
+message TypedTransactionalQueryRequest {
+  // SQL statement to execute.
+  string sql = 1
+      [ (buf.validate.field).string = {min_len : 1 max_len : 10240} ];
+
+  // Strictly-typed positional and named parameters.
+  TypedParameters parameters = 2;
+}
+
+// =============================================================================
+// EXTENSION MANAGEMENT MESSAGES
+// =============================================================================
+/**
+ * Unary request to retrieve available extensions.
+ */
+message ListExtensionsRequest {
+  // Optional target database to check for loaded status.
+  optional string database = 1;
+}
+
+/**
+ * Catalog of discovered extensions.
+ */
+message ListExtensionsResponse {
+  // Collection of compatible extensions found on the server.
+  repeated ExtensionInfo extensions = 1;
+}
+
+/**
+ * Payload to dynamically load an extension.
+ */
+message LoadExtensionRequest {
+  // Target tenant database.
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Identifier of the extension to load.
+  string folder_name = 2 [ (buf.validate.field).string.min_len = 1 ];
+}
+
+/**
+ * Confirmation of extension loading.
+ */
+message LoadExtensionResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"log"
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"time"
 
 	"buf.build/go/protovalidate"
@@ -26,7 +26,7 @@ import (
 //  3. Generates a secure random Session ID (UUIDv7).
 //  4. Stores the Tx in `txRegistry` with a Timeout.
 //  5. Returns the ID to the client.
-func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[dbv1.BeginTransactionRequest]) (*connect.Response[dbv1.BeginTransactionResponse], error) {
+func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[sqlrpcv1.BeginTransactionRequest]) (*connect.Response[sqlrpcv1.BeginTransactionResponse], error) {
 	reqID := ensureRequestID(req.Header())
 	msg := req.Msg
 
@@ -55,8 +55,8 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 	// SQLite "IMMEDIATE" and "EXCLUSIVE" help avoid busy loops in write-heavy scenarios.
 	txOpts := &sql.TxOptions{ReadOnly: false}
 	// Map the proto mode to the SQL driver
-	if msg.Mode == dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE ||
-		msg.Mode == dbv1.TransactionMode_TRANSACTION_MODE_EXCLUSIVE {
+	if msg.Mode == sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE ||
+		msg.Mode == sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_EXCLUSIVE {
 		// This is a common trick for mattn/go-sqlite3 to trigger IMMEDIATE/EXCLUSIVE
 		txOpts.Isolation = sql.LevelSerializable
 	}
@@ -85,7 +85,7 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 
 	log.Printf("[%s] Started transaction session %s (timeout: %s)", reqID, txID, timeout)
 
-	return connect.NewResponse(&dbv1.BeginTransactionResponse{
+	return connect.NewResponse(&sqlrpcv1.BeginTransactionResponse{
 		TransactionId: txID,
 		ExpiresAt:     timestamppb.New(expiry),
 	}), nil
@@ -103,7 +103,7 @@ func (s *DbServer) BeginTransaction(ctx context.Context, req *connect.Request[db
 //	If a SQL error occurs (e.g., Syntax Error), we return the error details but
 //	**DO NOT** automatically rollback the transaction. This gives the client the choice
 //	to retry or manually rollback, mirroring standard SQL behavior.
-func (s *DbServer) TransactionQuery(ctx context.Context, req *connect.Request[dbv1.TransactionQueryRequest]) (*connect.Response[dbv1.QueryResult], error) {
+func (s *DbServer) TransactionQuery(ctx context.Context, req *connect.Request[sqlrpcv1.TransactionQueryRequest]) (*connect.Response[sqlrpcv1.QueryResult], error) {
 	reqID := ensureRequestID(req.Header())
 	msg := req.Msg
 
@@ -154,6 +154,53 @@ func (s *DbServer) TransactionQuery(ctx context.Context, req *connect.Request[db
 	return res, nil
 }
 
+// TransactionExec executes a DML statement within an existing transaction context.
+func (s *DbServer) TransactionExec(ctx context.Context, req *connect.Request[sqlrpcv1.TransactionQueryRequest]) (*connect.Response[sqlrpcv1.ExecResponse], error) {
+	reqID := ensureRequestID(req.Header())
+	msg := req.Msg
+
+	if err := protovalidate.Validate(msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := ValidateStatelessQuery(msg.Sql); err != nil {
+		log.Printf("[%s] Blocked manual transaction control in script query: %s", reqID, msg.Sql)
+		return nil, err
+	}
+
+	// 1. Registry Lookup
+	s.txMu.Lock()
+	session, exists := s.txRegistry[msg.TransactionId]
+	if !exists {
+		s.txMu.Unlock()
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("transaction id not found or expired"))
+	}
+
+	// 2. Lazy Expiry Check
+	if time.Now().After(session.Expiry) {
+		delete(s.txRegistry, msg.TransactionId)
+		s.txMu.Unlock()
+		_ = session.Tx.Rollback()
+		return nil, connect.NewError(connect.CodeAborted, errors.New("transaction timed out"))
+	}
+
+	// 3. Heartbeat: Extend the session life
+	session.Expiry = time.Now().Add(defaultTxTimeout)
+	tx := session.Tx
+	s.txMu.Unlock()
+
+	// 4. Execution
+	result, err := executeExecAndBuffer(ctx, tx, msg.Sql, msg.Parameters)
+	if err != nil {
+		log.Printf("[%s] TransactionExec failed: %v", reqID, err)
+		return nil, makeUnaryError(err, msg.Sql)
+	}
+
+	res := connect.NewResponse(result)
+	res.Header().Set(headerRequestID, reqID)
+	return res, nil
+}
+
 // TransactionQueryStream executes a SQL statement within an existing transaction context.
 //
 // HEARTBEAT MECHANISM:
@@ -168,8 +215,8 @@ func (s *DbServer) TransactionQuery(ctx context.Context, req *connect.Request[db
 //	to retry or manually rollback, mirroring standard SQL behavior.
 func (s *DbServer) TransactionQueryStream(
 	ctx context.Context,
-	req *connect.Request[dbv1.TransactionQueryRequest],
-	stream *connect.ServerStream[dbv1.QueryResponse],
+	req *connect.Request[sqlrpcv1.TransactionQueryRequest],
+	stream *connect.ServerStream[sqlrpcv1.QueryResponse],
 ) error {
 	reqID := ensureRequestID(req.Header())
 	// Send the ID in headers immediately. Even if the stream fails later,
@@ -220,8 +267,8 @@ func (s *DbServer) TransactionQueryStream(
 		// Instead of returning a gRPC error (which kills the stream with headers),
 		// 1. Create the proto error message and send it
 		errResp := makeStreamError(err, req.Msg.Sql)
-		sendErr := stream.Send(&dbv1.QueryResponse{
-			Response: &dbv1.QueryResponse_Error{Error: errResp},
+		sendErr := stream.Send(&sqlrpcv1.QueryResponse{
+			Response: &sqlrpcv1.QueryResponse_Error{Error: errResp},
 		})
 
 		if sendErr != nil {
@@ -243,7 +290,7 @@ func (s *DbServer) TransactionQueryStream(
 //	Regardless of whether the DB Commit succeeds or fails, the session is
 //	removed from `txRegistry`. A failed commit means the transaction is broken
 //	and cannot be reused.
-func (s *DbServer) CommitTransaction(ctx context.Context, req *connect.Request[dbv1.TransactionControlRequest]) (*connect.Response[dbv1.TransactionControlResponse], error) {
+func (s *DbServer) CommitTransaction(ctx context.Context, req *connect.Request[sqlrpcv1.TransactionControlRequest]) (*connect.Response[sqlrpcv1.TransactionControlResponse], error) {
 	msg := req.Msg
 	if err := protovalidate.Validate(msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -267,7 +314,7 @@ func (s *DbServer) CommitTransaction(ctx context.Context, req *connect.Request[d
 		return nil, makeUnaryError(err, "COMMIT")
 	}
 
-	return connect.NewResponse(&dbv1.TransactionControlResponse{Success: true}), nil
+	return connect.NewResponse(&sqlrpcv1.TransactionControlResponse{Success: true}), nil
 }
 
 // RollbackTransaction aborts the transaction.
@@ -276,7 +323,7 @@ func (s *DbServer) CommitTransaction(ctx context.Context, req *connect.Request[d
 //
 //	If the transaction ID is already gone (e.g., reaped by timeout or already rolled back),
 //	this function returns `Success: true`. This prevents client errors when racing against timeouts.
-func (s *DbServer) RollbackTransaction(ctx context.Context, req *connect.Request[dbv1.TransactionControlRequest]) (*connect.Response[dbv1.TransactionControlResponse], error) {
+func (s *DbServer) RollbackTransaction(ctx context.Context, req *connect.Request[sqlrpcv1.TransactionControlRequest]) (*connect.Response[sqlrpcv1.TransactionControlResponse], error) {
 	msg := req.Msg
 	if err := protovalidate.Validate(msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
@@ -297,7 +344,7 @@ func (s *DbServer) RollbackTransaction(ctx context.Context, req *connect.Request
 		_ = tx.Rollback()
 	}
 
-	return connect.NewResponse(&dbv1.TransactionControlResponse{Success: true}), nil
+	return connect.NewResponse(&sqlrpcv1.TransactionControlResponse{Success: true}), nil
 }
 
 // TransactionSavepoint manages nested transactions (Savepoints) for an existing
@@ -312,7 +359,7 @@ func (s *DbServer) RollbackTransaction(ctx context.Context, req *connect.Request
 // This allows stateless clients to perform complex, multi-step nested logic
 // (e.g., trying an operation, rolling back to a savepoint on failure, and
 // continuing) over standard HTTP/1.1 or HTTP/2 without a persistent TCP stream.
-func (s *DbServer) TransactionSavepoint(ctx context.Context, req *connect.Request[dbv1.TransactionSavepointRequest]) (*connect.Response[dbv1.SavepointResponse], error) {
+func (s *DbServer) TransactionSavepoint(ctx context.Context, req *connect.Request[sqlrpcv1.TransactionSavepointRequest]) (*connect.Response[sqlrpcv1.SavepointResponse], error) {
 	reqID := ensureRequestID(req.Header())
 	msg := req.Msg
 
@@ -363,7 +410,7 @@ func (s *DbServer) TransactionSavepoint(ctx context.Context, req *connect.Reques
 	}
 
 	// 6. Response Construction: Echo back metadata for client-side state tracking.
-	return connect.NewResponse(&dbv1.SavepointResponse{
+	return connect.NewResponse(&sqlrpcv1.SavepointResponse{
 		Success: true,
 		Name:    msg.Savepoint.Name,
 		Action:  msg.Savepoint.Action,
@@ -379,7 +426,7 @@ func (s *DbServer) TransactionSavepoint(ctx context.Context, req *connect.Reques
 //
 // This is the typed variant of TransactionQuery. It uses SqlValue/SqlRow for
 // parameters and results, providing better type safety.
-func (s *DbServer) TypedTransactionQuery(ctx context.Context, req *connect.Request[dbv1.TypedTransactionQueryRequest]) (*connect.Response[dbv1.TypedQueryResult], error) {
+func (s *DbServer) TypedTransactionQuery(ctx context.Context, req *connect.Request[sqlrpcv1.TypedTransactionQueryRequest]) (*connect.Response[sqlrpcv1.TypedQueryResult], error) {
 	reqID := ensureRequestID(req.Header())
 	msg := req.Msg
 
@@ -431,8 +478,8 @@ func (s *DbServer) TypedTransactionQuery(ctx context.Context, req *connect.Reque
 // This is the typed variant of TransactionQueryStream.
 func (s *DbServer) TypedTransactionQueryStream(
 	ctx context.Context,
-	req *connect.Request[dbv1.TypedTransactionQueryRequest],
-	stream *connect.ServerStream[dbv1.TypedQueryResponse],
+	req *connect.Request[sqlrpcv1.TypedTransactionQueryRequest],
+	stream *connect.ServerStream[sqlrpcv1.TypedQueryResponse],
 ) error {
 	reqID := ensureRequestID(req.Header())
 	stream.ResponseHeader().Set(headerRequestID, reqID)
@@ -474,8 +521,8 @@ func (s *DbServer) TypedTransactionQueryStream(
 		log.Printf("[%s] TypedTransactionQueryStream failed: %v", reqID, err)
 
 		errResp := makeStreamError(err, req.Msg.Sql)
-		sendErr := stream.Send(&dbv1.TypedQueryResponse{
-			Response: &dbv1.TypedQueryResponse_Error{Error: errResp},
+		sendErr := stream.Send(&sqlrpcv1.TypedQueryResponse{
+			Response: &sqlrpcv1.TypedQueryResponse_Error{Error: errResp},
 		})
 
 		if sendErr != nil {
@@ -485,4 +532,54 @@ func (s *DbServer) TypedTransactionQueryStream(
 	}
 
 	return nil
+}
+
+// TypedTransactionExec executes a typed DML statement within an existing transaction.
+//
+// This is the typed Exec variant of TypedTransactionQuery. It uses SqlValue for
+// parameters and returns an ExecResponse with rows-affected / last-insert-id.
+func (s *DbServer) TypedTransactionExec(ctx context.Context, req *connect.Request[sqlrpcv1.TypedTransactionQueryRequest]) (*connect.Response[sqlrpcv1.ExecResponse], error) {
+	reqID := ensureRequestID(req.Header())
+	msg := req.Msg
+
+	if err := protovalidate.Validate(msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := ValidateStatelessQuery(msg.Sql); err != nil {
+		log.Printf("[%s] Blocked manual transaction control in typed exec: %s", reqID, msg.Sql)
+		return nil, err
+	}
+
+	// 1. Registry Lookup
+	s.txMu.Lock()
+	session, exists := s.txRegistry[msg.TransactionId]
+	if !exists {
+		s.txMu.Unlock()
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("transaction id not found or expired"))
+	}
+
+	// 2. Lazy Expiry Check
+	if time.Now().After(session.Expiry) {
+		delete(s.txRegistry, msg.TransactionId)
+		s.txMu.Unlock()
+		_ = session.Tx.Rollback()
+		return nil, connect.NewError(connect.CodeAborted, errors.New("transaction timed out"))
+	}
+
+	// 3. Heartbeat: Extend the session life
+	session.Expiry = time.Now().Add(defaultTxTimeout)
+	tx := session.Tx
+	s.txMu.Unlock()
+
+	// 4. Execute DML via typed exec buffer
+	result, err := typedExecuteExecAndBuffer(ctx, tx, msg.Sql, msg.Parameters)
+	if err != nil {
+		log.Printf("[%s] TypedTransactionExec failed: %v", reqID, err)
+		return nil, makeUnaryError(err, msg.Sql)
+	}
+
+	res := connect.NewResponse(result)
+	res.Header().Set(headerRequestID, reqID)
+	return res, nil
 }

@@ -3,7 +3,7 @@ package servicesv1
 import (
 	"context"
 	"errors"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -17,20 +17,20 @@ func TestExecuteTransaction_EdgeCases(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Empty Requests
-	_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{Requests: []*dbv1.TransactionRequest{}}))
+	_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{Requests: []*sqlrpcv1.TransactionRequest{}}))
 	assert.Error(t, err)
 
 	// 2. First Command Not Begin
-	_, err = client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{Requests: []*dbv1.TransactionRequest{
-		{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+	_, err = client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{Requests: []*sqlrpcv1.TransactionRequest{
+		{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 	}}))
 	assert.Error(t, err)
 
 	// 3. No Commit/Rollback at end (Auto Rollback trigger)
 	// Note: The proto validation requires at least 2 items, so we need Begin + Query
-	_, err = client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{Requests: []*dbv1.TransactionRequest{
-		{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-		{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
+	_, err = client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{Requests: []*sqlrpcv1.TransactionRequest{
+		{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+		{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
 	}}))
 	assert.Error(t, err) // "script ended without an explicit COMMIT or ROLLBACK"
 }
@@ -41,10 +41,10 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 
 	t.Run("DB Not Found", func(t *testing.T) {
 		// Valid structure: Begin -> Commit. Fails at Begin logic.
-		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "missing"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "missing"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -53,11 +53,11 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 
 	t.Run("Begin Twice", func(t *testing.T) {
 		// Valid structure: Begin -> Begin -> Commit. Fails at second Begin logic.
-		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -67,12 +67,12 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 	t.Run("Query After Commit (No Active Tx)", func(t *testing.T) {
 		// Structure: Begin -> Commit -> Query -> Commit.
 		// logic: Begin (ok), Commit (ok, tx=nil), Query (fail: no tx), Commit (unreachable).
-		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
-				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -81,12 +81,12 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 
 	t.Run("Savepoint Without Begin (Validation)", func(t *testing.T) {
 		// Caught by Proto Validation -> first command must be begin
-		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Savepoint{
-					Savepoint: &dbv1.SavepointRequest{Name: "sp1", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Savepoint{
+					Savepoint: &sqlrpcv1.SavepointRequest{Name: "sp1", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
 				}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -94,13 +94,13 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 	})
 
 	t.Run("Savepoint Invalid Name", func(t *testing.T) {
-		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Savepoint{
-					Savepoint: &dbv1.SavepointRequest{Name: "", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Savepoint{
+					Savepoint: &sqlrpcv1.SavepointRequest{Name: "", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
 				}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -108,11 +108,11 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 	})
 
 	t.Run("Manual Transaction Control Security Check", func(t *testing.T) {
-		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "BEGIN"}}}, // Blocked
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "BEGIN"}}}, // Blocked
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -125,11 +125,11 @@ func TestExecuteTransaction_Coverage(t *testing.T) {
 		cancelledCtx, cancel := context.WithCancel(ctx)
 		cancel() // Cancel immediately
 
-		_, err := client.ExecuteTransaction(cancelledCtx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		_, err := client.ExecuteTransaction(cancelledCtx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		assert.Error(t, err)
@@ -143,13 +143,13 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 
 	t.Run("Isolation Levels", func(t *testing.T) {
 		// Test IMMEDIATE mode
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{
 					Database: "test",
-					Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
+					Mode:     sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE,
 				}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -159,11 +159,11 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 	t.Run("Mid-Script Query Error", func(t *testing.T) {
 		// Begin -> Bad Query -> Commit
 		// Should succeed gRPC-wise, but contain error in list
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT * FROM missing"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT * FROM missing"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -171,18 +171,18 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 		require.Len(t, res.Msg.Responses, 2) // Begin, Error. (Loop stops after error)
 		assert.True(t, res.Msg.Responses[0].GetBegin().Success)
 		assert.NotNil(t, res.Msg.Responses[1].GetError())
-		assert.Equal(t, dbv1.SqliteCode_SQLITE_CODE_ERROR, res.Msg.Responses[1].GetError().SqliteErrorCode)
+		assert.Equal(t, sqlrpcv1.SqliteCode_SQLITE_ERROR, res.Msg.Responses[1].GetError().SqliteErrorCode)
 	})
 
 	t.Run("Savepoint Execution Error", func(t *testing.T) {
 		// Begin -> Release Unknown Savepoint -> Commit
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Savepoint{
-					Savepoint: &dbv1.SavepointRequest{Name: "missing_sp", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_RELEASE},
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Savepoint{
+					Savepoint: &sqlrpcv1.SavepointRequest{Name: "missing_sp", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_RELEASE},
 				}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -194,10 +194,10 @@ func TestExecuteTransaction_Extensions(t *testing.T) {
 
 	t.Run("Explicit Rollback Command", func(t *testing.T) {
 		// Begin -> Rollback
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}},
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -212,13 +212,13 @@ func TestExecuteTransaction_Typed(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Typed Query Success", func(t *testing.T) {
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_TypedQuery{TypedQuery: &dbv1.TypedTransactionalQueryRequest{
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedQuery{TypedQuery: &sqlrpcv1.TypedTransactionalQueryRequest{
 					Sql: "SELECT 'typed'",
 				}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -227,55 +227,54 @@ func TestExecuteTransaction_Typed(t *testing.T) {
 		// Validate Typed Result
 		typedRes := res.Msg.Responses[1].GetTypedQueryResult()
 		require.NotNil(t, typedRes)
-		require.NotNil(t, typedRes.GetSelect())
-		assert.Equal(t, "typed", typedRes.GetSelect().Rows[0].Values[0].GetTextValue())
+		assert.Equal(t, "typed", typedRes.Rows[0].Values[0].GetTextValue())
 	})
 
 	t.Run("Typed Query with Parameters", func(t *testing.T) {
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_TypedQuery{TypedQuery: &dbv1.TypedTransactionalQueryRequest{
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedQuery{TypedQuery: &sqlrpcv1.TypedTransactionalQueryRequest{
 					Sql: "SELECT ?",
-					Parameters: &dbv1.TypedParameters{
-						Positional: []*dbv1.SqlValue{{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 99}}},
+					Parameters: &sqlrpcv1.TypedParameters{
+						Positional: []*sqlrpcv1.SqlValue{{Value: &sqlrpcv1.SqlValue_IntegerValue{IntegerValue: 99}}},
 					},
 				}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
 
 		typedRes := res.Msg.Responses[1].GetTypedQueryResult()
-		assert.Equal(t, int64(99), typedRes.GetSelect().Rows[0].Values[0].GetIntegerValue())
+		assert.Equal(t, int64(99), typedRes.Rows[0].Values[0].GetIntegerValue())
 	})
 
 	t.Run("Typed Query Stream (Buffered)", func(t *testing.T) {
 		// Even for Stream, ExecuteTransaction buffers it
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_TypedQueryStream{TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedQueryStream{TypedQueryStream: &sqlrpcv1.TypedTransactionalQueryRequest{
 					Sql: "SELECT 1 UNION SELECT 2",
 				}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
 
 		typedRes := res.Msg.Responses[1].GetTypedQueryResult()
 		// Should have 2 rows
-		assert.Len(t, typedRes.GetSelect().Rows, 2)
+		assert.Len(t, typedRes.Rows, 2)
 	})
 
 	t.Run("Typed Query Error", func(t *testing.T) {
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_TypedQuery{TypedQuery: &dbv1.TypedTransactionalQueryRequest{
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedQuery{TypedQuery: &sqlrpcv1.TypedTransactionalQueryRequest{
 					Sql: "SELECT * FROM broken_table",
 				}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -283,4 +282,218 @@ func TestExecuteTransaction_Typed(t *testing.T) {
 		require.Len(t, res.Msg.Responses, 2)
 		assert.NotNil(t, res.Msg.Responses[1].GetError())
 	})
+}
+
+// TestExecuteTransaction_MoreCoverage covers uncovered branches in ExecuteTransaction.
+func TestExecuteTransaction_MoreCoverage(t *testing.T) {
+	client, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	t.Run("QueryStream command (buffered)", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_QueryStream{QueryStream: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT id FROM users"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.Len(t, res.Msg.Responses, 3)
+		assert.NotNil(t, res.Msg.Responses[1].GetQueryResult())
+	})
+
+	t.Run("Exec command success", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Exec{Exec: &sqlrpcv1.TransactionalQueryRequest{Sql: "INSERT INTO users (name) VALUES ('ExecCoverage')"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.Len(t, res.Msg.Responses, 3)
+		assert.NotNil(t, res.Msg.Responses[1].GetExecResult())
+	})
+
+	t.Run("Exec command error", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Exec{Exec: &sqlrpcv1.TransactionalQueryRequest{Sql: "INSERT INTO missing_table (x) VALUES (1)"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.Responses[1].GetError())
+	})
+
+	t.Run("Exec TX control blocked", func(t *testing.T) {
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Exec{Exec: &sqlrpcv1.TransactionalQueryRequest{Sql: "COMMIT"}}},
+			},
+		}))
+		assert.Error(t, err)
+	})
+
+	t.Run("TypedExec command success", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedExec{TypedExec: &sqlrpcv1.TypedTransactionalQueryRequest{Sql: "INSERT INTO users (name) VALUES ('TypedExecCoverage')"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.Responses[1].GetExecResult())
+	})
+
+	t.Run("TypedExec command error", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedExec{TypedExec: &sqlrpcv1.TypedTransactionalQueryRequest{Sql: "INSERT INTO no_such_table (x) VALUES (1)"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.Responses[1].GetError())
+	})
+
+	t.Run("TypedQueryStream command (buffered)", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedQueryStream{TypedQueryStream: &sqlrpcv1.TypedTransactionalQueryRequest{Sql: "SELECT id FROM users"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.Responses[1].GetTypedQueryResult())
+	})
+
+	t.Run("Savepoint success", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Savepoint{Savepoint: &sqlrpcv1.SavepointRequest{Name: "sp1", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE}}},
+				{Command: &sqlrpcv1.TransactionRequest_Savepoint{Savepoint: &sqlrpcv1.SavepointRequest{Name: "sp1", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_RELEASE}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.Responses[1].GetSavepoint())
+		assert.True(t, res.Msg.Responses[1].GetSavepoint().Success)
+	})
+
+	t.Run("Savepoint no active tx", func(t *testing.T) {
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Savepoint{Savepoint: &sqlrpcv1.SavepointRequest{Name: "sp1", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE}}},
+			},
+		}))
+		assert.Error(t, err)
+	})
+
+	t.Run("Double Begin rejected", func(t *testing.T) {
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		assert.Error(t, err)
+	})
+
+	t.Run("Rollback mid-script", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Rollback{Rollback: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.NotNil(t, res.Msg.Responses[1].GetRollback())
+	})
+
+	t.Run("IMMEDIATE lock mode", func(t *testing.T) {
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test", Mode: sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		require.NoError(t, err)
+		assert.True(t, res.Msg.Responses[0].GetBegin().Success)
+	})
+
+	t.Run("Query TX control blocked", func(t *testing.T) {
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "BEGIN"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		assert.Error(t, err)
+	})
+
+	t.Run("TypedQuery TX control blocked", func(t *testing.T) {
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_TypedQuery{TypedQuery: &sqlrpcv1.TypedTransactionalQueryRequest{Sql: "BEGIN"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		assert.Error(t, err)
+	})
+
+	t.Run("Commit no active tx", func(t *testing.T) {
+		_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+			},
+		}))
+		assert.Error(t, err)
+	})
+}
+
+func TestExecuteTransaction_MidScriptTimeout(t *testing.T) {
+	client, _ := setupTestServer(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Create a sequence that will be interrupted
+	req := &sqlrpcv1.ExecuteTransactionRequest{
+		Requests: []*sqlrpcv1.TransactionRequest{
+			{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+			{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT 1"}}},
+			{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		},
+	}
+
+	// We can't easily cancel MID-unary-RPC from the outside without multiple goroutines or mocking.
+	// But we can cancel the context BEFORE sending the request to hit the loop check if the loop were different,
+	// however ExecuteTransaction checks ctx.Err() at the START of the loop.
+
+	// Let's try to pass a context that is ALREADY cancelled to see if it hits the loop start check.
+	cancel()
+	_, err := client.ExecuteTransaction(ctx, connect.NewRequest(req))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canceled")
+}
+
+func TestExecuteTransaction_Empty(t *testing.T) {
+	client, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	// len(requests) == 0 fails proto validation (min_items = 2)
+	_, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+		Requests: []*sqlrpcv1.TransactionRequest{},
+	}))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid_argument")
 }

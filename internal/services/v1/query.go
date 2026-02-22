@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 	"regexp"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"sqlite-server/internal/auth"
 
@@ -17,20 +17,20 @@ import (
 
 // statelessStreamWriter adapts a `QueryStream` (ServerStream).
 type statelessStreamWriter struct {
-	stream *connect.ServerStream[dbv1.QueryResponse]
+	stream *connect.ServerStream[sqlrpcv1.QueryResponse]
 }
 
-func (w *statelessStreamWriter) SendHeader(h *dbv1.QueryResultHeader) error {
-	return w.stream.Send(&dbv1.QueryResponse{Response: &dbv1.QueryResponse_Header{Header: h}})
+func (w *statelessStreamWriter) SendHeader(h *sqlrpcv1.QueryResultHeader) error {
+	return w.stream.Send(&sqlrpcv1.QueryResponse{Response: &sqlrpcv1.QueryResponse_Header{Header: h}})
 }
-func (w *statelessStreamWriter) SendRowBatch(b *dbv1.QueryResultRowBatch) error {
-	return w.stream.Send(&dbv1.QueryResponse{Response: &dbv1.QueryResponse_Batch{Batch: b}})
+func (w *statelessStreamWriter) SendRowBatch(b *sqlrpcv1.QueryResultRowBatch) error {
+	return w.stream.Send(&sqlrpcv1.QueryResponse{Response: &sqlrpcv1.QueryResponse_Batch{Batch: b}})
 }
-func (w *statelessStreamWriter) SendDMLResult(r *dbv1.DMLResult) error {
-	return w.stream.Send(&dbv1.QueryResponse{Response: &dbv1.QueryResponse_Dml{Dml: r}})
+func (w *statelessStreamWriter) SendDMLResult(r *sqlrpcv1.ExecResponse) error {
+	return connect.NewError(connect.CodeInvalidArgument, errors.New("DML operations are not supported in stream queries"))
 }
-func (w *statelessStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
-	return w.stream.Send(&dbv1.QueryResponse{Response: &dbv1.QueryResponse_Complete{Complete: &dbv1.QueryComplete{Stats: s}}})
+func (w *statelessStreamWriter) SendComplete(s *sqlrpcv1.ExecutionStats) error {
+	return w.stream.Send(&sqlrpcv1.QueryResponse{Response: &sqlrpcv1.QueryResponse_Complete{Complete: &sqlrpcv1.QueryComplete{Stats: s}}})
 }
 
 // Matches BEGIN, COMMIT, ROLLBACK, END, SAVEPOINT, RELEASE at the start of the string.
@@ -68,7 +68,7 @@ func ValidateStatelessQuery(sql string) error {
 //
 // WARNING:
 // Do not use for "SELECT * FROM LargeTable". It will cause high memory pressure.
-func (s *DbServer) Query(ctx context.Context, req *connect.Request[dbv1.QueryRequest]) (*connect.Response[dbv1.QueryResult], error) {
+func (s *DbServer) Query(ctx context.Context, req *connect.Request[sqlrpcv1.QueryRequest]) (*connect.Response[sqlrpcv1.QueryResult], error) {
 	// 1. Traceability: Extract or Generate Request ID
 	reqID := ensureRequestID(req.Header())
 
@@ -123,7 +123,7 @@ func (s *DbServer) Query(ctx context.Context, req *connect.Request[dbv1.QueryReq
 // MEMORY SAFETY:
 //
 // This handler operates in O(1) memory space relative to the result size.
-func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.QueryRequest], stream *connect.ServerStream[dbv1.QueryResponse]) error {
+func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[sqlrpcv1.QueryRequest], stream *connect.ServerStream[sqlrpcv1.QueryResponse]) error {
 	// 1. Traceability
 	reqID := ensureRequestID(req.Header())
 	// Send the ID in headers immediately. Even if the stream fails later,
@@ -173,8 +173,8 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 		errResp := makeStreamError(err, reqMsg.Sql)
 
 		// 2. Send it
-		sendErr := stream.Send(&dbv1.QueryResponse{
-			Response: &dbv1.QueryResponse_Error{Error: errResp},
+		sendErr := stream.Send(&sqlrpcv1.QueryResponse{
+			Response: &sqlrpcv1.QueryResponse_Error{Error: errResp},
 		})
 
 		if sendErr != nil {
@@ -196,27 +196,27 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[dbv1.Qu
 
 // typedStatelessStreamWriter adapts a TypedQueryStream ServerStream.
 type typedStatelessStreamWriter struct {
-	stream *connect.ServerStream[dbv1.TypedQueryResponse]
+	stream *connect.ServerStream[sqlrpcv1.TypedQueryResponse]
 }
 
-func (w *typedStatelessStreamWriter) SendHeader(h *dbv1.TypedQueryResultHeader) error {
-	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Header{Header: h}})
+func (w *typedStatelessStreamWriter) SendHeader(h *sqlrpcv1.TypedQueryResultHeader) error {
+	return w.stream.Send(&sqlrpcv1.TypedQueryResponse{Response: &sqlrpcv1.TypedQueryResponse_Header{Header: h}})
 }
-func (w *typedStatelessStreamWriter) SendRowBatch(b *dbv1.TypedQueryResultRowBatch) error {
-	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Batch{Batch: b}})
+func (w *typedStatelessStreamWriter) SendRowBatch(b *sqlrpcv1.TypedQueryResultRowBatch) error {
+	return w.stream.Send(&sqlrpcv1.TypedQueryResponse{Response: &sqlrpcv1.TypedQueryResponse_Batch{Batch: b}})
 }
-func (w *typedStatelessStreamWriter) SendDMLResult(r *dbv1.DMLResult) error {
-	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Dml{Dml: r}})
+func (w *typedStatelessStreamWriter) SendDMLResult(r *sqlrpcv1.ExecResponse) error {
+	return connect.NewError(connect.CodeInvalidArgument, errors.New("DML operations are not supported in typed stream queries"))
 }
-func (w *typedStatelessStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
-	return w.stream.Send(&dbv1.TypedQueryResponse{Response: &dbv1.TypedQueryResponse_Complete{Complete: &dbv1.QueryComplete{Stats: s}}})
+func (w *typedStatelessStreamWriter) SendComplete(s *sqlrpcv1.ExecutionStats) error {
+	return w.stream.Send(&sqlrpcv1.TypedQueryResponse{Response: &sqlrpcv1.TypedQueryResponse_Complete{Complete: &sqlrpcv1.QueryComplete{Stats: s}}})
 }
 
 // TypedQuery handles the unary `TypedQuery` RPC.
 //
 // This is the typed variant of Query. It uses SqlValue/SqlRow for results
 // instead of ListValue, providing better type safety and wire efficiency.
-func (s *DbServer) TypedQuery(ctx context.Context, req *connect.Request[dbv1.TypedQueryRequest]) (*connect.Response[dbv1.TypedQueryResult], error) {
+func (s *DbServer) TypedQuery(ctx context.Context, req *connect.Request[sqlrpcv1.TypedQueryRequest]) (*connect.Response[sqlrpcv1.TypedQueryResult], error) {
 	reqID := ensureRequestID(req.Header())
 
 	if err := protovalidate.Validate(req.Msg); err != nil {
@@ -253,7 +253,7 @@ func (s *DbServer) TypedQuery(ctx context.Context, req *connect.Request[dbv1.Typ
 // TypedQueryStream handles the server-streaming `TypedQueryStream` RPC.
 //
 // This is the typed variant of QueryStream. It uses SqlValue/SqlRow for results.
-func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[dbv1.TypedQueryRequest], stream *connect.ServerStream[dbv1.TypedQueryResponse]) error {
+func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[sqlrpcv1.TypedQueryRequest], stream *connect.ServerStream[sqlrpcv1.TypedQueryResponse]) error {
 	reqID := ensureRequestID(req.Header())
 	stream.ResponseHeader().Set(headerRequestID, reqID)
 
@@ -291,8 +291,8 @@ func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[db
 		log.Printf("[%s] TypedStream failed: %v", reqID, err)
 
 		errResp := makeStreamError(err, msg.Sql)
-		sendErr := stream.Send(&dbv1.TypedQueryResponse{
-			Response: &dbv1.TypedQueryResponse_Error{Error: errResp},
+		sendErr := stream.Send(&sqlrpcv1.TypedQueryResponse{
+			Response: &sqlrpcv1.TypedQueryResponse_Error{Error: errResp},
 		})
 
 		if sendErr != nil {

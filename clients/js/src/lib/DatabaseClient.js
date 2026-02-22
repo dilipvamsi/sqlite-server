@@ -4,7 +4,7 @@
 const grpc = require("@grpc/grpc-js");
 const TransactionHandle = require("./TransactionHandle");
 const UnaryTransactionHandle = require("./UnaryTransactionHandle");
-const { TransactionMode, TransactionType } = require("./constants");
+const { TransactionLockMode, TransactionType } = require("./constants");
 const {
   resolveArgs,
   getAuthMetadata,
@@ -18,14 +18,16 @@ const {
 
 
 // Import the generated static stubs
-const db_service_pb = require("../protos/db/v1/db_service_pb");
-const db_service_grpc_pb = require("../protos/db/v1/db_service_grpc_pb");
+const db_service_pb = require("../protos/sqlrpc/v1/db_service_pb");
+const db_service_grpc_pb = require("../protos/sqlrpc/v1/db_service_grpc_pb");
+const admin_service_grpc_pb = require("../protos/sqlrpc/v1/admin_service_grpc_pb");
 const google_protobuf_empty_pb = require("google-protobuf/google/protobuf/empty_pb");
+
 
 
 class DatabaseClient {
   /**
-   * @param {string} address - gRPC Server Address (e.g. localhost:50051).
+   * @param {string} address - gRPC Server Address (e.g. localhost:50173).
    * @param {string} databaseName - The database to bind this client to.
    * @param {object} [credentials] - grpc.credentials object (default: insecure).
    * @param {object} [config] - Configuration options.
@@ -72,7 +74,7 @@ class DatabaseClient {
       address,
       credentials,
     );
-    this.adminClient = new db_service_grpc_pb.AdminServiceClient(
+    this.adminClient = new admin_service_grpc_pb.AdminServiceClient(
       address,
       credentials,
     );
@@ -174,7 +176,7 @@ class DatabaseClient {
    * }>}
    */
   async _initStream(sqlOrObj, paramsOrHints, hintsOrNull) {
-    const { sql, positional, named } = resolveArgs(
+    const { sql, positional, named, hints } = resolveArgs(
       sqlOrObj,
       paramsOrHints,
       hintsOrNull,
@@ -186,7 +188,7 @@ class DatabaseClient {
     const req = new db_service_pb.TypedQueryRequest();
     req.setDatabase(this.dbName);
     req.setSql(sql);
-    req.setParameters(toTypedProtoParams(positional, named));
+    req.setParameters(toTypedProtoParams(positional, named, hints));
 
     // TODO: queryStream currently doesn't support easy retries because it returns a stream immediately.
     // We would need to re-create the stream on error which is complex for a generator.
@@ -222,8 +224,8 @@ class DatabaseClient {
           columnRawTypes: [],
           isDml: true,
           dmlStats: {
-            rowsAffected: dml.getRowsAffected(),
-            lastInsertId: dml.getLastInsertId(),
+            rowsAffected: this.config.typeParsers.bigint !== false ? BigInt(dml.getRowsAffected()) : dml.getRowsAffected(),
+            lastInsertId: this.config.typeParsers.bigint !== false ? BigInt(dml.getLastInsertId()) : dml.getLastInsertId(),
           },
         };
       }
@@ -358,7 +360,7 @@ class DatabaseClient {
    */
   async query(sqlOrObj, paramsOrHints, hintsOrNull) {
     return this._withRetry(async () => {
-      const { sql, positional, named } = resolveArgs(
+      const { sql, positional, named, hints } = resolveArgs(
         sqlOrObj,
         paramsOrHints,
         hintsOrNull,
@@ -370,7 +372,7 @@ class DatabaseClient {
       const req = new db_service_pb.TypedQueryRequest();
       req.setDatabase(this.dbName);
       req.setSql(sql);
-      req.setParameters(toTypedProtoParams(positional, named));
+      req.setParameters(toTypedProtoParams(positional, named, hints));
 
       return new Promise((resolve, reject) => {
         const metadata = getAuthMetadata(this.config.auth);
@@ -384,6 +386,54 @@ class DatabaseClient {
       });
     });
   }
+  /**
+   * Executes a DML statement (INSERT, UPDATE, DELETE) and returns affected row info.
+   * Uses the TypedExec RPC which routes strictly to a Read-Write connection.
+   *
+   * @param {string|object} sqlOrObj - SQL string or SQLStatement object.
+   * @param {object|Array} [paramsOrHints] - Parameters or hints.
+   * @param {object} [hintsOrNull] - Hints.
+   * @returns {Promise<{rowsAffected: number, lastInsertId: number, stats?: ExecutionStats}>}
+   */
+  async exec(sqlOrObj, paramsOrHints, hintsOrNull) {
+    return this._withRetry(async () => {
+      const { sql, positional, named, hints } = resolveArgs(
+        sqlOrObj,
+        paramsOrHints,
+        hintsOrNull,
+      );
+
+      this._runInterceptors('beforeQuery', { sql, params: { positional, named } });
+
+      const req = new db_service_pb.TypedQueryRequest();
+      req.setDatabase(this.dbName);
+      req.setSql(sql);
+      req.setParameters(toTypedProtoParams(positional, named, hints));
+
+      return new Promise((resolve, reject) => {
+        const metadata = getAuthMetadata(this.config.auth);
+        this.client.typedExec(req, metadata, (err, response) => {
+          if (err) return reject(err);
+          const dml = response.getDml();
+          const rawStats = response.getStats();
+          const result = {
+            rowsAffected: dml ? (this.config.typeParsers.bigint !== false ? BigInt(dml.getRowsAffected()) : dml.getRowsAffected()) : 0,
+            lastInsertId: dml ? (this.config.typeParsers.bigint !== false ? BigInt(dml.getLastInsertId()) : dml.getLastInsertId()) : 0,
+          };
+          if (rawStats) {
+            result.stats = {
+              duration_ms: rawStats.getDurationMs ? rawStats.getDurationMs() : 0,
+              rows_read: rawStats.getRowsRead ? rawStats.getRowsRead() : 0,
+              rows_written: rawStats.getRowsWritten ? rawStats.getRowsWritten() : 0,
+            };
+          }
+          this._runInterceptors('afterQuery', result);
+          resolve(result);
+        });
+      });
+    });
+  }
+
 
   /**
    * Returns the structured EXPLAIN QUERY PLAN for a given query.
@@ -429,7 +479,7 @@ class DatabaseClient {
    * Automatically handles Begin and Commit.
    *
    * @param {Array<{sql: string|object, params?: any, hints?: any} | string | object>} queries
-   * @param {number} [mode] - TransactionMode enum (default: DEFERRED).
+   * @param {number} [mode] - TransactionLockMode enum (default: DEFERRED).
    * @returns {Promise<Array<{
    *   type: 'SELECT'|'DML',
    *   rows?: any[][],
@@ -440,7 +490,7 @@ class DatabaseClient {
    */
   async executeTransaction(
     queries,
-    mode = TransactionMode.TRANSACTION_MODE_DEFERRED,
+    mode = TransactionLockMode.TRANSACTION_MODE_DEFERRED,
   ) {
     return this._withRetry(async () => {
       // Prepare Requests
@@ -521,12 +571,12 @@ class DatabaseClient {
 
   /**
    * Opens a transaction.
-   * @param {number} [mode] - TransactionMode enum (Default: DEFERRED).
+   * @param {number} [mode] - TransactionLockMode enum (Default: DEFERRED).
    * @param {number} [type] - TransactionType enum (Default: STREAMING).
    * @returns {Promise<TransactionHandle|UnaryTransactionHandle>}
    */
   async beginTransaction(
-    mode = TransactionMode.TRANSACTION_MODE_DEFERRED,
+    mode = TransactionLockMode.TRANSACTION_MODE_DEFERRED,
     type = TransactionType.STREAMING,
   ) {
     if (type === TransactionType.UNARY) {
@@ -544,14 +594,14 @@ class DatabaseClient {
    * Automatically commits if the function returns, and rolls back if it throws.
    *
    * @param {Function} fn - Async function (tx, ...args) => { ... }
-   * @param {number} [mode] - TransactionMode enum.
+   * @param {number} [mode] - TransactionLockMode enum.
    * @param {number} [type] - TransactionType enum.
    * @param {...any} args - Additional arguments to pass to the callback function.
    * @returns {Promise<any>} The result of the callback function.
    */
   async transaction(
     fn,
-    mode = TransactionMode.TRANSACTION_MODE_DEFERRED,
+    mode = TransactionLockMode.TRANSACTION_MODE_DEFERRED,
     type = TransactionType.STREAMING,
     ...args
   ) {

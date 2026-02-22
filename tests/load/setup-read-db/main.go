@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sqlite-server/internal/sqldrivers"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -19,15 +19,15 @@ func main() {
 	// Parse the command-line arguments.
 	flag.Parse()
 
-	var config *dbv1.DatabaseConfig
+	var config *sqlrpcv1.DatabaseConfig
 	if *enableCipher {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:        "loadtest-cipher",
 			DbPath:      "./data-test/loadtest-cipher.db",
 			IsEncrypted: true,
 		}
 	} else {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:   "loadtest",
 			DbPath: "./data-test/loadtest.db",
 		}

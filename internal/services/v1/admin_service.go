@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -21,7 +21,7 @@ import (
 
 // AdminServer implements the AdminService gRPC handler
 type AdminServer struct {
-	dbv1connect.UnimplementedAdminServiceHandler
+	sqlrpcv1connect.UnimplementedAdminServiceHandler
 	store        *auth.MetaStore
 	dbServer     *DbServer
 	cache        AuthCacheInvalidator
@@ -41,7 +41,7 @@ func NewAdminServer(store *auth.MetaStore, dbServer *DbServer, cache AuthCacheIn
 }
 
 // CreateUser creates a new user account
-func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.CreateUserRequest]) (*connect.Response[dbv1.CreateUserResponse], error) {
+func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[sqlrpcv1.CreateUserRequest]) (*connect.Response[sqlrpcv1.CreateUserResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
 	}
@@ -61,7 +61,7 @@ func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.
 		s.cache.ClearCache()
 	}
 
-	return connect.NewResponse(&dbv1.CreateUserResponse{
+	return connect.NewResponse(&sqlrpcv1.CreateUserResponse{
 		UserId:    userID,
 		Username:  req.Msg.Username,
 		CreatedAt: timestamppb.New(time.Now()),
@@ -69,7 +69,7 @@ func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[dbv1.
 }
 
 // ListUsers returns all users
-func (s *AdminServer) ListUsers(ctx context.Context, req *connect.Request[dbv1.ListUsersRequest]) (*connect.Response[dbv1.ListUsersResponse], error) {
+func (s *AdminServer) ListUsers(ctx context.Context, req *connect.Request[sqlrpcv1.ListUsersRequest]) (*connect.Response[sqlrpcv1.ListUsersResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
 	}
@@ -84,22 +84,22 @@ func (s *AdminServer) ListUsers(ctx context.Context, req *connect.Request[dbv1.L
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	var pbUsers []*dbv1.User
+	var pbUsers []*sqlrpcv1.User
 	for _, u := range users {
-		pbUsers = append(pbUsers, &dbv1.User{
+		pbUsers = append(pbUsers, &sqlrpcv1.User{
 			Id:       u.ID,
 			Username: u.Username,
 			Role:     u.Role,
 		})
 	}
 
-	return connect.NewResponse(&dbv1.ListUsersResponse{
+	return connect.NewResponse(&sqlrpcv1.ListUsersResponse{
 		Users: pbUsers,
 	}), nil
 }
 
 // UpdateUserRole updates a user's role
-func (s *AdminServer) UpdateUserRole(ctx context.Context, req *connect.Request[dbv1.UpdateUserRoleRequest]) (*connect.Response[dbv1.UpdateUserRoleResponse], error) {
+func (s *AdminServer) UpdateUserRole(ctx context.Context, req *connect.Request[sqlrpcv1.UpdateUserRoleRequest]) (*connect.Response[sqlrpcv1.UpdateUserRoleResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
 	}
@@ -122,12 +122,12 @@ func (s *AdminServer) UpdateUserRole(ctx context.Context, req *connect.Request[d
 		s.cache.ClearCache()
 	}
 
-	return connect.NewResponse(&dbv1.UpdateUserRoleResponse{
+	return connect.NewResponse(&sqlrpcv1.UpdateUserRoleResponse{
 		Success: true,
 	}), nil
 }
 
-func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[dbv1.UpdatePasswordRequest]) (*connect.Response[dbv1.UpdatePasswordResponse], error) {
+func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[sqlrpcv1.UpdatePasswordRequest]) (*connect.Response[sqlrpcv1.UpdatePasswordResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
 	}
@@ -145,13 +145,13 @@ func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[d
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.UpdatePasswordResponse{
+	return connect.NewResponse(&sqlrpcv1.UpdatePasswordResponse{
 		Success: true,
 	}), nil
 }
 
 // DeleteUser removes a user account
-func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.DeleteUserRequest]) (*connect.Response[dbv1.DeleteUserResponse], error) {
+func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[sqlrpcv1.DeleteUserRequest]) (*connect.Response[sqlrpcv1.DeleteUserResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("user management is disabled when running in no-auth mode"))
 	}
@@ -170,7 +170,7 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 	// ... (rest of the comments)
 	// For now, let's assume we can rely on the client username matching.
 	// Wait, we need the caller's identity.
-	// The `dbv1connect.UnimplementedAdminServiceHandler` doesn't give us that easily unless we authenticated.
+	// The `sqlrpcv1connect.UnimplementedAdminServiceHandler` doesn't give us that easily unless we authenticated.
 	// The helper `AuthorizeAdmin` parses headers.
 	// Let's modify `AuthorizeAdmin` or peek headers here.
 
@@ -220,13 +220,13 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[dbv1.
 		s.cache.ClearCache()
 	}
 
-	return connect.NewResponse(&dbv1.DeleteUserResponse{
+	return connect.NewResponse(&sqlrpcv1.DeleteUserResponse{
 		Success: true,
 	}), nil
 }
 
-// CreateApiKey generates a new API key for a user
-func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv1.CreateApiKeyRequest]) (*connect.Response[dbv1.CreateApiKeyResponse], error) {
+// CreateAPIKey generates a new API key for a user
+func (s *AdminServer) CreateAPIKey(ctx context.Context, req *connect.Request[sqlrpcv1.CreateAPIKeyRequest]) (*connect.Response[sqlrpcv1.CreateAPIKeyResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("API key management is disabled when running in no-auth mode"))
 	}
@@ -259,14 +259,14 @@ func (s *AdminServer) CreateApiKey(ctx context.Context, req *connect.Request[dbv
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.CreateApiKeyResponse{
+	return connect.NewResponse(&sqlrpcv1.CreateAPIKeyResponse{
 		ApiKey: rawKey,
 		KeyId:  keyID,
 	}), nil
 }
 
-// ListApiKeys returns all API keys for a user
-func (s *AdminServer) ListApiKeys(ctx context.Context, req *connect.Request[dbv1.ListApiKeysRequest]) (*connect.Response[dbv1.ListApiKeysResponse], error) {
+// ListAPIKeys returns all API keys for a user
+func (s *AdminServer) ListAPIKeys(ctx context.Context, req *connect.Request[sqlrpcv1.ListAPIKeysRequest]) (*connect.Response[sqlrpcv1.ListAPIKeysResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("API key management is disabled when running in no-auth mode"))
 	}
@@ -290,23 +290,23 @@ func (s *AdminServer) ListApiKeys(ctx context.Context, req *connect.Request[dbv1
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	var summaries []*dbv1.ListApiKeysResponse_ApiKeySummary
+	var summaries []*sqlrpcv1.APIKey
 	for _, k := range keys {
-		summaries = append(summaries, &dbv1.ListApiKeysResponse_ApiKeySummary{
-			Id:        k.ID,
-			Name:      k.Name,
-			Prefix:    k.KeyPrefix,
-			CreatedAt: timestamppb.New(k.CreatedAt),
+		summaries = append(summaries, &sqlrpcv1.APIKey{
+			Id:         k.ID,
+			Name:       k.Name,
+			KeyPreview: k.KeyPrefix,
+			CreatedAt:  timestamppb.New(k.CreatedAt),
 		})
 	}
 
-	return connect.NewResponse(&dbv1.ListApiKeysResponse{
+	return connect.NewResponse(&sqlrpcv1.ListAPIKeysResponse{
 		Keys: summaries,
 	}), nil
 }
 
-// RevokeApiKey deletes an API key
-func (s *AdminServer) RevokeApiKey(ctx context.Context, req *connect.Request[dbv1.RevokeApiKeyRequest]) (*connect.Response[dbv1.RevokeApiKeyResponse], error) {
+// DeleteAPIKey deletes an API key
+func (s *AdminServer) DeleteAPIKey(ctx context.Context, req *connect.Request[sqlrpcv1.DeleteAPIKeyRequest]) (*connect.Response[sqlrpcv1.DeleteAPIKeyResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("API key management is disabled when running in no-auth mode"))
 	}
@@ -328,21 +328,21 @@ func (s *AdminServer) RevokeApiKey(ctx context.Context, req *connect.Request[dbv
 		s.cache.ClearCache()
 	}
 
-	return connect.NewResponse(&dbv1.RevokeApiKeyResponse{
+	return connect.NewResponse(&sqlrpcv1.DeleteAPIKeyResponse{
 		Success: true,
 	}), nil
 }
 
 // ListDatabases returns all available databases
-func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[dbv1.ListDatabasesRequest]) (*connect.Response[dbv1.ListDatabasesResponse], error) {
+func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[sqlrpcv1.ListDatabasesRequest]) (*connect.Response[sqlrpcv1.ListDatabasesResponse], error) {
 	configs, err := s.store.ListDatabaseConfigs(ctx)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	infos := make([]*dbv1.DatabaseInfo, len(configs))
+	infos := make([]*sqlrpcv1.DatabaseInfo, len(configs))
 	for i, cfg := range configs {
-		info := &dbv1.DatabaseInfo{
+		info := &sqlrpcv1.DatabaseInfo{
 			Name:      cfg.Name,
 			Path:      cfg.Path,
 			IsManaged: cfg.IsManaged,
@@ -350,7 +350,7 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 
 		// Parse settings to get current attachments and read-only status
 		if cfg.Settings != "" {
-			fullCfg := &dbv1.DatabaseConfig{}
+			fullCfg := &sqlrpcv1.DatabaseConfig{}
 			if err := protojson.Unmarshal([]byte(cfg.Settings), fullCfg); err == nil {
 				info.CurrentAttachments = fullCfg.Attachments
 				info.ReadOnly = fullCfg.ReadOnly
@@ -360,13 +360,13 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[db
 		infos[i] = info
 	}
 
-	return connect.NewResponse(&dbv1.ListDatabasesResponse{
+	return connect.NewResponse(&sqlrpcv1.ListDatabasesResponse{
 		Databases: infos,
 	}), nil
 }
 
 // CreateDatabase creates a new managed database
-func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[dbv1.CreateDatabaseRequest]) (*connect.Response[dbv1.CreateDatabaseResponse], error) {
+func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.CreateDatabaseRequest]) (*connect.Response[sqlrpcv1.CreateDatabaseResponse], error) {
 	// Verify Admin or Database Manager Role
 	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
@@ -376,7 +376,7 @@ func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[d
 	dbPath := filepath.Join("databases", name+".db")
 
 	// Build DatabaseConfig from inline request fields
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:              name,
 		DbPath:            dbPath,
 		IsEncrypted:       req.Msg.IsEncrypted,
@@ -394,7 +394,19 @@ func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[d
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create directory: %w", err))
 	}
 
-	// 1. Persist config
+	// 1. Check for existing database (by config or existing file on disk)
+	existingConfig, existErr := s.store.GetDatabaseConfig(ctx, name)
+	if existErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, existErr)
+	}
+	if existingConfig != nil {
+		return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("database '%s' already exists", name))
+	}
+	if _, statErr := os.Stat(dbPath); statErr == nil {
+		return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("database file for '%s' already exists on disk", name))
+	}
+
+	// 2. Persist config
 	// We store the full config as JSON
 	jsonBytes, err := protojson.Marshal(config)
 	if err != nil {
@@ -418,28 +430,45 @@ func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[d
 	// 3. Log success
 	log.Printf("Created database '%s' at '%s'", name, dbPath)
 
-	return connect.NewResponse(&dbv1.CreateDatabaseResponse{
+	return connect.NewResponse(&sqlrpcv1.CreateDatabaseResponse{
 		Success: true,
 		Message: fmt.Sprintf("Database '%s' created successfully", name),
 	}), nil
 }
 
 // MountDatabase mounts an existing unmanaged database
-func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[dbv1.DatabaseConfig]) (*connect.Response[dbv1.MountDatabaseResponse], error) {
-	if err := AuthorizeDatabaseManager(ctx); err != nil {
+func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.MountDatabaseRequest]) (*connect.Response[sqlrpcv1.MountDatabaseResponse], error) {
+	if s.authDisabled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("authentication is disabled on this server"))
+	}
+
+	if err := AuthorizeAdmin(ctx); err != nil {
 		return nil, err
 	}
 
-	config := req.Msg
-	name := config.Name
-	path := config.DbPath
+	name := req.Msg.Name
+	path := req.Msg.Path
 
 	// Verify file existence
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("database file not found"))
 	}
 
-	// 1. Persist config (is_managed=false)
+	// 1. Prepare configuration
+	config := &sqlrpcv1.DatabaseConfig{
+		Name:              name,
+		DbPath:            path,
+		ReadOnly:          req.Msg.ReadOnly,
+		IsEncrypted:       req.Msg.IsEncrypted,
+		Key:               req.Msg.Key,
+		Extensions:        req.Msg.Extensions,
+		Pragmas:           req.Msg.Pragmas,
+		MaxOpenConns:      req.Msg.MaxOpenConns,
+		MaxIdleConns:      req.Msg.MaxIdleConns,
+		ConnMaxLifetimeMs: req.Msg.ConnMaxLifetimeMs,
+	}
+
+	// 2. Persist config (is_managed=false)
 	jsonBytes, err := protojson.Marshal(config)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to marshal config: %w", err))
@@ -448,23 +477,23 @@ func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[db
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// 2. Mount database
+	// 3. Mount database
 	if err := s.dbServer.MountDatabase(config); err != nil {
 		_ = s.store.RemoveDatabaseConfig(ctx, name)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// 3. Log success
+	// 4. Log success
 	log.Printf("Mounted database '%s' at '%s'", name, path)
 
-	return connect.NewResponse(&dbv1.MountDatabaseResponse{
+	return connect.NewResponse(&sqlrpcv1.MountDatabaseResponse{
 		Success: true,
 		Message: fmt.Sprintf("Database '%s' mounted successfully", name),
 	}), nil
 }
 
 // UnMountDatabase unmounts a database but keeps the file
-func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[dbv1.UnMountDatabaseRequest]) (*connect.Response[dbv1.UnMountDatabaseResponse], error) {
+func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.UnMountDatabaseRequest]) (*connect.Response[sqlrpcv1.UnMountDatabaseResponse], error) {
 	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
@@ -485,14 +514,14 @@ func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[
 	// 3. Log success
 	log.Printf("Unmounted database '%s'", name)
 
-	return connect.NewResponse(&dbv1.UnMountDatabaseResponse{
+	return connect.NewResponse(&sqlrpcv1.UnMountDatabaseResponse{
 		Success: true,
 		Message: fmt.Sprintf("Database '%s' unmounted", name),
 	}), nil
 }
 
 // DeleteDatabase deletes a managed database permanently
-func (s *AdminServer) DeleteDatabase(ctx context.Context, req *connect.Request[dbv1.DeleteDatabaseRequest]) (*connect.Response[dbv1.DeleteDatabaseResponse], error) {
+func (s *AdminServer) DeleteDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.DeleteDatabaseRequest]) (*connect.Response[sqlrpcv1.DeleteDatabaseResponse], error) {
 	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
@@ -530,14 +559,14 @@ func (s *AdminServer) DeleteDatabase(ctx context.Context, req *connect.Request[d
 	// 5. Log success
 	log.Printf("Deleted database '%s' at '%s'", name, config.Path)
 
-	return connect.NewResponse(&dbv1.DeleteDatabaseResponse{
+	return connect.NewResponse(&sqlrpcv1.DeleteDatabaseResponse{
 		Success: true,
 		Message: fmt.Sprintf("Database '%s' deleted successfully", name),
 	}), nil
 }
 
 // Login authenticates a user and returns a session API key.
-func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.LoginRequest]) (*connect.Response[dbv1.LoginResponse], error) {
+func (s *AdminServer) Login(ctx context.Context, req *connect.Request[sqlrpcv1.LoginRequest]) (*connect.Response[sqlrpcv1.LoginResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("authentication is disabled on this server"))
 	}
@@ -565,11 +594,11 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to generate session key: %w", err))
 	}
 
-	return connect.NewResponse(&dbv1.LoginResponse{
+	return connect.NewResponse(&sqlrpcv1.LoginResponse{
 		ApiKey:    apiKey,
 		KeyId:     keyID,
 		ExpiresAt: timestamppb.New(expiresAt),
-		User: &dbv1.User{
+		User: &sqlrpcv1.User{
 			Id:       user.UserID,
 			Username: user.Username,
 			Role:     user.Role,
@@ -578,7 +607,7 @@ func (s *AdminServer) Login(ctx context.Context, req *connect.Request[dbv1.Login
 }
 
 // Logout invalidates the provided session key.
-func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[dbv1.LogoutRequest]) (*connect.Response[dbv1.LogoutResponse], error) {
+func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[sqlrpcv1.LogoutRequest]) (*connect.Response[sqlrpcv1.LogoutResponse], error) {
 	if s.authDisabled {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("authentication is disabled on this server"))
 	}
@@ -598,13 +627,13 @@ func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[dbv1.Logo
 		log.Printf("Logged out session key %s", req.Msg.KeyId)
 	}
 
-	return connect.NewResponse(&dbv1.LogoutResponse{
+	return connect.NewResponse(&sqlrpcv1.LogoutResponse{
 		Success: true,
 	}), nil
 }
 
 // UpdateDatabase updates an existing database configuration
-func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[dbv1.UpdateDatabaseRequest]) (*connect.Response[dbv1.UpdateDatabaseResponse], error) {
+func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.UpdateDatabaseRequest]) (*connect.Response[sqlrpcv1.UpdateDatabaseResponse], error) {
 	if err := AuthorizeDatabaseManager(ctx); err != nil {
 		return nil, err
 	}
@@ -623,7 +652,7 @@ func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[d
 
 	// 2. Unmarshal existing settings from JSON
 	// The store only saves the JSON blob in 'Settings', so we must parse it to get current values
-	currentConfig := &dbv1.DatabaseConfig{}
+	currentConfig := &sqlrpcv1.DatabaseConfig{}
 	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
 	}
@@ -678,16 +707,22 @@ func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[d
 
 	log.Printf("Updated configuration for database '%s'", name)
 
-	return connect.NewResponse(&dbv1.UpdateDatabaseResponse{
+	return connect.NewResponse(&sqlrpcv1.UpdateDatabaseResponse{
 		Success: true,
 		Message: fmt.Sprintf("Database '%s' updated successfully", name),
 	}), nil
 }
 
 // GetServerInfo retrieves server metadata and capability info
-func (s *AdminServer) GetServerInfo(ctx context.Context, req *connect.Request[dbv1.GetServerInfoRequest]) (*connect.Response[dbv1.GetServerInfoResponse], error) {
-	return connect.NewResponse(&dbv1.GetServerInfoResponse{
-		Version:      s.version,
-		AuthDisabled: s.authDisabled,
+func (s *AdminServer) GetServerInfo(ctx context.Context, req *connect.Request[sqlrpcv1.GetServerInfoRequest]) (*connect.Response[sqlrpcv1.ServerInfo], error) {
+	return connect.NewResponse(&sqlrpcv1.ServerInfo{
+		Version:       s.version,
+		ServerTime:    timestamppb.New(time.Now()),
+		Architecture:  "linux/amd64", // Mocked for now, can be populated via runtime.GOOS/GOARCH
+		GoVersion:     "go1.21",
+		SqliteVersion: "3.44.0",
+		DatabaseCount: 0, // Mocked
+		UptimeSeconds: 0, // Mocked
+		AuthDisabled:  s.authDisabled,
 	}), nil
 }

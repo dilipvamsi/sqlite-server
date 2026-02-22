@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 // hashPassword creates a salted SHA256 hash of the password
@@ -68,7 +68,7 @@ type DatabaseConfig struct {
 type UserClaims struct {
 	UserID   int64
 	Username string
-	Role     dbv1.Role
+	Role     sqlrpcv1.Role
 }
 
 // dbRole is the string representation of a role in the database
@@ -84,31 +84,31 @@ const (
 )
 
 // Helper to convert DB string to Enum
-func ParseRole(roleStr dbRole) dbv1.Role {
+func ParseRole(roleStr dbRole) sqlrpcv1.Role {
 	switch roleStr {
 	case dbRoleAdmin:
-		return dbv1.Role_ROLE_ADMIN
+		return sqlrpcv1.Role_ROLE_ADMIN
 	case dbRoleDatabaseManager:
-		return dbv1.Role_ROLE_DATABASE_MANAGER
+		return sqlrpcv1.Role_ROLE_DATABASE_MANAGER
 	case dbRoleReadWrite:
-		return dbv1.Role_ROLE_READ_WRITE
+		return sqlrpcv1.Role_ROLE_READ_WRITE
 	case dbRoleReadOnly:
-		return dbv1.Role_ROLE_READ_ONLY
+		return sqlrpcv1.Role_ROLE_READ_ONLY
 	default:
-		return dbv1.Role_ROLE_UNSPECIFIED
+		return sqlrpcv1.Role_ROLE_UNSPECIFIED
 	}
 }
 
 // Helper to convert Enum to DB string
-func FormatRole(role dbv1.Role) dbRole {
+func FormatRole(role sqlrpcv1.Role) dbRole {
 	switch role {
-	case dbv1.Role_ROLE_ADMIN:
+	case sqlrpcv1.Role_ROLE_ADMIN:
 		return dbRoleAdmin
-	case dbv1.Role_ROLE_DATABASE_MANAGER:
+	case sqlrpcv1.Role_ROLE_DATABASE_MANAGER:
 		return dbRoleDatabaseManager
-	case dbv1.Role_ROLE_READ_WRITE:
+	case sqlrpcv1.Role_ROLE_READ_WRITE:
 		return dbRoleReadWrite
-	case dbv1.Role_ROLE_READ_ONLY:
+	case sqlrpcv1.Role_ROLE_READ_ONLY:
 		return dbRoleReadOnly
 	default:
 		return dbRoleUnspecified
@@ -261,9 +261,9 @@ func generateRandomPassword(n int) string {
 // ============================================================================
 
 // CreateUser creates a new user with the given credentials
-func (s *MetaStore) CreateUser(ctx context.Context, username, password string, role dbv1.Role) (int64, error) {
+func (s *MetaStore) CreateUser(ctx context.Context, username, password string, role sqlrpcv1.Role) (int64, error) {
 	// Validate role
-	if role == dbv1.Role_ROLE_UNSPECIFIED {
+	if role == sqlrpcv1.Role_ROLE_UNSPECIFIED {
 		return 0, fmt.Errorf("invalid role: UNSPECIFIED")
 	}
 
@@ -364,8 +364,8 @@ func (s *MetaStore) ListUsers(ctx context.Context) ([]User, error) {
 }
 
 // UpdateUserRole updates a user's role
-func (s *MetaStore) UpdateUserRole(ctx context.Context, username string, role dbv1.Role) error {
-	if role == dbv1.Role_ROLE_UNSPECIFIED {
+func (s *MetaStore) UpdateUserRole(ctx context.Context, username string, role sqlrpcv1.Role) error {
+	if role == sqlrpcv1.Role_ROLE_UNSPECIFIED {
 		return fmt.Errorf("invalid role: UNSPECIFIED")
 	}
 	roleStr := FormatRole(role)

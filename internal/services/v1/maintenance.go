@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 )
 
 // Vacuum triggers a VACUUM or VACUUM INTO command.
-func (s *DbServer) Vacuum(ctx context.Context, req *connect.Request[dbv1.VacuumRequest]) (*connect.Response[dbv1.VacuumResponse], error) {
+func (s *DbServer) Vacuum(ctx context.Context, req *connect.Request[sqlrpcv1.VacuumRequest]) (*connect.Response[sqlrpcv1.VacuumResponse], error) {
 	dbName := req.Msg.Database
 	intoFile := req.Msg.IntoFile
 
@@ -37,14 +37,14 @@ func (s *DbServer) Vacuum(ctx context.Context, req *connect.Request[dbv1.VacuumR
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("vacuum failed: %w", err))
 	}
 
-	return connect.NewResponse(&dbv1.VacuumResponse{
+	return connect.NewResponse(&sqlrpcv1.VacuumResponse{
 		Success: true,
 		Message: "Vacuum completed successfully",
 	}), nil
 }
 
 // Checkpoint runs PRAGMA wal_checkpoint.
-func (s *DbServer) Checkpoint(ctx context.Context, req *connect.Request[dbv1.CheckpointRequest]) (*connect.Response[dbv1.CheckpointResponse], error) {
+func (s *DbServer) Checkpoint(ctx context.Context, req *connect.Request[sqlrpcv1.CheckpointRequest]) (*connect.Response[sqlrpcv1.CheckpointResponse], error) {
 	dbName := req.Msg.Database
 	mode := req.Msg.Mode
 
@@ -55,11 +55,11 @@ func (s *DbServer) Checkpoint(ctx context.Context, req *connect.Request[dbv1.Che
 
 	modeStr := "PASSIVE"
 	switch mode {
-	case dbv1.CheckpointMode_CHECKPOINT_MODE_FULL:
+	case sqlrpcv1.CheckpointMode_CHECKPOINT_MODE_FULL:
 		modeStr = "FULL"
-	case dbv1.CheckpointMode_CHECKPOINT_MODE_RESTART:
+	case sqlrpcv1.CheckpointMode_CHECKPOINT_MODE_RESTART:
 		modeStr = "RESTART"
-	case dbv1.CheckpointMode_CHECKPOINT_MODE_TRUNCATE:
+	case sqlrpcv1.CheckpointMode_CHECKPOINT_MODE_TRUNCATE:
 		modeStr = "TRUNCATE"
 	}
 
@@ -76,7 +76,7 @@ func (s *DbServer) Checkpoint(ctx context.Context, req *connect.Request[dbv1.Che
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("checkpoint failed: %w", err))
 	}
 
-	return connect.NewResponse(&dbv1.CheckpointResponse{
+	return connect.NewResponse(&sqlrpcv1.CheckpointResponse{
 		Success:           true,
 		Message:           fmt.Sprintf("Checkpoint %s completed", modeStr),
 		BusyCheckpoints:   busy,
@@ -86,7 +86,7 @@ func (s *DbServer) Checkpoint(ctx context.Context, req *connect.Request[dbv1.Che
 }
 
 // IntegrityCheck runs PRAGMA integrity_check.
-func (s *DbServer) IntegrityCheck(ctx context.Context, req *connect.Request[dbv1.IntegrityCheckRequest]) (*connect.Response[dbv1.IntegrityCheckResponse], error) {
+func (s *DbServer) IntegrityCheck(ctx context.Context, req *connect.Request[sqlrpcv1.IntegrityCheckRequest]) (*connect.Response[sqlrpcv1.IntegrityCheckResponse], error) {
 	dbName := req.Msg.Database
 	maxErrors := int32(100)
 	if req.Msg.MaxErrors != nil {
@@ -128,7 +128,7 @@ func (s *DbServer) IntegrityCheck(ctx context.Context, req *connect.Request[dbv1
 		message = fmt.Sprintf("Integrity check failed with %d errors", len(errors))
 	}
 
-	return connect.NewResponse(&dbv1.IntegrityCheckResponse{
+	return connect.NewResponse(&sqlrpcv1.IntegrityCheckResponse{
 		Success: success,
 		Message: message,
 		Errors:  errors,

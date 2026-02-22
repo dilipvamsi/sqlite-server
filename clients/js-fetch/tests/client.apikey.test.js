@@ -16,7 +16,7 @@ if (!fs.existsSync(KEY_FILE)) {
     const apiKey = fs.readFileSync(KEY_FILE, 'utf8').trim();
 
     runFunctionalTests(async () => {
-        return new DatabaseClient("http://localhost:50051", "loadtest", {
+        return new DatabaseClient("http://localhost:50173", "loadtest", {
             auth: {
                 type: 'bearer',
                 token: apiKey

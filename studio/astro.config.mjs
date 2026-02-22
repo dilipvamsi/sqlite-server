@@ -11,8 +11,8 @@ export default defineConfig({
     vite: {
         server: {
             proxy: {
-                '/db.v1': 'http://localhost:50051',
-                '/studio/api': 'http://localhost:50051',
+                '/db.v1': 'http://localhost:50173',
+                '/studio/api': 'http://localhost:50173',
             }
         }
     }

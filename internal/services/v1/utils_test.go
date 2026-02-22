@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -57,43 +57,45 @@ func TestIsReadOnly(t *testing.T) {
 func TestApplyHint(t *testing.T) {
 	// 1. BLOB Hint
 	blobStr := base64.StdEncoding.EncodeToString([]byte("data"))
-	val := applyHint(blobStr, dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB, true)
+	val := applyHint(blobStr, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_BLOB, true)
 	assert.Equal(t, []byte("data"), val)
 
 	// 2. Integer Hint (String -> Int)
-	val = applyHint("123", dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
+	val = applyHint("123", sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, int64(123), val)
 
 	// 3. Integer Hint (Float -> Int)
-	val = applyHint(float64(123.0), dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
+	val = applyHint(float64(123.0), sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, int64(123), val)
 
 	// 4. Boolean
 	// Boolean is not in Affinity enum explicitly as a hint input usually, but we treat it as INTEGER/NUMERIC
 	// The implementation of applyHint converts BOOLEAN affinity roughly to Integer logic?
 	// applyHint switch:
-	// case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER: ...
+	// case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER: ...
 	// Wait, if I pass true/false and use INTEGER affinity, does it convert?
 	// In query_utils.go applyHint for INTEGER:
 	// case bool: return 1 or 0.
 	// So we should use INTEGER affinity for boolean test here.
-	val = applyHint(true, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
+	val = applyHint(true, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, 1, val)
-	val = applyHint(false, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
+	val = applyHint(false, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, true)
 	assert.Equal(t, 0, val)
 }
 
 func TestParameterConversion(t *testing.T) {
 	// Test Sparse Hints logic
-	params := &dbv1.Parameters{
-		Positional: &structpb.ListValue{Values: []*structpb.Value{
+	params := &sqlrpcv1.Parameters{
+		Positional: []*structpb.Value{
 			structpb.NewStringValue("123"),
-		}},
-		PositionalHints: map[int32]dbv1.ColumnAffinity{0: dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER},
-		Named: &structpb.Struct{Fields: map[string]*structpb.Value{
+		},
+		Hints: map[string]sqlrpcv1.ColumnAffinity{
+			"pos_0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+			":id":   sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+		},
+		Named: map[string]*structpb.Value{
 			":id": structpb.NewStringValue("456"),
-		}},
-		NamedHints: map[string]dbv1.ColumnAffinity{":id": dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER},
+		},
 	}
 
 	res, err := convertParameters("", params)
@@ -105,16 +107,16 @@ func TestParameterConversion(t *testing.T) {
 
 func TestGenerateSavepointSQL(t *testing.T) {
 	// Valid
-	sql, err := generateSavepointSQL(&dbv1.SavepointRequest{Name: "p1", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE})
+	sql, err := generateSavepointSQL(&sqlrpcv1.SavepointRequest{Name: "p1", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE})
 	assert.NoError(t, err)
 	assert.Equal(t, "SAVEPOINT p1", sql)
 
 	// Rollback
-	sql, _ = generateSavepointSQL(&dbv1.SavepointRequest{Name: "p1", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_ROLLBACK})
+	sql, _ = generateSavepointSQL(&sqlrpcv1.SavepointRequest{Name: "p1", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_ROLLBACK})
 	assert.Equal(t, "ROLLBACK TO p1", sql)
 
 	// Invalid Name
-	_, err = generateSavepointSQL(&dbv1.SavepointRequest{Name: "", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE})
+	_, err = generateSavepointSQL(&sqlrpcv1.SavepointRequest{Name: "", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE})
 	assert.Error(t, err)
 }
 

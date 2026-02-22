@@ -1,5 +1,5 @@
 @hostname = localhost
-@port = 50051
+@port = 50173
 @host = http://{{hostname}}:{{port}}
 @dbName = loadtest
 # Use "loadtest-cipher" if you ran the go code with -cipher

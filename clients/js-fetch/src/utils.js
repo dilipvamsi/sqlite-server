@@ -4,125 +4,84 @@
  */
 const { ColumnAffinity, DeclaredType } = require('./constants');
 
-/**
- * Converts JS params to the JSON structure expected by the Connect RPC/JSON gateway.
- *
- * @param {Array<any>} positional - Positional args.
- * @param {Object} named - Named args.
- * @param {Object} hints - { positional: { index: type }, named: { name: type } }
- * @returns {Object} JSON-serializable Parameters object
- */
 function toParams(positional = [], named = {}, hints = {}) {
     const params = {};
+    const flatHints = {};
 
-    const posHints = hints.positional || {};
-    const namedHints = hints.named || {};
+    // Truly normalize hints structure
+    const rawPosHints = hints.positional || (hints.named ? {} : hints) || {};
+    const rawNamedHints = hints.named || {};
 
     if (Array.isArray(positional) && positional.length > 0) {
-        params.positionalHints = {};
-        for (const [k, v] of Object.entries(posHints)) {
-            params.positionalHints[k] = v;
-        }
-
         params.positional = positional.map((val, i) => {
-            if (val === null || val === undefined) return null;
+            const hintKey = i.toString();
+            // Auto-hint for non-strings
+            let hint = rawPosHints[hintKey];
+            if (hint === undefined) {
+                if (typeof val === 'bigint') {
+                    hint = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+                } else if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
+                    hint = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+                }
+            }
+            if (hint !== undefined) flatHints[hintKey] = hint;
 
-            if (typeof val === 'bigint') {
-                if (!params.positionalHints[i]) {
-                    params.positionalHints[i] = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+            // Handle string-to-blob-base64 if hint is BLOB
+            if (hint === ColumnAffinity.COLUMN_AFFINITY_BLOB || hint === 'COLUMN_AFFINITY_BLOB') {
+                if (typeof val === 'string') {
+                    return Buffer.from(val).toString('base64');
                 }
-                return val.toString();
             }
-
-            if (Buffer.isBuffer(val)) {
-                if (!params.positionalHints[i]) {
-                    params.positionalHints[i] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
-                }
-                return val.toString('base64');
-            }
-            if (val instanceof Uint8Array) {
-                if (!params.positionalHints[i]) {
-                    params.positionalHints[i] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
-                }
-                return Buffer.from(val).toString('base64');
-            }
-            return encodeValue(val, posHints[i]);
+            return encodeUntypedValue(val);
         });
     }
 
     if (named && Object.keys(named).length > 0) {
-        params.namedHints = {};
-        for (const [k, v] of Object.entries(namedHints)) {
-            params.namedHints[k] = v;
-        }
-
         params.named = {};
         for (const [k, val] of Object.entries(named)) {
-            if (val === null || val === undefined) {
-                params.named[k] = null;
-                continue;
+            let hint = rawNamedHints[k];
+            if (hint === undefined) {
+                if (typeof val === 'bigint') {
+                    hint = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+                } else if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
+                    hint = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+                }
             }
+            if (hint !== undefined) flatHints[k] = hint;
 
-            if (typeof val === 'bigint') {
-                if (!params.namedHints[k]) {
-                    params.namedHints[k] = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+            if (hint === ColumnAffinity.COLUMN_AFFINITY_BLOB || hint === 'COLUMN_AFFINITY_BLOB') {
+                if (typeof val === 'string') {
+                    params.named[k] = Buffer.from(val).toString('base64');
+                    continue;
                 }
-                params.named[k] = val.toString();
-                continue;
             }
-
-            if (Buffer.isBuffer(val)) {
-                if (!params.namedHints[k]) {
-                    params.namedHints[k] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
-                }
-                params.named[k] = val.toString('base64');
-                continue;
-            }
-            if (val instanceof Uint8Array) {
-                if (!params.namedHints[k]) {
-                    params.namedHints[k] = ColumnAffinity.COLUMN_AFFINITY_BLOB;
-                }
-                params.named[k] = Buffer.from(val).toString('base64');
-                continue;
-            }
-            params.named[k] = encodeValue(val, namedHints[k]);
+            params.named[k] = encodeUntypedValue(val);
         }
     }
 
+    if (Object.keys(flatHints).length > 0) {
+        params.hints = flatHints;
+    }
     return params;
 }
 
 /**
- * Helper to encode values for JSON transport.
- * - Buffers -> base64 string
- * - String + BLOB hint -> base64 string
+ * Encodes a JS value into a basic JSON type compatible with google.protobuf.Value
  */
-function encodeValue(val, hint) {
+function encodeUntypedValue(val) {
     if (val === null || val === undefined) return null;
 
     if (typeof val === 'bigint') return val.toString();
+
+    if (Buffer.isBuffer(val)) return Buffer.from(val).toString('base64');
+    if (val instanceof Uint8Array) return Buffer.from(val).toString('base64');
+
     if (val instanceof Date) return val.toISOString();
 
-    // 1. Buffer / Uint8Array -> Base64
-    if (Buffer.isBuffer(val)) {
-        return val.toString('base64');
-    }
-    if (val instanceof Uint8Array) {
-        return Buffer.from(val).toString('base64');
-    }
-
-    // 2. String + BLOB hint -> Base64
-    // If the user says it's a BLOB, but passes a string, we assume they passed raw bytes
-    // as a string and we must encode it so the server (which expects base64 for blobs)
-    // receives the correct data.
-    if (typeof val === 'string') {
-        if (hint === ColumnAffinity.COLUMN_AFFINITY_BLOB || hint === 'COLUMN_AFFINITY_BLOB') {
-            return Buffer.from(val).toString('base64');
-        }
-    }
-
+    // JS primitives map naturally to google.protobuf.Value (string, number, boolean)
     return val;
 }
+
 
 /**
  * Hydrates a single row from JSON values based on column types.
@@ -140,14 +99,16 @@ function hydrateRow(row, affinities, declaredTypes, typeParsers = {}) {
     const parseBlob = typeParsers.blob !== false;
     const dateHandling = typeParsers.date || 'date';
 
-    return row.map((val, i) => {
-        if (val === null) return null;
+    const items = Array.isArray(row) ? row : (row.values || []);
+
+    return items.map((val, i) => {
+        if (val === null || val === undefined) return null;
 
         const affinity = affinities[i];
         const declaredType = declaredTypes[i];
 
         if (parseBigInt && (affinity === ColumnAffinity.COLUMN_AFFINITY_INTEGER || affinity === 'COLUMN_AFFINITY_INTEGER')) {
-            if (typeof val === 'string') {
+            if (typeof val === 'string' || typeof val === 'number') {
                 try {
                     return BigInt(val);
                 } catch {
@@ -158,7 +119,7 @@ function hydrateRow(row, affinities, declaredTypes, typeParsers = {}) {
         }
 
         if (parseBigInt && (declaredType === DeclaredType.DECLARED_TYPE_BIGINT || declaredType === 'DECLARED_TYPE_BIGINT')) {
-            if (typeof val === 'string') {
+            if (typeof val === 'string' || typeof val === 'number') {
                 try {
                     return BigInt(val);
                 } catch {
@@ -168,7 +129,7 @@ function hydrateRow(row, affinities, declaredTypes, typeParsers = {}) {
         }
 
         if (parseJson && (declaredType === DeclaredType.DECLARED_TYPE_JSON || declaredType === 'DECLARED_TYPE_JSON')) {
-            if (typeof val === 'string') {
+            if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
                 try {
                     return JSON.parse(val);
                 } catch {
@@ -209,45 +170,41 @@ function resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull) {
     let named = {};
     let rawHints = {};
 
-    // Case 1: SQL string
-    if (typeof sqlOrObj === 'string') {
+    // Case 1: SQL Template Strings object (has .text and .values)
+    if (sqlOrObj && typeof sqlOrObj === 'object' && sqlOrObj.text !== undefined && Array.isArray(sqlOrObj.values)) {
+        sql = sqlOrObj.text;
+        positional = sqlOrObj.values;
+        rawHints = paramsOrHints || hintsOrNull || {};
+    }
+    // Case 2: Standard structured object { sql, positional, named, hints }
+    else if (sqlOrObj && typeof sqlOrObj === 'object' && !Array.isArray(sqlOrObj) && sqlOrObj.sql) {
+        sql = sqlOrObj.sql;
+        positional = sqlOrObj.positional || [];
+        named = sqlOrObj.named || {};
+        rawHints = sqlOrObj.hints || hintsOrNull || {};
+    }
+    // Case 3: SQL string
+    else if (typeof sqlOrObj === 'string') {
         sql = sqlOrObj;
-        const p = paramsOrHints;
-        if (p) {
-            if (Array.isArray(p)) {
-                throw new Error("Direct array parameters not supported in js-fetch client. Use { positional: [...] }.");
+        if (Array.isArray(paramsOrHints)) {
+            positional = paramsOrHints;
+            rawHints = hintsOrNull || {};
+        } else if (paramsOrHints && typeof paramsOrHints === 'object') {
+            positional = paramsOrHints.positional || [];
+            named = paramsOrHints.named || {};
+            if (!paramsOrHints.positional && !paramsOrHints.named && !paramsOrHints.hints) {
+                // assume paramsOrHints IS the named params object
+                named = paramsOrHints;
             }
-            if (typeof p === 'object') {
-                positional = p.positional || [];
-                named = p.named || {};
-            }
+            rawHints = hintsOrNull || paramsOrHints.hints || {};
+        } else {
             rawHints = hintsOrNull || {};
         }
-    }
-    // Case 2: Template String Object (sql-template-strings)
-    else if (sqlOrObj && typeof sqlOrObj === 'object' && sqlOrObj.text) {
-        sql = sqlOrObj.text;
-        positional = sqlOrObj.values || [];
-        rawHints = paramsOrHints || {};
     } else {
-        throw new Error("Invalid SQL argument. Expected string or SQL object.");
+        throw new Error("Invalid SQL argument: expected string or structured object.");
     }
 
-    // Normalize hints
-    const normalizedHints = { positional: {}, named: {} };
-    if (rawHints.positional || rawHints.named) {
-        normalizedHints.positional = rawHints.positional || {};
-        normalizedHints.named = rawHints.named || {};
-    } else if (Object.keys(rawHints).length > 0) {
-        // Guess
-        if (positional.length > 0 && Object.keys(named).length === 0) {
-            normalizedHints.positional = rawHints;
-        } else if (Object.keys(named).length > 0 && positional.length === 0) {
-            normalizedHints.named = rawHints;
-        }
-    }
-
-    return { sql, positional, named, hints: normalizedHints };
+    return { sql, positional, named, hints: rawHints };
 }
 
 /**

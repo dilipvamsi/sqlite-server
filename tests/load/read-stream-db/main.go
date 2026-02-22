@@ -17,13 +17,13 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 )
 
 // --- Test Configuration ---
 const (
-	serverAddr   = "http://localhost:50051"
+	serverAddr   = "http://localhost:50173"
 	databaseName = "loadtest"
 	// The query we will be running repeatedly.
 	querySQL = "SELECT * FROM users WHERE country = ? LIMIT 100;"
@@ -40,7 +40,7 @@ type result struct {
 
 func main() {
 	// --- Setup ---
-	client := dbv1connect.NewDatabaseServiceClient(
+	client := sqlrpcv1connect.NewDatabaseServiceClient(
 		http.DefaultClient,
 		serverAddr,
 	)
@@ -101,18 +101,18 @@ func main() {
  * @description A worker runs in a dedicated goroutine and processes jobs from a channel.
  * Each worker simulates a single client making requests sequentially.
  */
-func worker(id int, client dbv1connect.DatabaseServiceClient, wg *sync.WaitGroup, jobs <-chan int, results chan<- result) {
+func worker(id int, client sqlrpcv1connect.DatabaseServiceClient, wg *sync.WaitGroup, jobs <-chan int, results chan<- result) {
 	defer wg.Done()
 
 	// Convert query parameters to ListValue once per worker.
-	params, _ := structpb.NewList([]any{"USA"})
+	params := []*structpb.Value{structpb.NewStringValue("USA")}
 
 	// Process jobs from the channel until it's closed.
 	for range jobs {
-		req := connect.NewRequest(&dbv1.QueryRequest{
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: databaseName,
 			Sql:      querySQL,
-			Parameters: &dbv1.Parameters{
+			Parameters: &sqlrpcv1.Parameters{
 				Positional: params,
 			},
 		})

@@ -1,0 +1,276 @@
+syntax = "proto3";
+
+package sqlrpc.v1;
+
+option go_package = "sqlite-server/internal/protos/sqlrpc/v1;sqlrpcv1";
+
+// =============================================================================
+// SQLITE CORE CODES
+// =============================================================================
+/**
+ * SqliteCode represents the primary error and result codes returned by the
+ * underlying SQLite engine.
+ */
+// buf:lint:ignore ENUM_VALUE_PREFIX
+// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+enum SqliteCode {
+  // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+  // Successful result (0)
+  SQLITE_OK = 0;
+  // Generic error (1)
+  SQLITE_ERROR = 1;
+  // Internal logic error in SQLite (2)
+  SQLITE_INTERNAL = 2;
+  // Access permission denied (3)
+  SQLITE_PERM = 3;
+  // Callback routine requested an abort (4)
+  SQLITE_ABORT = 4;
+  // The database file is locked (5)
+  SQLITE_BUSY = 5;
+  // A table in the database is locked (6)
+  SQLITE_LOCKED = 6;
+  // A malloc() failed (7)
+  SQLITE_NOMEM = 7;
+  // Attempt to write a readonly database (8)
+  SQLITE_READONLY = 8;
+  // Operation terminated by sqlite3_interrupt() (9)
+  SQLITE_INTERRUPT = 9;
+  // Some kind of disk I/O error occurred (10)
+  SQLITE_IOERR = 10;
+  // The database disk image is malformed (11)
+  SQLITE_CORRUPT = 11;
+  // Unknown opcode in sqlite3_file_control() (12)
+  SQLITE_NOTFOUND = 12;
+  // Insertion failed because database is full (13)
+  SQLITE_FULL = 13;
+  // Unable to open the database file (14)
+  SQLITE_CANTOPEN = 14;
+  // Database lock protocol error (15)
+  SQLITE_PROTOCOL = 15;
+  // Internal use only (16)
+  SQLITE_EMPTY = 16;
+  // The database schema changed (17)
+  SQLITE_SCHEMA = 17;
+  // String or BLOB exceeds size limit (18)
+  SQLITE_TOOBIG = 18;
+  // Abort due to constraint violation (19)
+  SQLITE_CONSTRAINT = 19;
+  // Data type mismatch (20)
+  SQLITE_MISMATCH = 20;
+  // Library used incorrectly (21)
+  SQLITE_MISUSE = 21;
+  // Uses OS features not supported on host (22)
+  SQLITE_NOLFS = 22;
+  // Authorization denied (23)
+  SQLITE_AUTH = 23;
+  // Not used (24)
+  SQLITE_FORMAT = 24;
+  // 2nd parameter to sqlite3_bind out of range (25)
+  SQLITE_RANGE = 25;
+  // File opened that is not a database file (26)
+  SQLITE_NOTADB = 26;
+  // Notifications from sqlite3_log() (27)
+  SQLITE_NOTICE = 27;
+  // Warnings from sqlite3_log() (28)
+  SQLITE_WARNING = 28;
+  // sqlite3_step() has another row ready (100)
+  SQLITE_ROW = 100;
+  // sqlite3_step() has finished executing (101)
+  SQLITE_DONE = 101;
+}
+
+// =============================================================================
+// TRANSACTION & CONNECTION MODES
+// =============================================================================
+/**
+ * TransactionLockMode determines the strictness of the lock acquired on the
+ * underlying SQLite file when starting a transaction.
+ */
+enum TransactionLockMode {
+  // Default value, indicates an uninitialized mode.
+  TRANSACTION_LOCK_MODE_UNSPECIFIED = 0;
+
+  // Acquires a shared lock on first read, upgrades to reserved on first write.
+  TRANSACTION_LOCK_MODE_DEFERRED = 1;
+
+  // Acquires a reserved lock immediately, preventing other writers.
+  TRANSACTION_LOCK_MODE_IMMEDIATE = 2;
+
+  // Acquires an exclusive lock immediately, preventing all other connections.
+  TRANSACTION_LOCK_MODE_EXCLUSIVE = 3;
+}
+
+/**
+ * CheckpointMode determines the strategy used when synchronizing the WAL
+ * with the main database file.
+ */
+enum CheckpointMode {
+  // Default value, indicates an uninitialized strategy.
+  CHECKPOINT_MODE_UNSPECIFIED = 0;
+
+  // Checkpoint as many frames as possible without blocking.
+  CHECKPOINT_MODE_PASSIVE = 1;
+
+  // Blocks until all frames are checkpointed (wait for other writers).
+  CHECKPOINT_MODE_FULL = 2;
+
+  // Resets WAL file after a full checkpoint (wait for other readers).
+  CHECKPOINT_MODE_RESTART = 3;
+
+  // Truncates WAL file to zero length after checkpoint.
+  CHECKPOINT_MODE_TRUNCATE = 4;
+}
+
+// =============================================================================
+// DATA TYPES & AFFINITIES
+// =============================================================================
+/**
+ * ColumnAffinity defines the storage preference for a column in SQLite.
+ */
+enum ColumnAffinity {
+  // Default value, indicates an unknown affinity.
+  COLUMN_AFFINITY_UNSPECIFIED = 0;
+
+  // Values are converted to 64-bit signed integers if possible.
+  COLUMN_AFFINITY_INTEGER = 1;
+
+  // Values are converted to UTF-8 strings.
+  COLUMN_AFFINITY_TEXT = 2;
+
+  // Values are stored as-is (binary blobs).
+  COLUMN_AFFINITY_BLOB = 3;
+
+  // Values are converted to 64-bit floating point numbers.
+  COLUMN_AFFINITY_REAL = 4;
+
+  // Hybrid affinity: can contain integer, real, text, or blob.
+  COLUMN_AFFINITY_NUMERIC = 5;
+}
+
+/**
+ * DeclaredType represents the literal data types recognized by the SQLite
+ * parser during table creation.
+ */
+enum DeclaredType {
+  // Default value, indicates an uninitialized type.
+  DECLARED_TYPE_UNSPECIFIED = 0;
+
+  // --- Integer Family ---
+  // Standard signed integer.
+  DECLARED_TYPE_INT = 1;
+  // 64-bit signed integer.
+  DECLARED_TYPE_INTEGER = 2;
+  // 8-bit signed integer.
+  DECLARED_TYPE_TINYINT = 3;
+  // 16-bit signed integer.
+  DECLARED_TYPE_SMALLINT = 4;
+  // 24-bit signed integer.
+  DECLARED_TYPE_MEDIUMINT = 5;
+  // 64-bit signed integer.
+  DECLARED_TYPE_BIGINT = 6;
+  // 64-bit unsigned integer.
+  DECLARED_TYPE_UNSIGNED_BIG_INT = 7;
+  // 2-byte signed integer.
+  DECLARED_TYPE_INT2 = 8;
+  // 8-byte signed integer.
+  DECLARED_TYPE_INT8 = 9;
+
+  // --- Character/Text Family ---
+  // Single or multiple characters.
+  DECLARED_TYPE_CHARACTER = 10;
+  // Variable-length character string.
+  DECLARED_TYPE_VARCHAR = 11;
+  // Variable-length character string.
+  DECLARED_TYPE_VARYING_CHARACTER = 12;
+  // Fixed-length character string.
+  DECLARED_TYPE_NCHAR = 13;
+  // Fixed-length character string.
+  DECLARED_TYPE_NATIVE_CHARACTER = 14;
+  // Unicode variable-length character string.
+  DECLARED_TYPE_NVARCHAR = 15;
+  // Large variable-length character string.
+  DECLARED_TYPE_TEXT = 16;
+  // Character large object.
+  DECLARED_TYPE_CLOB = 17;
+
+  // --- Blob Family ---
+  // Binary large object.
+  DECLARED_TYPE_BLOB = 18;
+
+  // --- Real/Float Family ---
+  // 64-bit floating point number.
+  DECLARED_TYPE_REAL = 19;
+  // 64-bit floating point number.
+  DECLARED_TYPE_DOUBLE = 20;
+  // 64-bit floating point number.
+  DECLARED_TYPE_DOUBLE_PRECISION = 21;
+  // 32-bit floating point number.
+  DECLARED_TYPE_FLOAT = 22;
+
+  // --- Numeric Family ---
+  // Arbitrary precision decimal number.
+  DECLARED_TYPE_NUMERIC = 23;
+  // Arbitrary precision decimal number.
+  DECLARED_TYPE_DECIMAL = 24;
+  // Boolean value (0 or 1).
+  DECLARED_TYPE_BOOLEAN = 25;
+
+  // --- Date & Time Family ---
+  // SQL date.
+  DECLARED_TYPE_DATE = 26;
+  // SQL date and time.
+  DECLARED_TYPE_DATETIME = 27;
+  // SQL timestamp.
+  DECLARED_TYPE_TIMESTAMP = 28;
+  // SQL time.
+  DECLARED_TYPE_TIME = 31;
+  // SQL year.
+  DECLARED_TYPE_YEAR = 32;
+
+  // --- Specialized Types ---
+  // JSON encoded string.
+  DECLARED_TYPE_JSON = 29;
+  // Universally unique identifier string.
+  DECLARED_TYPE_UUID = 30;
+  // Fixed-length character string.
+  DECLARED_TYPE_CHAR = 33;
+  // XML encoded string.
+  DECLARED_TYPE_XML = 34;
+}
+
+// =============================================================================
+// PLATFORM & USER MANAGEMENT
+// =============================================================================
+
+/**
+ * Role defines the RBAC permission tier for a platform identity.
+ * Determines connection provisioning (e.g., Read-Only users receive strictly
+ * read-only connections).
+ */
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+
+  // Less than or equal 10 are reader roles
+  // Restricted analytics/reporting user.
+  // The platform STRICTLY provisions read-only connections (mode=ro) for
+  // this role. Execution of any data modification (DML) logic will be aborted
+  // by the underlying connection.
+  ROLE_READ_ONLY = 10;
+
+  // Less than or equal 20 and greater than 10 are writer roles
+  // Standard application user.
+  // Receives access to the fully permissive Read-Write LRU connection.
+  ROLE_READ_WRITE = 20;
+
+  // Less than or equal 30 and greater than 20 are database manager roles
+  // Tenant admin. Can provision, secure, and drop databases within the
+  // platform. Gets Read-Write connections to target databases but cannot manage
+  // platform users.
+  ROLE_DATABASE_MANAGER = 30;
+
+  // Less than or equal 40 and greater than 30 are admin roles
+  // Platform admin. Has full access to the control plane (manage
+  // users/roles). Implicitly gets Read-Write connections to all tenant
+  // databases.
+  ROLE_ADMIN = 40;
+}

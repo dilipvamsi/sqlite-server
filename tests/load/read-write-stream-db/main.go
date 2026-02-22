@@ -26,14 +26,14 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 	"sqlite-server/internal/sqldrivers"
 )
 
 // --- Test Configuration ---
 const (
-	serverAddr  = "http://localhost:50051"
+	serverAddr  = "http://localhost:50173"
 	numAccounts = 100 // Must match the setup script
 
 	// Concurrency settings
@@ -80,7 +80,7 @@ func main() {
 			},
 		},
 	}
-	client := dbv1connect.NewDatabaseServiceClient(h2cClient, serverAddr, connect.WithGRPCWeb())
+	client := sqlrpcv1connect.NewDatabaseServiceClient(h2cClient, serverAddr, connect.WithGRPCWeb())
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -122,17 +122,17 @@ func main() {
  * @function readWorker
  * @description UPDATED: This worker now uses the safe `QueryStream` RPC.
  */
-func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.DatabaseServiceClient) {
+func readWorker(ctx context.Context, wg *sync.WaitGroup, client sqlrpcv1connect.DatabaseServiceClient) {
 	defer wg.Done()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			req := connect.NewRequest(&dbv1.QueryRequest{
+			req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 				Database: dbName,
 				Sql:      "SELECT balance FROM accounts WHERE id = ?;",
-				Parameters: &dbv1.Parameters{
+				Parameters: &sqlrpcv1.Parameters{
 					Positional: listValue(rand.Intn(numAccounts) + 1),
 				},
 			})
@@ -167,7 +167,7 @@ func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Data
  * after any failed transaction attempt. This is critical to prevent a CPU-bound
  * busy-spin loop and ensure the worker can shut down gracefully.
  */
-func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.DatabaseServiceClient) {
+func writeWorker(ctx context.Context, wg *sync.WaitGroup, client sqlrpcv1connect.DatabaseServiceClient) {
 	defer wg.Done()
 	for {
 		select {
@@ -195,7 +195,7 @@ func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Dat
  * It now returns a more specific error for the "skip" case for clarity.
  */
 // performOneWriteTransaction encapsulates the logic for a single, conversational write transaction.
-func performOneWriteTransaction(ctx context.Context, client dbv1connect.DatabaseServiceClient) error {
+func performOneWriteTransaction(ctx context.Context, client sqlrpcv1connect.DatabaseServiceClient) error {
 	// This log line is for debugging. It reads atomic counters, so the output
 	// will appear racy and non-sequential, which is expected under high concurrency.
 	// log.Printf("Attempting write transaction #%d", atomic.LoadUint64(&writeOps)+atomic.LoadUint64(&failedWriteOps)+1)
@@ -211,9 +211,9 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 	defer stream.CloseResponse()
 
 	// --- Step 1: Send BEGIN ---
-	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{
+	if err := stream.Send(&sqlrpcv1.TransactionRequest{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{
 		Database: dbName,
-		Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
+		Mode:     sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE,
 	}}}); err != nil {
 		return err
 	}
@@ -222,11 +222,11 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 	}
 
 	// --- Step 2 & 3: Send UPDATEs ---
-	update1 := &dbv1.TransactionRequest{
-		Command: &dbv1.TransactionRequest_Query{
-			Query: &dbv1.TransactionalQueryRequest{
+	update1 := &sqlrpcv1.TransactionRequest{
+		Command: &sqlrpcv1.TransactionRequest_Query{
+			Query: &sqlrpcv1.TransactionalQueryRequest{
 				Sql: "UPDATE accounts SET balance = balance - ? WHERE id = ?;",
-				Parameters: &dbv1.Parameters{
+				Parameters: &sqlrpcv1.Parameters{
 					Positional: listValue(amount, fromID),
 				},
 			},
@@ -239,11 +239,11 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 		return err
 	}
 
-	update2 := &dbv1.TransactionRequest{
-		Command: &dbv1.TransactionRequest_Query{
-			Query: &dbv1.TransactionalQueryRequest{
+	update2 := &sqlrpcv1.TransactionRequest{
+		Command: &sqlrpcv1.TransactionRequest_Query{
+			Query: &sqlrpcv1.TransactionalQueryRequest{
 				Sql: "UPDATE accounts SET balance = balance + ? WHERE id = ?;",
-				Parameters: &dbv1.Parameters{
+				Parameters: &sqlrpcv1.Parameters{
 					Positional: listValue(amount, toID),
 				},
 			},
@@ -258,7 +258,7 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 	}
 
 	// --- Step 4: Send COMMIT ---
-	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}}); err != nil {
+	if err := stream.Send(&sqlrpcv1.TransactionRequest{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}}); err != nil {
 		return err
 	}
 	if _, err := stream.Receive(); err != nil {
@@ -282,15 +282,15 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 
 // verifyDataIntegrity connects directly to the DB and checks if the total balance is correct.
 func verifyDataIntegrity() {
-	var config *dbv1.DatabaseConfig
+	var config *sqlrpcv1.DatabaseConfig
 	if *enableCipher {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:        dbName,
 			DbPath:      dbPath,
 			IsEncrypted: true,
 		}
 	} else {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:   dbName,
 			DbPath: dbPath,
 		}
@@ -320,7 +320,7 @@ func verifyDataIntegrity() {
 }
 
 // listValue is a helper to quickly create a *structpb.ListValue.
-func listValue(vals ...any) *structpb.ListValue {
+func listValue(vals ...any) []*structpb.Value {
 	l, _ := structpb.NewList(vals)
-	return l
+	return l.Values
 }

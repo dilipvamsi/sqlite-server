@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 func TestExtensionRPCs(t *testing.T) {
@@ -49,7 +49,7 @@ func TestExtensionRPCs(t *testing.T) {
 	defer store.Close()
 
 	dbPath := filepath.Join(tmpDir, "ext_test.db")
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   "extdb",
 		DbPath: dbPath,
 	}
@@ -59,16 +59,16 @@ func TestExtensionRPCs(t *testing.T) {
 	err = store.UpsertDatabaseConfig(context.Background(), config.Name, config.DbPath, true, string(settingsBytes))
 	require.NoError(t, err)
 
-	server := NewDbServer([]*dbv1.DatabaseConfig{config}, store)
+	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, store)
 	defer server.Stop()
 
 	ctx := auth.NewContext(context.Background(), &auth.UserClaims{
 		Username: "admin",
-		Role:     dbv1.Role_ROLE_ADMIN,
+		Role:     sqlrpcv1.Role_ROLE_ADMIN,
 	})
 
 	t.Run("ListExtensions", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.ListExtensionsRequest{
+		req := connect.NewRequest(&sqlrpcv1.ListExtensionsRequest{
 			Database: proto.String("extdb"),
 		})
 		res, err := server.ListExtensions(ctx, req)
@@ -87,7 +87,7 @@ func TestExtensionRPCs(t *testing.T) {
 	})
 
 	t.Run("LoadExtension", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoadExtensionRequest{
 			Database:   "extdb",
 			FolderName: "crypto-0.28.0",
 		})
@@ -96,7 +96,7 @@ func TestExtensionRPCs(t *testing.T) {
 		assert.True(t, res.Msg.Success)
 
 		// Verify it's now marked as loaded in ListExtensions
-		listReq := connect.NewRequest(&dbv1.ListExtensionsRequest{
+		listReq := connect.NewRequest(&sqlrpcv1.ListExtensionsRequest{
 			Database: proto.String("extdb"),
 		})
 		listRes, _ := server.ListExtensions(ctx, listReq)
@@ -113,7 +113,7 @@ func TestExtensionRPCs(t *testing.T) {
 	})
 
 	t.Run("LoadExtension Incompatible", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoadExtensionRequest{
 			Database:   "extdb",
 			FolderName: "nonexistent-1.0.0",
 		})
@@ -123,7 +123,7 @@ func TestExtensionRPCs(t *testing.T) {
 	})
 
 	t.Run("LoadExtension DB Not Found", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoadExtensionRequest{
 			Database:   "ghostdb",
 			FolderName: "crypto-0.28.0",
 		})
@@ -133,7 +133,7 @@ func TestExtensionRPCs(t *testing.T) {
 	})
 
 	t.Run("LoadExtension Already Loaded", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoadExtensionRequest{
 			Database:   "extdb",
 			FolderName: "crypto-0.28.0",
 		})
@@ -145,7 +145,7 @@ func TestExtensionRPCs(t *testing.T) {
 
 	t.Run("LoadExtension Store Error", func(t *testing.T) {
 		store.GetDB().Close()
-		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoadExtensionRequest{
 			Database:   "extdb",
 			FolderName: "crypto-0.28.0",
 		})
@@ -155,7 +155,7 @@ func TestExtensionRPCs(t *testing.T) {
 	})
 
 	t.Run("LoadExtension Unauthenticated", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoadExtensionRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoadExtensionRequest{
 			Database:   "any",
 			FolderName: "any",
 		})

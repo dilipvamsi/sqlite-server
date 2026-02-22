@@ -16,12 +16,12 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 )
 
 // setupAuthIntegrationServer sets up a server with the REAL AuthInterceptor
-func setupAuthIntegrationServer(t *testing.T) (dbv1connect.DatabaseServiceClient, dbv1connect.AdminServiceClient, *auth.MetaStore, string, string, string) {
+func setupAuthIntegrationServer(t *testing.T) (sqlrpcv1connect.DatabaseServiceClient, sqlrpcv1connect.AdminServiceClient, *auth.MetaStore, string, string, string) {
 	// 1. Setup Store
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "auth_test.db")
@@ -37,17 +37,17 @@ func setupAuthIntegrationServer(t *testing.T) (dbv1connect.DatabaseServiceClient
 	require.NoError(t, err)
 
 	// Create ReadOnly User
-	roUser, err := store.CreateUser(context.Background(), "ro_user", "pass", dbv1.Role_ROLE_READ_ONLY)
+	roUser, err := store.CreateUser(context.Background(), "ro_user", "pass", sqlrpcv1.Role_ROLE_READ_ONLY)
 	require.NoError(t, err)
 	roKey, _, err := store.CreateApiKey(context.Background(), roUser, "ro-key", nil)
 	require.NoError(t, err)
 
 	// 2. Setup DB Server
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   "test",
 		DbPath: ":memory:",
 	}
-	server := NewDbServer([]*dbv1.DatabaseConfig{config}, store)
+	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, store)
 
 	// 3. Setup Handler with REAL AuthInterceptor
 	interceptors := connect.WithInterceptors(
@@ -55,12 +55,12 @@ func setupAuthIntegrationServer(t *testing.T) (dbv1connect.DatabaseServiceClient
 	)
 
 	mux := http.NewServeMux()
-	path, handler := dbv1connect.NewDatabaseServiceHandler(server, interceptors)
+	path, handler := sqlrpcv1connect.NewDatabaseServiceHandler(server, interceptors)
 	mux.Handle(path, handler)
 	// 1. Setup Admin Server
 	// Pass nil for cache invalidator as tests don't check cache side-effects explicitly yet
 	adminServer := NewAdminServer(store, server, nil, false, "v0.0.1-integration-test")
-	adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
+	adminPath, adminHandler := sqlrpcv1connect.NewAdminServiceHandler(adminServer, interceptors)
 	mux.Handle(adminPath, adminHandler)
 
 	// 4. Start HTTP Server
@@ -84,8 +84,8 @@ func setupAuthIntegrationServer(t *testing.T) (dbv1connect.DatabaseServiceClient
 		},
 	}
 
-	dbClient := dbv1connect.NewDatabaseServiceClient(httpClient, ts.URL, connect.WithGRPC())
-	adminClient := dbv1connect.NewAdminServiceClient(httpClient, ts.URL, connect.WithGRPC())
+	dbClient := sqlrpcv1connect.NewDatabaseServiceClient(httpClient, ts.URL, connect.WithGRPC())
+	adminClient := sqlrpcv1connect.NewAdminServiceClient(httpClient, ts.URL, connect.WithGRPC())
 
 	return dbClient, adminClient, store, adminKey, roKey, adminPwd
 }
@@ -105,10 +105,10 @@ func TestAuthIntegration_Permissions(t *testing.T) {
 
 	// 1. Admin Access with Admin Key -> OK
 	t.Run("Admin_CreateUser_Success", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
 			Username: "newuser",
 			Password: "pass",
-			Role:     dbv1.Role_ROLE_READ_WRITE,
+			Role:     sqlrpcv1.Role_ROLE_READ_WRITE,
 		})
 		req.Header().Set("Authorization", "Bearer "+adminKey)
 
@@ -118,7 +118,7 @@ func TestAuthIntegration_Permissions(t *testing.T) {
 
 	// 2. Admin Access with ReadOnly Key -> PermissionDenied
 	t.Run("Admin_CreateUser_Denied", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
 			Username: "hacker",
 			Password: "pass",
 		})
@@ -131,7 +131,7 @@ func TestAuthIntegration_Permissions(t *testing.T) {
 
 	// 3. Write Query with ReadOnly Key -> PermissionDenied
 	t.Run("DB_Write_Denied", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.QueryRequest{
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "CREATE TABLE foo (id INT)",
 		})
@@ -144,7 +144,7 @@ func TestAuthIntegration_Permissions(t *testing.T) {
 
 	// 4. Read Query with ReadOnly Key -> OK
 	t.Run("DB_Read_Success", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.QueryRequest{
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "SELECT 1",
 		})
@@ -156,7 +156,7 @@ func TestAuthIntegration_Permissions(t *testing.T) {
 
 	// 5. Admin can Write -> OK
 	t.Run("DB_Write_Admin_Success", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.QueryRequest{
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "CREATE TABLE bar (id INT)",
 		})
@@ -169,7 +169,7 @@ func TestAuthIntegration_Permissions(t *testing.T) {
 	// 6. Login Endpoint (No Auth Required)
 	t.Run("Login_NoAuth", func(t *testing.T) {
 		// Login doesn't need header, validation is in body
-		req := connect.NewRequest(&dbv1.LoginRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoginRequest{
 			Username: "admin",
 			Password: adminPwd, // Use captured password
 		})

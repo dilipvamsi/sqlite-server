@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +42,7 @@ func setupAdminTestServer(t *testing.T) (*AdminServer, *auth.MetaStore, *DbServe
 	return NewAdminServer(store, dbServer, nil, false, "v0.0.1-test"), store, dbServer
 }
 
-func userContext(userID int64, username string, role dbv1.Role) context.Context {
+func userContext(userID int64, username string, role sqlrpcv1.Role) context.Context {
 	claims := &auth.UserClaims{
 		UserID:   userID,
 		Username: username,
@@ -51,7 +51,7 @@ func userContext(userID int64, username string, role dbv1.Role) context.Context 
 	return auth.NewContext(context.Background(), claims)
 }
 
-func adminContext(role dbv1.Role) context.Context {
+func adminContext(role sqlrpcv1.Role) context.Context {
 	return userContext(1, "testadmin", role)
 }
 
@@ -59,11 +59,11 @@ func TestAdminServer_CreateUser(t *testing.T) {
 	server, _, _ := setupAdminTestServer(t)
 
 	t.Run("creates user as admin", func(t *testing.T) {
-		ctx := adminContext(dbv1.Role_ROLE_ADMIN)
-		req := connect.NewRequest(&dbv1.CreateUserRequest{
+		ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
+		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
 			Username: "newuser",
 			Password: "securepassword123",
-			Role:     dbv1.Role_ROLE_READ_WRITE,
+			Role:     sqlrpcv1.Role_ROLE_READ_WRITE,
 		})
 
 		resp, err := server.CreateUser(ctx, req)
@@ -74,11 +74,11 @@ func TestAdminServer_CreateUser(t *testing.T) {
 	})
 
 	t.Run("denies non-admin", func(t *testing.T) {
-		ctx := adminContext(dbv1.Role_ROLE_READ_ONLY)
-		req := connect.NewRequest(&dbv1.CreateUserRequest{
+		ctx := adminContext(sqlrpcv1.Role_ROLE_READ_ONLY)
+		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
 			Username: "anotheruser",
 			Password: "password123",
-			Role:     dbv1.Role_ROLE_READ_ONLY,
+			Role:     sqlrpcv1.Role_ROLE_READ_ONLY,
 		})
 
 		_, err := server.CreateUser(ctx, req)
@@ -88,10 +88,10 @@ func TestAdminServer_CreateUser(t *testing.T) {
 
 	t.Run("denies unauthenticated", func(t *testing.T) {
 		ctx := context.Background()
-		req := connect.NewRequest(&dbv1.CreateUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
 			Username: "anotheruser",
 			Password: "password123",
-			Role:     dbv1.Role_ROLE_READ_ONLY,
+			Role:     sqlrpcv1.Role_ROLE_READ_ONLY,
 		})
 
 		_, err := server.CreateUser(ctx, req)
@@ -102,14 +102,14 @@ func TestAdminServer_CreateUser(t *testing.T) {
 
 func TestAdminServer_DeleteUser(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Create user to delete
-	_, err := store.CreateUser(context.Background(), "todelete", "password", dbv1.Role_ROLE_READ_ONLY)
+	_, err := store.CreateUser(context.Background(), "todelete", "password", sqlrpcv1.Role_ROLE_READ_ONLY)
 	require.NoError(t, err)
 
 	t.Run("deletes user as admin", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{
 			Username: "todelete",
 		})
 
@@ -119,7 +119,7 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent user", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{
 			Username: "nonexistent",
 		})
 
@@ -128,7 +128,7 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 	})
 
 	t.Run("denies deleting root admin", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{
 			Username: "admin",
 		})
 		_, err := server.DeleteUser(ctx, req)
@@ -140,10 +140,10 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 		mockCache := &mockCacheInval{}
 		serverWithCache := NewAdminServer(store, nil, mockCache, false, "v0.0.1-test")
 
-		_, err := store.CreateUser(context.Background(), "cacheuser", "pass", dbv1.Role_ROLE_READ_ONLY)
+		_, err := store.CreateUser(context.Background(), "cacheuser", "pass", sqlrpcv1.Role_ROLE_READ_ONLY)
 		require.NoError(t, err)
 
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{
 			Username: "cacheuser",
 		})
 		_, err = serverWithCache.DeleteUser(ctx, req)
@@ -155,7 +155,7 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 		server, store, _ := setupAdminTestServer(t)
 		store.Close()
 
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{Username: "any"})
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{Username: "any"})
 		_, err := server.DeleteUser(ctx, req)
 		assert.Error(t, err)
 		assert.Equal(t, connect.CodeInternal, connect.CodeOf(err))
@@ -164,13 +164,13 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 	t.Run("fails with short timeout", func(t *testing.T) {
 		server, store, _ := setupAdminTestServer(t)
 		username := "timeout_user"
-		_, _ = store.CreateUser(context.Background(), username, "pass", dbv1.Role_ROLE_READ_WRITE)
+		_, _ = store.CreateUser(context.Background(), username, "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 
 		// Context that expires almost immediately
 		timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Microsecond)
 		defer cancel()
 
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{Username: username})
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{Username: username})
 		_, err := server.DeleteUser(timeoutCtx, req)
 		assert.Error(t, err)
 		// Code should be Internal because we wrap DB errors (which context errors typically are in sql package)
@@ -179,7 +179,7 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 	t.Run("hacky timing test for coverage", func(t *testing.T) {
 		server, store, _ := setupAdminTestServer(t)
 		username := "hacky_user"
-		_, _ = store.CreateUser(context.Background(), username, "pass", dbv1.Role_ROLE_READ_WRITE)
+		_, _ = store.CreateUser(context.Background(), username, "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 
 		// Try different delays to hit different parts
 		for _, d := range []time.Duration{0, 100 * time.Microsecond, 500 * time.Microsecond, 1 * time.Millisecond} {
@@ -187,7 +187,7 @@ func TestAdminServer_DeleteUser(t *testing.T) {
 				time.Sleep(delay)
 				store.GetDB().Close()
 			}(d)
-			req := connect.NewRequest(&dbv1.DeleteUserRequest{Username: username})
+			req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{Username: username})
 			_, _ = server.DeleteUser(ctx, req)
 		}
 	})
@@ -203,14 +203,14 @@ func (m *mockCacheInval) ClearCache() {
 
 func TestAdminServer_UpdatePassword(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Create user
-	_, err := store.CreateUser(context.Background(), "pwuser", "oldpass", dbv1.Role_ROLE_READ_WRITE)
+	_, err := store.CreateUser(context.Background(), "pwuser", "oldpass", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	t.Run("updates password as admin", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.UpdatePasswordRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdatePasswordRequest{
 			Username:    "pwuser",
 			NewPassword: "newsecurepassword",
 		})
@@ -221,69 +221,69 @@ func TestAdminServer_UpdatePassword(t *testing.T) {
 	})
 }
 
-func TestAdminServer_CreateApiKey(t *testing.T) {
+func TestAdminServer_CreateAPIKey(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Create user
-	_, err := store.CreateUser(context.Background(), "keyowner", "password", dbv1.Role_ROLE_READ_WRITE)
+	_, err := store.CreateUser(context.Background(), "keyowner", "password", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	t.Run("creates api key", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateApiKeyRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{
 			Username: "keyowner",
 			Name:     "Test API Key",
 		})
 
-		resp, err := server.CreateApiKey(ctx, req)
+		resp, err := server.CreateAPIKey(ctx, req)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.Msg.KeyId) // UUID v7 string
 		assert.Contains(t, resp.Msg.ApiKey, "sk_")
 	})
 
 	t.Run("creates api key with expiry", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateApiKeyRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{
 			Username:  "keyowner",
 			Name:      "Expiring Key",
 			ExpiresAt: timestamppb.New(time.Date(2030, 12, 31, 23, 59, 59, 0, time.UTC)),
 		})
 
-		resp, err := server.CreateApiKey(ctx, req)
+		resp, err := server.CreateAPIKey(ctx, req)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.Msg.ApiKey)
 	})
 
 	t.Run("creates api key for self as non-admin", func(t *testing.T) {
-		rwCtx := userContext(10, "keyowner", dbv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&dbv1.CreateApiKeyRequest{
+		rwCtx := userContext(10, "keyowner", sqlrpcv1.Role_ROLE_READ_WRITE)
+		req := connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{
 			Username: "keyowner",
 			Name:     "Self Key",
 		})
 
-		resp, err := server.CreateApiKey(rwCtx, req)
+		resp, err := server.CreateAPIKey(rwCtx, req)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.Msg.ApiKey)
 	})
 
 	t.Run("fails to create api key for another user as non-admin", func(t *testing.T) {
-		rwCtx := userContext(10, "wrongowner", dbv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&dbv1.CreateApiKeyRequest{
+		rwCtx := userContext(10, "wrongowner", sqlrpcv1.Role_ROLE_READ_WRITE)
+		req := connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{
 			Username: "keyowner",
 			Name:     "Other Key",
 		})
 
-		_, err := server.CreateApiKey(rwCtx, req)
+		_, err := server.CreateAPIKey(rwCtx, req)
 		require.Error(t, err)
 		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	})
 }
 
-func TestAdminServer_ListApiKeys(t *testing.T) {
+func TestAdminServer_ListAPIKeys(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Create user and keys
-	_, err := store.CreateUser(context.Background(), "listuser", "password", dbv1.Role_ROLE_READ_WRITE)
+	_, err := store.CreateUser(context.Background(), "listuser", "password", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 	user, _ := store.GetUserByUsername(context.Background(), "listuser")
 	_, _, err = store.CreateApiKey(context.Background(), user.ID, "Key 1", nil)
@@ -292,55 +292,55 @@ func TestAdminServer_ListApiKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("lists all keys", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.ListApiKeysRequest{
+		req := connect.NewRequest(&sqlrpcv1.ListAPIKeysRequest{
 			Username: "listuser",
 		})
 
-		resp, err := server.ListApiKeys(ctx, req)
+		resp, err := server.ListAPIKeys(ctx, req)
 		require.NoError(t, err)
 		assert.Len(t, resp.Msg.Keys, 2)
 	})
 
 	t.Run("lists own keys as non-admin", func(t *testing.T) {
-		rwCtx := userContext(user.ID, "listuser", dbv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&dbv1.ListApiKeysRequest{
+		rwCtx := userContext(user.ID, "listuser", sqlrpcv1.Role_ROLE_READ_WRITE)
+		req := connect.NewRequest(&sqlrpcv1.ListAPIKeysRequest{
 			Username: "listuser",
 		})
 
-		resp, err := server.ListApiKeys(rwCtx, req)
+		resp, err := server.ListAPIKeys(rwCtx, req)
 		require.NoError(t, err)
 		assert.Len(t, resp.Msg.Keys, 2)
 	})
 
 	t.Run("fails to list someone else's keys as non-admin", func(t *testing.T) {
-		rwCtx := userContext(99, "otheruser", dbv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&dbv1.ListApiKeysRequest{
+		rwCtx := userContext(99, "otheruser", sqlrpcv1.Role_ROLE_READ_WRITE)
+		req := connect.NewRequest(&sqlrpcv1.ListAPIKeysRequest{
 			Username: "listuser",
 		})
 
-		_, err := server.ListApiKeys(rwCtx, req)
+		_, err := server.ListAPIKeys(rwCtx, req)
 		require.Error(t, err)
 		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	})
 }
 
-func TestAdminServer_RevokeApiKey(t *testing.T) {
+func TestAdminServer_DeleteAPIKey(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Create user and key
-	userID, err := store.CreateUser(context.Background(), "revokeuser", "password", dbv1.Role_ROLE_READ_WRITE)
+	userID, err := store.CreateUser(context.Background(), "revokeuser", "password", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 	_, keyID, err := store.CreateApiKey(context.Background(), userID, "To Revoke", nil)
 	require.NoError(t, err)
 
 	t.Run("revokes key", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.RevokeApiKeyRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteAPIKeyRequest{
 			KeyId:    keyID,
 			Username: "revokeuser",
 		})
 
-		resp, err := server.RevokeApiKey(ctx, req)
+		resp, err := server.DeleteAPIKey(ctx, req)
 		require.NoError(t, err)
 		assert.True(t, resp.Msg.Success)
 	})
@@ -348,14 +348,14 @@ func TestAdminServer_RevokeApiKey(t *testing.T) {
 	t.Run("revokes own key as non-admin", func(t *testing.T) {
 		// Create another key
 		_, keyID2, _ := store.CreateApiKey(context.Background(), userID, "Own Key", nil)
-		rwCtx := userContext(userID, "revokeuser", dbv1.Role_ROLE_READ_WRITE)
+		rwCtx := userContext(userID, "revokeuser", sqlrpcv1.Role_ROLE_READ_WRITE)
 
-		req := connect.NewRequest(&dbv1.RevokeApiKeyRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteAPIKeyRequest{
 			KeyId:    keyID2,
 			Username: "revokeuser",
 		})
 
-		resp, err := server.RevokeApiKey(rwCtx, req)
+		resp, err := server.DeleteAPIKey(rwCtx, req)
 		require.NoError(t, err)
 		assert.True(t, resp.Msg.Success)
 	})
@@ -364,36 +364,36 @@ func TestAdminServer_RevokeApiKey(t *testing.T) {
 		// Create a key for user A
 		_, keyID3, _ := store.CreateApiKey(context.Background(), userID, "User A Key", nil)
 		// User B tries to revoke it
-		rwCtxB := userContext(99, "otheruser", dbv1.Role_ROLE_READ_WRITE)
+		rwCtxB := userContext(99, "otheruser", sqlrpcv1.Role_ROLE_READ_WRITE)
 
-		req := connect.NewRequest(&dbv1.RevokeApiKeyRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteAPIKeyRequest{
 			KeyId:    keyID3,
 			Username: "revokeuser", // User B tries to revoke A's key
 		})
 
-		_, err := server.RevokeApiKey(rwCtxB, req)
+		_, err := server.DeleteAPIKey(rwCtxB, req)
 		require.Error(t, err)
 		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	})
 
 	t.Run("returns error for non-existent key", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.RevokeApiKeyRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteAPIKeyRequest{
 			KeyId: "00000000-0000-0000-0000-000000099999",
 		})
 
-		_, err := server.RevokeApiKey(ctx, req)
+		_, err := server.DeleteAPIKey(ctx, req)
 		require.Error(t, err)
 	})
 }
 func TestAdminServer_DynamicDatabases(t *testing.T) {
 	server, store, dbServer := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Clean up databases directory
 	os.RemoveAll("databases")
 
 	t.Run("CreateDatabase creates managed db", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{
 			Name: "createdb_test",
 		})
 		resp, err := server.CreateDatabase(ctx, req)
@@ -412,13 +412,48 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 	})
 
 	t.Run("CreateDatabase fails if already exists", func(t *testing.T) {
-		server.CreateDatabase(ctx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: "duplicate_test"}))
+		server.CreateDatabase(ctx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: "duplicate_test"}))
 
-		req := connect.NewRequest(&dbv1.CreateDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{
 			Name: "duplicate_test", // Same name
 		})
 		_, err := server.CreateDatabase(ctx, req)
 		require.Error(t, err)
+	})
+
+	t.Run("CreateDatabase fails if file already exists on disk", func(t *testing.T) {
+		// Manually create a file in the databases directory
+		_ = os.MkdirAll("databases", 0755)
+		filename := filepath.Join("databases", "existing_file.db")
+		f, _ := os.Create(filename)
+		f.Close()
+		defer os.Remove(filename)
+
+		req := connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{
+			Name: "existing_file",
+		})
+		_, err := server.CreateDatabase(ctx, req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "already exists on disk")
+	})
+
+	t.Run("CreateDatabase fails if mount fails during creation", func(t *testing.T) {
+		// Mock a failure by creating a directory where the file should be
+		_ = os.MkdirAll("databases", 0755)
+		dbName := "mount_fail_test"
+		dbPath := filepath.Join("databases", dbName+".db")
+		_ = os.MkdirAll(dbPath, 0755)
+		defer os.RemoveAll(dbPath)
+
+		req := connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{
+			Name: dbName,
+		})
+		_, err := server.CreateDatabase(ctx, req)
+		require.Error(t, err)
+
+		// Verify it's NOT in store (removed by rollback)
+		cfg, _ := store.GetDatabaseConfig(context.Background(), dbName)
+		assert.Nil(t, cfg)
 	})
 
 	t.Run("MountDatabase mounts external db", func(t *testing.T) {
@@ -430,9 +465,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		require.NoError(t, err)
 		f.Close()
 
-		req := connect.NewRequest(&dbv1.DatabaseConfig{
-			Name:   "mounted_db",
-			DbPath: externalPath,
+		req := connect.NewRequest(&sqlrpcv1.MountDatabaseRequest{
+			Name: "mounted_db",
+			Path: externalPath,
 		})
 		resp, err := server.MountDatabase(ctx, req)
 		require.NoError(t, err)
@@ -450,7 +485,7 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 	})
 
 	t.Run("UnMountDatabase removes from server but keeps file", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.UnMountDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.UnMountDatabaseRequest{
 			Name: "mounted_db", // Unmount the one we just mounted
 		})
 		resp, err := server.UnMountDatabase(ctx, req)
@@ -469,9 +504,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 
 	t.Run("DeleteDatabase deletes managed db", func(t *testing.T) {
 		// Setup
-		server.CreateDatabase(ctx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: "delete_test"}))
+		server.CreateDatabase(ctx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: "delete_test"}))
 
-		req := connect.NewRequest(&dbv1.DeleteDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteDatabaseRequest{
 			Name: "delete_test",
 		})
 		resp, err := server.DeleteDatabase(ctx, req)
@@ -501,15 +536,15 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		f.Close()
 
 		// Mount it
-		mReq := connect.NewRequest(&dbv1.DatabaseConfig{
-			Name:   "protected",
-			DbPath: externalPath,
+		mReq := connect.NewRequest(&sqlrpcv1.MountDatabaseRequest{
+			Name: "protected",
+			Path: externalPath,
 		})
 		_, err := server.MountDatabase(ctx, mReq)
 		require.NoError(t, err)
 
 		// Try delete
-		dReq := connect.NewRequest(&dbv1.DeleteDatabaseRequest{
+		dReq := connect.NewRequest(&sqlrpcv1.DeleteDatabaseRequest{
 			Name: "protected",
 		})
 		_, err = server.DeleteDatabase(ctx, dReq)
@@ -523,9 +558,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 
 	t.Run("ListDatabases returns all mounted databases", func(t *testing.T) {
 		// Setup: ensure we have at least one db
-		server.CreateDatabase(ctx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: "list_test"}))
+		server.CreateDatabase(ctx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: "list_test"}))
 
-		req := connect.NewRequest(&dbv1.ListDatabasesRequest{})
+		req := connect.NewRequest(&sqlrpcv1.ListDatabasesRequest{})
 		resp, err := server.ListDatabases(ctx, req)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.Msg.Databases)
@@ -542,9 +577,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 	})
 
 	t.Run("MountDatabase fails if file does not exist", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DatabaseConfig{
-			Name:   "missing_db",
-			DbPath: "/path/to/nonexistent/file.db",
+		req := connect.NewRequest(&sqlrpcv1.MountDatabaseRequest{
+			Name: "missing_db",
+			Path: "/path/to/nonexistent/file.db",
 		})
 		_, err := server.MountDatabase(ctx, req)
 		require.Error(t, err)
@@ -552,7 +587,7 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 	})
 
 	t.Run("UnMountDatabase fails if db not found", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.UnMountDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.UnMountDatabaseRequest{
 			Name: "non_existent_db",
 		})
 		_, err := server.UnMountDatabase(ctx, req)
@@ -561,7 +596,7 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 	})
 
 	t.Run("DeleteDatabase fails if config not found", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DeleteDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteDatabaseRequest{
 			Name: "unknown_db",
 		})
 		_, err := server.DeleteDatabase(ctx, req)
@@ -573,21 +608,21 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 	t.Run("Auth failures", func(t *testing.T) {
 		nonAdminCtx := context.Background() // No auth
 
-		_, err := server.CreateDatabase(nonAdminCtx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: "fail"}))
+		_, err := server.CreateDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: "fail"}))
 		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 
-		_, err = server.MountDatabase(nonAdminCtx, connect.NewRequest(&dbv1.DatabaseConfig{Name: "fail", DbPath: "x"}))
+		_, err = server.MountDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.MountDatabaseRequest{Name: "fail", Path: "x"}))
 		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 
-		_, err = server.UnMountDatabase(nonAdminCtx, connect.NewRequest(&dbv1.UnMountDatabaseRequest{Name: "fail"}))
+		_, err = server.UnMountDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.UnMountDatabaseRequest{Name: "fail"}))
 		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 
-		_, err = server.DeleteDatabase(nonAdminCtx, connect.NewRequest(&dbv1.DeleteDatabaseRequest{Name: "fail"}))
+		_, err = server.DeleteDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.DeleteDatabaseRequest{Name: "fail"}))
 		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 
 		// ListDatabases should work for ReadOnly user
-		roCtx := adminContext(dbv1.Role_ROLE_READ_ONLY)
-		_, err = server.ListDatabases(roCtx, connect.NewRequest(&dbv1.ListDatabasesRequest{}))
+		roCtx := adminContext(sqlrpcv1.Role_ROLE_READ_ONLY)
+		_, err = server.ListDatabases(roCtx, connect.NewRequest(&sqlrpcv1.ListDatabasesRequest{}))
 		assert.NoError(t, err)
 	})
 
@@ -597,9 +632,9 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		// Write garbage
 		os.WriteFile(badPath, []byte("NOT A SQLITE FILE"), 0644)
 
-		req := connect.NewRequest(&dbv1.DatabaseConfig{
-			Name:   "corrupt_db",
-			DbPath: badPath,
+		req := connect.NewRequest(&sqlrpcv1.MountDatabaseRequest{
+			Name: "corrupt_db",
+			Path: badPath,
 		})
 		_, err := server.MountDatabase(ctx, req)
 		require.Error(t, err)
@@ -614,7 +649,7 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 
 	t.Run("DeleteDatabase handles pre-unmounted DB gracefully (inconsistent state)", func(t *testing.T) {
 		// Setup managed db
-		server.CreateDatabase(ctx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: "resilient_test"}))
+		server.CreateDatabase(ctx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: "resilient_test"}))
 
 		// Manually unmount it from backend to create inconsistency
 		// (Config exists, but not in DbServer)
@@ -622,7 +657,7 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		require.NoError(t, err)
 
 		// Delete should still succeed (cleaning up config and file)
-		req := connect.NewRequest(&dbv1.DeleteDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteDatabaseRequest{
 			Name: "resilient_test",
 		})
 		resp, err := server.DeleteDatabase(ctx, req)
@@ -644,11 +679,11 @@ func TestAdminServer_Login(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a user for login
-	_, err := store.CreateUser(ctx, "loginuser", "password123", dbv1.Role_ROLE_ADMIN)
+	_, err := store.CreateUser(ctx, "loginuser", "password123", sqlrpcv1.Role_ROLE_ADMIN)
 	require.NoError(t, err)
 
 	t.Run("login success returns api key", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoginRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoginRequest{
 			Username: "loginuser",
 			Password: "password123",
 		})
@@ -659,11 +694,11 @@ func TestAdminServer_Login(t *testing.T) {
 		assert.Contains(t, resp.Msg.ApiKey, "sk_")
 		assert.NotNil(t, resp.Msg.ExpiresAt)
 		assert.Equal(t, "loginuser", resp.Msg.User.Username)
-		assert.Equal(t, dbv1.Role_ROLE_ADMIN, resp.Msg.User.Role)
+		assert.Equal(t, sqlrpcv1.Role_ROLE_ADMIN, resp.Msg.User.Role)
 	})
 
 	t.Run("login failure with wrong password", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoginRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoginRequest{
 			Username: "loginuser",
 			Password: "wrongpassword",
 		})
@@ -675,10 +710,10 @@ func TestAdminServer_Login(t *testing.T) {
 
 	t.Run("login accepts non-admin user", func(t *testing.T) {
 		// Create non-admin
-		_, err := store.CreateUser(ctx, "regular", "pass", dbv1.Role_ROLE_READ_ONLY)
+		_, err := store.CreateUser(ctx, "regular", "pass", sqlrpcv1.Role_ROLE_READ_ONLY)
 		require.NoError(t, err)
 
-		req := connect.NewRequest(&dbv1.LoginRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoginRequest{
 			Username: "regular",
 			Password: "pass",
 		})
@@ -688,7 +723,7 @@ func TestAdminServer_Login(t *testing.T) {
 	})
 
 	t.Run("login supports custom duration", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LoginRequest{
+		req := connect.NewRequest(&sqlrpcv1.LoginRequest{
 			Username:        "loginuser",
 			Password:        "password123",
 			SessionDuration: &durationpb.Duration{Seconds: 3600}, // 1 hour
@@ -708,10 +743,10 @@ func TestAdminServer_Logout(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Login to get a key
-	userID, err := store.CreateUser(ctx, "logoutuser", "pass", dbv1.Role_ROLE_ADMIN)
+	userID, err := store.CreateUser(ctx, "logoutuser", "pass", sqlrpcv1.Role_ROLE_ADMIN)
 	require.NoError(t, err)
 
-	lResp, err := server.Login(ctx, connect.NewRequest(&dbv1.LoginRequest{
+	lResp, err := server.Login(ctx, connect.NewRequest(&sqlrpcv1.LoginRequest{
 		Username: "logoutuser",
 		Password: "pass",
 	}))
@@ -720,12 +755,12 @@ func TestAdminServer_Logout(t *testing.T) {
 	assert.NotEmpty(t, keyID) // UUID v7 string
 
 	t.Run("logout succeeds with valid key", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LogoutRequest{
+		req := connect.NewRequest(&sqlrpcv1.LogoutRequest{
 			KeyId:    keyID,
 			Username: "logoutuser",
 		})
 		// Use authentication
-		adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+		adminCtx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 		resp, err := server.Logout(adminCtx, req)
 		require.NoError(t, err)
@@ -751,7 +786,7 @@ func TestAdminServer_Logout_Errors(t *testing.T) {
 	ctx := context.Background() // No auth
 
 	t.Run("logout fails for unauthenticated user", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LogoutRequest{
+		req := connect.NewRequest(&sqlrpcv1.LogoutRequest{
 			KeyId: "some-key",
 		})
 		_, err := server.Logout(ctx, req)
@@ -760,11 +795,11 @@ func TestAdminServer_Logout_Errors(t *testing.T) {
 	})
 
 	t.Run("logout succeeds (idempotent) even for non-admin", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.LogoutRequest{
+		req := connect.NewRequest(&sqlrpcv1.LogoutRequest{
 			KeyId:    "00000000-0000-0000-0000-000000000001",
 			Username: "testadmin", // adminContext uses testadmin
 		})
-		nonAdminCtx := adminContext(dbv1.Role_ROLE_READ_WRITE)
+		nonAdminCtx := adminContext(sqlrpcv1.Role_ROLE_READ_WRITE)
 		resp, err := server.Logout(nonAdminCtx, req)
 		require.NoError(t, err)
 		assert.True(t, resp.Msg.Success)
@@ -773,10 +808,10 @@ func TestAdminServer_Logout_Errors(t *testing.T) {
 
 func TestAdminServer_UpdatePassword_Errors(t *testing.T) {
 	server, _, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	t.Run("returns not found for non-existent user", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.UpdatePasswordRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdatePasswordRequest{
 			Username:    "ghost",
 			NewPassword: "pass",
 		})
@@ -786,20 +821,20 @@ func TestAdminServer_UpdatePassword_Errors(t *testing.T) {
 	})
 }
 
-func TestAdminServer_CreateApiKey_Errors(t *testing.T) {
+func TestAdminServer_CreateAPIKey_Errors(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
-	_, err := store.CreateUser(context.Background(), "user", "pass", dbv1.Role_ROLE_READ_WRITE)
+	_, err := store.CreateUser(context.Background(), "user", "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	t.Run("fails with invalid timestamp", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateApiKeyRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{
 			Username:  "user",
 			Name:      "Bad Key",
 			ExpiresAt: &timestamppb.Timestamp{Seconds: -1000000000000}, // Invalid
 		})
-		_, err := server.CreateApiKey(ctx, req)
+		_, err := server.CreateAPIKey(ctx, req)
 		require.Error(t, err)
 		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	})
@@ -807,16 +842,16 @@ func TestAdminServer_CreateApiKey_Errors(t *testing.T) {
 
 func TestAdminServer_CRUD_Errors(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Close store DB to force failures
 	store.GetDB().Close()
 
 	t.Run("CreateUser fails on db error", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
 			Username: "failuser",
 			Password: "password",
-			Role:     dbv1.Role_ROLE_READ_ONLY,
+			Role:     sqlrpcv1.Role_ROLE_READ_ONLY,
 		})
 		_, err := server.CreateUser(ctx, req)
 		require.Error(t, err)
@@ -824,7 +859,7 @@ func TestAdminServer_CRUD_Errors(t *testing.T) {
 	})
 
 	t.Run("DeleteUser fails on db error", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{
 			Username: "failuser",
 		})
 		_, err := server.DeleteUser(ctx, req)
@@ -833,7 +868,7 @@ func TestAdminServer_CRUD_Errors(t *testing.T) {
 	})
 
 	t.Run("UpdatePassword fails on db error", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.UpdatePasswordRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdatePasswordRequest{
 			Username:    "failuser",
 			NewPassword: "newpassword",
 		})
@@ -842,9 +877,9 @@ func TestAdminServer_CRUD_Errors(t *testing.T) {
 		assert.Contains(t, err.Error(), "database is closed")
 	})
 
-	t.Run("ListApiKeys fails on db error", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.ListApiKeysRequest{Username: "failuser"})
-		_, err := server.ListApiKeys(ctx, req)
+	t.Run("ListAPIKeys fails on db error", func(t *testing.T) {
+		req := connect.NewRequest(&sqlrpcv1.ListAPIKeysRequest{Username: "failuser"})
+		_, err := server.ListAPIKeys(ctx, req)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "internal")
 	})
@@ -860,22 +895,22 @@ func TestAdminServer_Auth_Coverage(t *testing.T) {
 		code connect.Code
 	}{
 		{"Unauthenticated", context.Background(), connect.CodeUnauthenticated},
-		{"NonAdmin", adminContext(dbv1.Role_ROLE_READ_WRITE), connect.CodePermissionDenied},
+		{"NonAdmin", adminContext(sqlrpcv1.Role_ROLE_READ_WRITE), connect.CodePermissionDenied},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// DeleteUser
-			_, err := server.DeleteUser(tt.ctx, connect.NewRequest(&dbv1.DeleteUserRequest{}))
+			_, err := server.DeleteUser(tt.ctx, connect.NewRequest(&sqlrpcv1.DeleteUserRequest{}))
 			assert.Equal(t, tt.code, connect.CodeOf(err))
 
 			// UpdatePassword
-			_, err = server.UpdatePassword(tt.ctx, connect.NewRequest(&dbv1.UpdatePasswordRequest{}))
+			_, err = server.UpdatePassword(tt.ctx, connect.NewRequest(&sqlrpcv1.UpdatePasswordRequest{}))
 			assert.Equal(t, tt.code, connect.CodeOf(err))
 
-			// RevokeApiKey should fail if not admin OR not owner (here empty req so fails)
+			// DeleteAPIKey should fail if not admin OR not owner (here empty req so fails)
 			// But for coverage test, we want to see it denies non-admins if they don't meet other criteria.
-			// Actually, RevokeApiKey now allows non-admins, so it might return NotFound rather than PermissionDenied
+			// Actually, DeleteAPIKey now allows non-admins, so it might return NotFound rather than PermissionDenied
 			// if the ctx is valid but key is missing.
 		})
 	}
@@ -889,7 +924,7 @@ func int32Ptr(v int32) *int32 {
 func TestAdminServer_UpdateDatabase(t *testing.T) {
 	server, store, dbServer := setupAdminTestServer(t)
 	// Use admin context directly (simulates authenticated request)
-	ctx := adminContext(dbv1.Role_ROLE_ADMIN)
+	ctx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	t.Run("UpdateDatabase persists and reloads", func(t *testing.T) {
 		// ... existing setup ...
@@ -899,7 +934,7 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		defer os.RemoveAll("databases")
 		defer store.RemoveDatabaseConfig(ctx, dbName)
 
-		createReq := connect.NewRequest(&dbv1.CreateDatabaseRequest{
+		createReq := connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{
 			Name:        dbName,
 			IsEncrypted: false,
 		})
@@ -907,11 +942,11 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		require.NoError(t, err)
 
 		// 2. Update DB to change MaxOpenConns and add an InitCommand
-		updateReq := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		updateReq := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name: dbName,
-			Config: &dbv1.UpdateDatabaseConfig{
+			Config: &sqlrpcv1.UpdateDatabaseConfig{
 				MaxOpenConns: int32Ptr(5),
-				InitCommands: &dbv1.InitCommandList{
+				InitCommands: &sqlrpcv1.InitCommandList{
 					Values: []string{"PRAGMA user_version = 99"},
 				},
 			},
@@ -925,7 +960,7 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		cfg, err := store.GetDatabaseConfig(ctx, dbName)
 		require.NoError(t, err)
 
-		parsedConfig := &dbv1.DatabaseConfig{}
+		parsedConfig := &sqlrpcv1.DatabaseConfig{}
 		err = protojson.Unmarshal([]byte(cfg.Settings), parsedConfig)
 		require.NoError(t, err)
 
@@ -934,9 +969,9 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 
 		// 4. Verify Partial Update (PATCH behavior)
 		// Update ONLY MaxIdleConns, MaxOpenConns should stay 5
-		patchReq := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		patchReq := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name: dbName,
-			Config: &dbv1.UpdateDatabaseConfig{
+			Config: &sqlrpcv1.UpdateDatabaseConfig{
 				MaxIdleConns: int32Ptr(2),
 			},
 		})
@@ -945,7 +980,7 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 
 		cfgAfterPatch, err := store.GetDatabaseConfig(ctx, dbName)
 		require.NoError(t, err)
-		parsedConfigAfterPatch := &dbv1.DatabaseConfig{}
+		parsedConfigAfterPatch := &sqlrpcv1.DatabaseConfig{}
 		protojson.Unmarshal([]byte(cfgAfterPatch.Settings), parsedConfigAfterPatch)
 
 		assert.Equal(t, int32(2), parsedConfigAfterPatch.MaxIdleConns, "Should update provided field")
@@ -967,17 +1002,17 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 
 		// 6. Verify Collection Clearing
 		// Send empty InitCommands wrapper to clear it
-		clearReq := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		clearReq := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name: dbName,
-			Config: &dbv1.UpdateDatabaseConfig{
-				InitCommands: &dbv1.InitCommandList{Values: []string{}},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{
+				InitCommands: &sqlrpcv1.InitCommandList{Values: []string{}},
 			},
 		})
 		_, err = server.UpdateDatabase(ctx, clearReq)
 		require.NoError(t, err)
 
 		cfgAfterClear, _ := store.GetDatabaseConfig(ctx, dbName)
-		parsedConfigAfterClear := &dbv1.DatabaseConfig{}
+		parsedConfigAfterClear := &sqlrpcv1.DatabaseConfig{}
 		protojson.Unmarshal([]byte(cfgAfterClear.Settings), parsedConfigAfterClear)
 		assert.Empty(t, parsedConfigAfterClear.InitCommands, "Should explicitly clear InitCommands")
 
@@ -1011,7 +1046,7 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		// Ensure cleanup
 		defer store.RemoveDatabaseConfig(ctx, mainDB)
 
-		createReq := connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: mainDB})
+		createReq := connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: mainDB})
 		_, err := server.CreateDatabase(ctx, createReq)
 		require.NoError(t, err)
 
@@ -1028,10 +1063,10 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 
 		// 3. Update Main DB to ATTACH the other DB on init
 		attachCmd := fmt.Sprintf("ATTACH DATABASE '%s' AS attached_alias", attachedPath)
-		updateReq := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		updateReq := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name: mainDB,
-			Config: &dbv1.UpdateDatabaseConfig{
-				InitCommands: &dbv1.InitCommandList{Values: []string{attachCmd}},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{
+				InitCommands: &sqlrpcv1.InitCommandList{Values: []string{attachCmd}},
 			},
 		})
 
@@ -1056,7 +1091,7 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		mainDB := "test_attach_ro_uri"
 		defer store.RemoveDatabaseConfig(ctx, mainDB)
 
-		_, err := server.CreateDatabase(ctx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: mainDB}))
+		_, err := server.CreateDatabase(ctx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: mainDB}))
 		require.NoError(t, err)
 
 		// Create attached DB with data
@@ -1075,10 +1110,10 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		// We must ensure the SQLite driver supports URI. It usually does by default on modern builds.
 		attachCmd := fmt.Sprintf("ATTACH 'file:%s?mode=ro' AS attached_ro", attachedPath)
 
-		updateReq := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		updateReq := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name: mainDB,
-			Config: &dbv1.UpdateDatabaseConfig{
-				InitCommands: &dbv1.InitCommandList{Values: []string{attachCmd}},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{
+				InitCommands: &sqlrpcv1.InitCommandList{Values: []string{attachCmd}},
 			},
 		})
 		resp, err := server.UpdateDatabase(ctx, updateReq)
@@ -1104,7 +1139,7 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 	t.Run("Authorizer blocks writes on implicitly attached RW database", func(t *testing.T) {
 		mainDB := "test_auth_rw_attach"
 		defer store.RemoveDatabaseConfig(ctx, mainDB)
-		server.CreateDatabase(ctx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: mainDB}))
+		server.CreateDatabase(ctx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: mainDB}))
 
 		tmpDir := t.TempDir()
 		attachedPath := filepath.Join(tmpDir, "attached_rw.db")
@@ -1116,10 +1151,10 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		// Attach WITHOUT ?mode=ro (so technically RW)
 		attachCmd := fmt.Sprintf("ATTACH '%s' AS attached_rw", attachedPath)
 
-		server.UpdateDatabase(ctx, connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		server.UpdateDatabase(ctx, connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name: mainDB,
-			Config: &dbv1.UpdateDatabaseConfig{
-				InitCommands: &dbv1.InitCommandList{Values: []string{attachCmd}},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{
+				InitCommands: &sqlrpcv1.InitCommandList{Values: []string{attachCmd}},
 			},
 		}))
 
@@ -1142,9 +1177,9 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 	})
 
 	t.Run("UpdateDatabase fails for non-existent db", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name:   "ghost_db",
-			Config: &dbv1.UpdateDatabaseConfig{},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{},
 		})
 
 		_, err := server.UpdateDatabase(ctx, req)
@@ -1153,10 +1188,10 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 	})
 
 	t.Run("UpdateDatabase fails for unauthorized user", func(t *testing.T) {
-		roCtx := adminContext(dbv1.Role_ROLE_READ_ONLY)
-		req := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		roCtx := adminContext(sqlrpcv1.Role_ROLE_READ_ONLY)
+		req := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name:   "any_db",
-			Config: &dbv1.UpdateDatabaseConfig{},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{},
 		})
 		_, err := server.UpdateDatabase(roCtx, req)
 		require.Error(t, err)
@@ -1170,9 +1205,9 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		require.NoError(t, err)
 		defer store.RemoveDatabaseConfig(ctx, dbName)
 
-		req := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name:   dbName,
-			Config: &dbv1.UpdateDatabaseConfig{ReadOnly: boolPtr(true)},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{ReadOnly: boolPtr(true)},
 		})
 		_, err = server.UpdateDatabase(ctx, req)
 		require.Error(t, err)
@@ -1182,22 +1217,22 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 
 	t.Run("UpdateDatabase exhaustive partial updates", func(t *testing.T) {
 		dbName := "exhaustive_update_db"
-		server.CreateDatabase(ctx, connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: dbName}))
+		server.CreateDatabase(ctx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: dbName}))
 		defer store.RemoveDatabaseConfig(ctx, dbName)
 
 		// Test each optional field one by one to cover all branches
-		fields := []*dbv1.UpdateDatabaseConfig{
+		fields := []*sqlrpcv1.UpdateDatabaseConfig{
 			{ReadOnly: boolPtr(true)},
 			{MaxOpenConns: int32Ptr(10)},
 			{MaxIdleConns: int32Ptr(5)},
 			{ConnMaxLifetimeMs: int32Ptr(300000)},
-			{Extensions: &dbv1.ExtensionList{Values: []string{"ext.so"}}},
-			{Pragmas: &dbv1.PragmaMap{Values: map[string]string{"journal_mode": "WAL"}}},
-			{InitCommands: &dbv1.InitCommandList{Values: []string{"PRAGMA foreign_keys = ON"}}},
+			{Extensions: &sqlrpcv1.ExtensionList{Values: []string{"ext.so"}}},
+			{Pragmas: &sqlrpcv1.PragmaMap{Values: map[string]string{"journal_mode": "WAL"}}},
+			{InitCommands: &sqlrpcv1.InitCommandList{Values: []string{"PRAGMA foreign_keys = ON"}}},
 		}
 
 		for _, cfg := range fields {
-			req := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+			req := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 				Name:   dbName,
 				Config: cfg,
 			})
@@ -1215,9 +1250,9 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		defer store.RemoveDatabaseConfig(ctx, dbName)
 
 		// 2. Try to update - reload should fail because it's not in DbManager's map
-		req := connect.NewRequest(&dbv1.UpdateDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
 			Name:   dbName,
-			Config: &dbv1.UpdateDatabaseConfig{ReadOnly: boolPtr(true)},
+			Config: &sqlrpcv1.UpdateDatabaseConfig{ReadOnly: boolPtr(true)},
 		})
 		_, err = server.UpdateDatabase(ctx, req)
 		require.Error(t, err)
@@ -1228,16 +1263,16 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 
 func TestAdminServer_ListUsers(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+	adminCtx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Create some users
-	_, err := store.CreateUser(context.Background(), "user1", "pass1", dbv1.Role_ROLE_READ_WRITE)
+	_, err := store.CreateUser(context.Background(), "user1", "pass1", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
-	_, err = store.CreateUser(context.Background(), "user2", "pass2", dbv1.Role_ROLE_READ_ONLY)
+	_, err = store.CreateUser(context.Background(), "user2", "pass2", sqlrpcv1.Role_ROLE_READ_ONLY)
 	require.NoError(t, err)
 
 	t.Run("lists users as admin", func(t *testing.T) {
-		resp, err := server.ListUsers(adminCtx, connect.NewRequest(&dbv1.ListUsersRequest{}))
+		resp, err := server.ListUsers(adminCtx, connect.NewRequest(&sqlrpcv1.ListUsersRequest{}))
 		require.NoError(t, err)
 		// admin (default in adminContext), user1, user2
 		assert.GreaterOrEqual(t, len(resp.Msg.Users), 2)
@@ -1251,8 +1286,8 @@ func TestAdminServer_ListUsers(t *testing.T) {
 	})
 
 	t.Run("denies non-admin", func(t *testing.T) {
-		rwCtx := userContext(10, "user1", dbv1.Role_ROLE_READ_WRITE)
-		_, err := server.ListUsers(rwCtx, connect.NewRequest(&dbv1.ListUsersRequest{}))
+		rwCtx := userContext(10, "user1", sqlrpcv1.Role_ROLE_READ_WRITE)
+		_, err := server.ListUsers(rwCtx, connect.NewRequest(&sqlrpcv1.ListUsersRequest{}))
 		require.Error(t, err)
 		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	})
@@ -1260,16 +1295,16 @@ func TestAdminServer_ListUsers(t *testing.T) {
 
 func TestAdminServer_UpdateUserRole(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+	adminCtx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	// Create user
-	_, err := store.CreateUser(context.Background(), "roletest", "pass", dbv1.Role_ROLE_READ_ONLY)
+	_, err := store.CreateUser(context.Background(), "roletest", "pass", sqlrpcv1.Role_ROLE_READ_ONLY)
 	require.NoError(t, err)
 
 	t.Run("updates user role as admin", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.UpdateUserRoleRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdateUserRoleRequest{
 			Username: "roletest",
-			Role:     dbv1.Role_ROLE_READ_WRITE,
+			Role:     sqlrpcv1.Role_ROLE_READ_WRITE,
 		})
 		resp, err := server.UpdateUserRole(adminCtx, req)
 		require.NoError(t, err)
@@ -1278,14 +1313,14 @@ func TestAdminServer_UpdateUserRole(t *testing.T) {
 		// Verify in store
 		user, err := store.GetUserByUsername(context.Background(), "roletest")
 		require.NoError(t, err)
-		assert.Equal(t, dbv1.Role_ROLE_READ_WRITE, user.Role)
+		assert.Equal(t, sqlrpcv1.Role_ROLE_READ_WRITE, user.Role)
 	})
 
 	t.Run("denies non-admin", func(t *testing.T) {
-		rwCtx := userContext(20, "rwuser", dbv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&dbv1.UpdateUserRoleRequest{
+		rwCtx := userContext(20, "rwuser", sqlrpcv1.Role_ROLE_READ_WRITE)
+		req := connect.NewRequest(&sqlrpcv1.UpdateUserRoleRequest{
 			Username: "roletest",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		})
 		_, err := server.UpdateUserRole(rwCtx, req)
 		require.Error(t, err)
@@ -1301,9 +1336,9 @@ func TestAdminServer_UpdateUserRole(t *testing.T) {
 		server.cache = mockCache
 		defer func() { server.cache = nil }()
 
-		req := connect.NewRequest(&dbv1.UpdateUserRoleRequest{
+		req := connect.NewRequest(&sqlrpcv1.UpdateUserRoleRequest{
 			Username: "roletest",
-			Role:     dbv1.Role_ROLE_READ_ONLY,
+			Role:     sqlrpcv1.Role_ROLE_READ_ONLY,
 		})
 		_, err := server.UpdateUserRole(adminCtx, req)
 		require.NoError(t, err)
@@ -1321,18 +1356,18 @@ func (m *mockCacheInvalidator) ClearCache() {
 
 func TestAdminServer_DeleteUser_Extended(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+	adminCtx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	t.Run("deletes user and cleans up api keys", func(t *testing.T) {
 		// Create user
-		userID, err := store.CreateUser(context.Background(), "cleanupuser", "pass", dbv1.Role_ROLE_READ_WRITE)
+		userID, err := store.CreateUser(context.Background(), "cleanupuser", "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 		require.NoError(t, err)
 
 		// Create API key
 		_, _, err = store.CreateApiKey(context.Background(), userID, "testkey", nil)
 		require.NoError(t, err)
 
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{
 			Username: "cleanupuser",
 		})
 		resp, err := server.DeleteUser(adminCtx, req)
@@ -1349,7 +1384,7 @@ func TestAdminServer_DeleteUser_Extended(t *testing.T) {
 	})
 
 	t.Run("fails to delete non-existent user", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DeleteUserRequest{
+		req := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{
 			Username: "doesnotexist",
 		})
 		_, err := server.DeleteUser(adminCtx, req)
@@ -1362,42 +1397,42 @@ func TestAdminServer_GetServerInfo(t *testing.T) {
 	server, _, _ := setupAdminTestServer(t)
 	ctx := context.Background()
 
-	resp, err := server.GetServerInfo(ctx, connect.NewRequest(&dbv1.GetServerInfoRequest{}))
+	resp, err := server.GetServerInfo(ctx, connect.NewRequest(&sqlrpcv1.GetServerInfoRequest{}))
 	require.NoError(t, err)
 	assert.Equal(t, "v0.0.1-test", resp.Msg.Version)
 	assert.False(t, resp.Msg.AuthDisabled)
 
 	// Test with auth disabled
 	serverDisabled := NewAdminServer(nil, nil, nil, true, "v0.0.1-disabled")
-	resp, err = serverDisabled.GetServerInfo(ctx, connect.NewRequest(&dbv1.GetServerInfoRequest{}))
+	resp, err = serverDisabled.GetServerInfo(ctx, connect.NewRequest(&sqlrpcv1.GetServerInfoRequest{}))
 	require.NoError(t, err)
 	assert.True(t, resp.Msg.AuthDisabled)
 }
 
 func TestAdminServer_TargetedCoverage(t *testing.T) {
 	server, store, _ := setupAdminTestServer(t)
-	adminCtx := adminContext(dbv1.Role_ROLE_ADMIN)
+	adminCtx := adminContext(sqlrpcv1.Role_ROLE_ADMIN)
 
 	t.Run("DeleteUser authDisabled failure", func(t *testing.T) {
 		sDisabled := NewAdminServer(store, nil, nil, true, "")
-		_, err := sDisabled.DeleteUser(adminCtx, connect.NewRequest(&dbv1.DeleteUserRequest{Username: "any"}))
+		_, err := sDisabled.DeleteUser(adminCtx, connect.NewRequest(&sqlrpcv1.DeleteUserRequest{Username: "any"}))
 		assert.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
 	})
 
-	t.Run("CreateApiKey authDisabled failure", func(t *testing.T) {
+	t.Run("CreateAPIKey authDisabled failure", func(t *testing.T) {
 		sDisabled := NewAdminServer(store, nil, nil, true, "")
-		_, err := sDisabled.CreateApiKey(adminCtx, connect.NewRequest(&dbv1.CreateApiKeyRequest{Username: "any"}))
+		_, err := sDisabled.CreateAPIKey(adminCtx, connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{Username: "any"}))
 		assert.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err))
 	})
 
-	t.Run("CreateApiKey user not found", func(t *testing.T) {
-		_, err := server.CreateApiKey(adminCtx, connect.NewRequest(&dbv1.CreateApiKeyRequest{Username: "ghost_user", Name: "key"}))
+	t.Run("CreateAPIKey user not found", func(t *testing.T) {
+		_, err := server.CreateAPIKey(adminCtx, connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{Username: "ghost_user", Name: "key"}))
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})
 
-	t.Run("CreateApiKey internal error", func(t *testing.T) {
+	t.Run("CreateAPIKey internal error", func(t *testing.T) {
 		store.GetDB().Close()
-		_, err := server.CreateApiKey(adminCtx, connect.NewRequest(&dbv1.CreateApiKeyRequest{Username: "admin", Name: "key"}))
+		_, err := server.CreateAPIKey(adminCtx, connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{Username: "admin", Name: "key"}))
 		assert.Equal(t, connect.CodeInternal, connect.CodeOf(err))
 	})
 }

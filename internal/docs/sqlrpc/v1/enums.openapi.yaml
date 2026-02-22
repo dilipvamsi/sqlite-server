@@ -1,0 +1,140 @@
+openapi: 3.1.0
+info:
+  title: sqlrpc.v1
+paths: {}
+components:
+  schemas:
+    sqlrpc.v1.CheckpointMode:
+      type: string
+      title: CheckpointMode
+      enum:
+        - CHECKPOINT_MODE_UNSPECIFIED
+        - CHECKPOINT_MODE_PASSIVE
+        - CHECKPOINT_MODE_FULL
+        - CHECKPOINT_MODE_RESTART
+        - CHECKPOINT_MODE_TRUNCATE
+      description: |-
+        *
+         CheckpointMode determines the strategy used when synchronizing the WAL
+         with the main database file.
+    sqlrpc.v1.ColumnAffinity:
+      type: string
+      title: ColumnAffinity
+      enum:
+        - COLUMN_AFFINITY_UNSPECIFIED
+        - COLUMN_AFFINITY_INTEGER
+        - COLUMN_AFFINITY_TEXT
+        - COLUMN_AFFINITY_BLOB
+        - COLUMN_AFFINITY_REAL
+        - COLUMN_AFFINITY_NUMERIC
+      description: |-
+        *
+         ColumnAffinity defines the storage preference for a column in SQLite.
+    sqlrpc.v1.DeclaredType:
+      type: string
+      title: DeclaredType
+      enum:
+        - DECLARED_TYPE_UNSPECIFIED
+        - DECLARED_TYPE_INT
+        - DECLARED_TYPE_INTEGER
+        - DECLARED_TYPE_TINYINT
+        - DECLARED_TYPE_SMALLINT
+        - DECLARED_TYPE_MEDIUMINT
+        - DECLARED_TYPE_BIGINT
+        - DECLARED_TYPE_UNSIGNED_BIG_INT
+        - DECLARED_TYPE_INT2
+        - DECLARED_TYPE_INT8
+        - DECLARED_TYPE_CHARACTER
+        - DECLARED_TYPE_VARCHAR
+        - DECLARED_TYPE_VARYING_CHARACTER
+        - DECLARED_TYPE_NCHAR
+        - DECLARED_TYPE_NATIVE_CHARACTER
+        - DECLARED_TYPE_NVARCHAR
+        - DECLARED_TYPE_TEXT
+        - DECLARED_TYPE_CLOB
+        - DECLARED_TYPE_BLOB
+        - DECLARED_TYPE_REAL
+        - DECLARED_TYPE_DOUBLE
+        - DECLARED_TYPE_DOUBLE_PRECISION
+        - DECLARED_TYPE_FLOAT
+        - DECLARED_TYPE_NUMERIC
+        - DECLARED_TYPE_DECIMAL
+        - DECLARED_TYPE_BOOLEAN
+        - DECLARED_TYPE_DATE
+        - DECLARED_TYPE_DATETIME
+        - DECLARED_TYPE_TIMESTAMP
+        - DECLARED_TYPE_TIME
+        - DECLARED_TYPE_YEAR
+        - DECLARED_TYPE_JSON
+        - DECLARED_TYPE_UUID
+        - DECLARED_TYPE_CHAR
+        - DECLARED_TYPE_XML
+      description: |-
+        *
+         DeclaredType represents the literal data types recognized by the SQLite
+         parser during table creation.
+    sqlrpc.v1.Role:
+      type: string
+      title: Role
+      enum:
+        - ROLE_UNSPECIFIED
+        - ROLE_READ_ONLY
+        - ROLE_READ_WRITE
+        - ROLE_DATABASE_MANAGER
+        - ROLE_ADMIN
+      description: |-
+        *
+         Role defines the RBAC permission tier for a platform identity.
+         Determines connection provisioning (e.g., Read-Only users receive strictly
+         read-only connections).
+    sqlrpc.v1.SqliteCode:
+      type: string
+      title: SqliteCode
+      enum:
+        - SQLITE_OK
+        - SQLITE_ERROR
+        - SQLITE_INTERNAL
+        - SQLITE_PERM
+        - SQLITE_ABORT
+        - SQLITE_BUSY
+        - SQLITE_LOCKED
+        - SQLITE_NOMEM
+        - SQLITE_READONLY
+        - SQLITE_INTERRUPT
+        - SQLITE_IOERR
+        - SQLITE_CORRUPT
+        - SQLITE_NOTFOUND
+        - SQLITE_FULL
+        - SQLITE_CANTOPEN
+        - SQLITE_PROTOCOL
+        - SQLITE_EMPTY
+        - SQLITE_SCHEMA
+        - SQLITE_TOOBIG
+        - SQLITE_CONSTRAINT
+        - SQLITE_MISMATCH
+        - SQLITE_MISUSE
+        - SQLITE_NOLFS
+        - SQLITE_AUTH
+        - SQLITE_FORMAT
+        - SQLITE_RANGE
+        - SQLITE_NOTADB
+        - SQLITE_NOTICE
+        - SQLITE_WARNING
+        - SQLITE_ROW
+        - SQLITE_DONE
+      description: |-
+        buf:lint:ignore ENUM_VALUE_PREFIX
+         buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+    sqlrpc.v1.TransactionLockMode:
+      type: string
+      title: TransactionLockMode
+      enum:
+        - TRANSACTION_LOCK_MODE_UNSPECIFIED
+        - TRANSACTION_LOCK_MODE_DEFERRED
+        - TRANSACTION_LOCK_MODE_IMMEDIATE
+        - TRANSACTION_LOCK_MODE_EXCLUSIVE
+      description: |-
+        *
+         TransactionLockMode determines the strictness of the lock acquired on the
+         underlying SQLite file when starting a transaction.
+security: []

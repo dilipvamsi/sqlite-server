@@ -17,8 +17,8 @@ import (
 	"sqlite-server/internal/auth"
 	"sqlite-server/internal/docs"
 	"sqlite-server/internal/landing"
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 	servicesv1 "sqlite-server/internal/services/v1"
 	"sqlite-server/internal/sqldrivers"
 	"sqlite-server/internal/studio"
@@ -163,13 +163,13 @@ func (s *Server) setupMux(dbServer *servicesv1.DbServer, authStore *auth.MetaSto
 	mux := http.NewServeMux()
 
 	// 1. Core Database Service (gRPC/Connect)
-	dbPath, dbHandler := dbv1connect.NewDatabaseServiceHandler(dbServer, interceptors)
+	dbPath, dbHandler := sqlrpcv1connect.NewDatabaseServiceHandler(dbServer, interceptors)
 	mux.Handle(dbPath, dbHandler)
 
 	// 2. Admin Service (gRPC/Connect) - only available when metadata store is active
 	if authStore != nil {
 		adminServer := servicesv1.NewAdminServer(authStore, dbServer, authInterceptor, s.cfg.AuthDisabled, s.version)
-		adminPath, adminHandler := dbv1connect.NewAdminServiceHandler(adminServer, interceptors)
+		adminPath, adminHandler := sqlrpcv1connect.NewAdminServiceHandler(adminServer, interceptors)
 		mux.Handle(adminPath, adminHandler)
 	}
 
@@ -197,7 +197,7 @@ func (s *Server) setupMux(dbServer *servicesv1.DbServer, authStore *auth.MetaSto
 }
 
 // setupMetadata initializes the MetaStore and performs the synchronization.
-func (s *Server) setupMetadata(cfg *Config, initialConfigs []*dbv1.DatabaseConfig) (*auth.MetaStore, []*dbv1.DatabaseConfig, error) {
+func (s *Server) setupMetadata(cfg *Config, initialConfigs []*sqlrpcv1.DatabaseConfig) (*auth.MetaStore, []*sqlrpcv1.DatabaseConfig, error) {
 	authStore, err := auth.NewMetaStore(cfg.MetaDB)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not initialize metadata store: %w", err)
@@ -235,7 +235,7 @@ func (s *Server) setupMetadata(cfg *Config, initialConfigs []*dbv1.DatabaseConfi
 	if err == nil {
 		for _, sc := range storedConfigs {
 			if !syncedNames[sc.Name] {
-				var dbCfg dbv1.DatabaseConfig
+				var dbCfg sqlrpcv1.DatabaseConfig
 				if err := protojson.Unmarshal([]byte(sc.Settings), &dbCfg); err == nil {
 					dbCfg.Name = sc.Name
 					dbCfg.DbPath = sc.Path
@@ -254,8 +254,8 @@ func (s *Server) setupMetadata(cfg *Config, initialConfigs []*dbv1.DatabaseConfi
 }
 
 // loadInitialConfigs attempts to load database configurations from a JSON mounts file.
-func (s *Server) loadInitialConfigs(mountsFile string) []*dbv1.DatabaseConfig {
-	var initialConfigs []*dbv1.DatabaseConfig
+func (s *Server) loadInitialConfigs(mountsFile string) []*sqlrpcv1.DatabaseConfig {
+	var initialConfigs []*sqlrpcv1.DatabaseConfig
 	if mountsFile == "" {
 		return initialConfigs
 	}
@@ -272,7 +272,7 @@ func (s *Server) loadInitialConfigs(mountsFile string) []*dbv1.DatabaseConfig {
 }
 
 // validateMountConnectivity performs a transient test connection.
-func (s *Server) validateMountConnectivity(cfg *dbv1.DatabaseConfig) error {
+func (s *Server) validateMountConnectivity(cfg *sqlrpcv1.DatabaseConfig) error {
 	db, err := sqldrivers.NewSqliteDb(cfg, false)
 	if err != nil {
 		return fmt.Errorf("failed to open: %w", err)

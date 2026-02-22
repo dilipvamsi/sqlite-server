@@ -9,6 +9,7 @@
         "test-noauth": "node --test tests/client.test.js",
         "test-auth": "node --test tests/client.apikey.test.js",
         "test-basic": "node --test tests/client.basic.test.js",
+        "test-coverage": "node --test --experimental-test-coverage tests/client.basic.test.js",
         "lint": "eslint ."
     },
     "devDependencies": {

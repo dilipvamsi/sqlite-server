@@ -1,7 +1,7 @@
 const { DatabaseClient } = require('../src');
 const { runFunctionalTests } = require('./functional_suite');
 
-const SERVER_URL = "http://localhost:50051";
+const SERVER_URL = "http://localhost:50173";
 const DB_NAME = "loadtest";
 
 runFunctionalTests(async () => {

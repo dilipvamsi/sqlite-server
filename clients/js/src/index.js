@@ -6,13 +6,13 @@
 const DatabaseClient = require('./lib/DatabaseClient');
 const TransactionHandle = require('./lib/TransactionHandle');
 const {
-  TransactionMode,
   SavepointAction,
   ColumnAffinity,
   DeclaredType,
   SqliteCode,
   TransactionType,
   CheckpointMode,
+  TransactionLockMode,
 } = require("./lib/constants");
 const { toObject } = require('./lib/utils');
 const SQL = require('sql-template-strings');
@@ -74,11 +74,6 @@ module.exports = {
    */
   SQL,
 
-  /**
-   * Enums for transaction locking modes.
-   * @type {object}
-   */
-  TransactionMode,
 
   /**
    * Enums for savepoint actions.
@@ -115,4 +110,10 @@ module.exports = {
    * @type {object}
    */
   CheckpointMode,
+
+  /**
+   * Enums for Transaction locking modes (STRICT).
+   * @type {object}
+   */
+  TransactionLockMode,
 };

@@ -347,7 +347,8 @@ import Header from "../components/Header.astro";
             AUTH_USER,
             getAuthToken,
         } from "../lib/client";
-        import { AdminService, type User } from "../gen/db/v1/db_service_pb";
+        import { AdminService } from "../gen/sqlrpc/v1/admin_service_pb";
+        import type { User } from "../gen/sqlrpc/v1/types_pb";
 
         const userRole = parseInt(localStorage.getItem("userRole") || "0");
         const username = localStorage.getItem(AUTH_USER);

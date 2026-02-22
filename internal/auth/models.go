@@ -3,14 +3,14 @@ package auth
 import (
 	"time"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 type User struct {
 	ID           int64     `json:"id"`
 	Username     string    `json:"username"`
 	PasswordHash string    `json:"-"` // Never export hash
-	Role         dbv1.Role `json:"role"`
+	Role         sqlrpcv1.Role `json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

@@ -1,0 +1,585 @@
+syntax = "proto3";
+
+package sqlrpc.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "sqlrpc/v1/enums.proto";
+import "sqlrpc/v1/types.proto";
+
+option go_package = "sqlite-server/internal/protos/sqlrpc/v1;sqlrpcv1";
+
+// =============================================================================
+// ADMIN SERVICE DEFINITION
+// =============================================================================
+/**
+ * AdminService provides the control plane for the platform.
+ * It manages the lifecycle of tenant databases, user identities, and API keys.
+ */
+service AdminService {
+  // --- User & Role Management ---
+
+  /**
+   * User Management: List.
+   * Returns all system users and their assigned roles.
+   */
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
+  /**
+   * User Management: Create.
+   * Provisions a new user identity in the platform.
+   */
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+
+  /**
+   * User Management: Update Role.
+   * Modifies the RBAC tier for an existing user.
+   */
+  rpc UpdateUserRole(UpdateUserRoleRequest) returns (UpdateUserRoleResponse);
+
+  /**
+   * User Management: Delete.
+   * Permanently removes a user and invalidates all their associated API keys.
+   */
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+  // --- API Key Management ---
+
+  /**
+   * API Key Management: List.
+   * Returns all active API keys for a specific user.
+   */
+  rpc ListAPIKeys(ListAPIKeysRequest) returns (ListAPIKeysResponse);
+
+  /**
+   * API Key Management: Create.
+   * Provisions a new secure API key for authentication.
+   */
+  rpc CreateAPIKey(CreateAPIKeyRequest) returns (CreateAPIKeyResponse);
+
+  /**
+   * API Key Management: Delete.
+   * Revokes a specific API key immediately.
+   */
+  rpc DeleteAPIKey(DeleteAPIKeyRequest) returns (DeleteAPIKeyResponse);
+
+  // --- Database Control Plane ---
+
+  /**
+   * Database Lifecycle: List.
+   * Returns all managed tenant databases in the platform.
+   */
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  /**
+   * Database Lifecycle: Create.
+   * Provisions a new, isolated SQLite database for a tenant.
+   */
+  rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+
+  /**
+   * Database Lifecycle: Update.
+   * Modifies non-destructive configuration for an existing tenant.
+   */
+  rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
+
+  /**
+   * Database Lifecycle: Delete.
+   * Permanently removes the database file and its tenant registration.
+   */
+  rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
+
+  /**
+   * Database Lifecycle: Mount existing.
+   * Registers and attaches an existing SQLite file into the platform.
+   */
+  rpc MountDatabase(MountDatabaseRequest) returns (MountDatabaseResponse);
+
+  /**
+   * Database Lifecycle: Unmount.
+   * Gently removes an active database from the platform without deleting the
+   * file.
+   */
+  rpc UnMountDatabase(UnMountDatabaseRequest) returns (UnMountDatabaseResponse);
+
+  // --- Platform Utilities ---
+
+  /**
+   * Platform Info.
+   * Returns global system metadata, versioning, and status.
+   */
+  rpc GetServerInfo(GetServerInfoRequest) returns (ServerInfo);
+
+  /**
+   * Authentication: Login.
+   * Authenticates credentials and yields a session token/API key.
+   */
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  /**
+   * Authentication: Logout.
+   * Terminates the active session.
+   */
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  /**
+   * User Management: Update Password.
+   * Enables a user to modify their own credential or an admin to reset it.
+   */
+  rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
+}
+
+// =============================================================================
+// USER MANAGEMENT MESSAGES
+// =============================================================================
+/**
+ * Unary request to retrieve the full list of platform users.
+ */
+message ListUsersRequest {}
+
+/**
+ * Result containing the catalog of system users.
+ */
+message ListUsersResponse {
+  // Collection of system users and their roles.
+  repeated User users = 1;
+}
+
+/**
+ * Payload to provision a new user identity.
+ */
+message CreateUserRequest {
+  // Unique system-wide username.
+  string username = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Initial RBAC tier.
+  Role role = 2 [ (buf.validate.field).enum.defined_only = true ];
+
+  // Secure password.
+  string password = 3 [ (buf.validate.field).string.min_len = 8 ];
+}
+
+/**
+ * Confirmation of successful user creation.
+ */
+message CreateUserResponse {
+  // Database internal identifier for the user.
+  int64 user_id = 1;
+
+  // Final processed username.
+  string username = 2;
+
+  // Timestamp of record creation.
+  google.protobuf.Timestamp created_at = 3;
+}
+
+/**
+ * Payload to modify a user's permissions.
+ */
+message UpdateUserRoleRequest {
+  // Target username to modify.
+  string username = 1
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // New RBAC tier to assign.
+  Role role = 2 [ (buf.validate.field).enum.defined_only = true ];
+}
+
+/**
+ * Confirmation of user role modification.
+ */
+message UpdateUserRoleResponse {
+  // True if the update was persists successfully.
+  bool success = 1;
+}
+
+/**
+ * Unary request to decommission a user identity.
+ */
+message DeleteUserRequest {
+  // Target username to remove.
+  string username = 1
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+/**
+ * Confirms the successful removal of the user identity.
+ */
+message DeleteUserResponse {
+  // True if the user was deleted successfully.
+  bool success = 1;
+}
+
+/**
+ * Payload to modify a user's credential.
+ */
+message UpdatePasswordRequest {
+  // Target username to modify.
+  string username = 1;
+
+  // New secure password.
+  string new_password = 2 [ (buf.validate.field).string.min_len = 8 ];
+}
+
+/**
+ * Confirmation of password update.
+ */
+message UpdatePasswordResponse {
+  // True if the update was persists successfully.
+  bool success = 1;
+}
+
+// =============================================================================
+// API KEY MANAGEMENT MESSAGES
+// =============================================================================
+/**
+ * Request to list active keys for a specific identity.
+ */
+message ListAPIKeysRequest {
+  // Target username whose keys should be retrieved.
+  string username = 1
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+/**
+ * Catalog of active API keys and their metadata.
+ */
+message ListAPIKeysResponse {
+  // Collection of active keys for the target user.
+  repeated APIKey keys = 1;
+}
+
+/**
+ * Metadata describing an active authentication key.
+ */
+message APIKey {
+  // Unique key identifier (prefix-based, e.g. ak_...).
+  string id = 1;
+
+  // Masked representation for identification (e.g. sk_...1234).
+  string key_preview = 2;
+
+  // Descriptive label for the key's purpose.
+  string name = 3;
+
+  // Timestamp when the key was provisioned.
+  google.protobuf.Timestamp created_at = 4;
+
+  // Optional expiration timestamp. Returns null if the key never expires.
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+/**
+ * Payload to provision a new authentication credential.
+ */
+message CreateAPIKeyRequest {
+  // Target username for the key.
+  string username = 1
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Descriptive label for the key.
+  string name = 2 [ (buf.validate.field).string = {min_len : 1 max_len : 128} ];
+
+  // Optional expiration timestamp.
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+/**
+ * Contains the plaintext API key (only yielded once upon creation).
+ */
+message CreateAPIKeyResponse {
+  // The actual secure credential string.
+  string api_key = 1;
+
+  // Unique key ID.
+  string key_id = 2;
+
+  // Metadata for the provisioned key.
+  APIKey metadata = 3;
+}
+
+/**
+ * Unary request to revoke an active credential.
+ */
+message DeleteAPIKeyRequest {
+  // Target username for the revocation.
+  string username = 1;
+
+  // Fully qualified key ID to revoke.
+  string key_id = 2 [ (buf.validate.field).string.min_len = 1 ];
+}
+
+/**
+ * Confirms the successful revocation of the API key.
+ */
+message DeleteAPIKeyResponse {
+  // True if the key was revoked successfully.
+  bool success = 1;
+}
+
+// =============================================================================
+// DATABASE CONTROL PLANE MESSAGES
+// =============================================================================
+/**
+ * Unary request to retrieve the full catalog of tenant databases.
+ */
+message ListDatabasesRequest {}
+
+/**
+ * Catalog of databases managed by the platform.
+ */
+message ListDatabasesResponse {
+  // Collection of discovered tenant databases.
+  repeated DatabaseInfo databases = 1;
+}
+
+/**
+ * Payload to create a new managed database.
+ */
+message CreateDatabaseRequest {
+  // Unique name for the database.
+  string name = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Enable encryption (SQLCipher) if true.
+  bool is_encrypted = 2;
+
+  // Encryption key for SQLCipher.
+  string key = 3;
+
+  // List of extensions to preload.
+  repeated string extensions = 4;
+
+  // Map of PRAGMAs to apply.
+  map<string, string> pragmas = 5;
+
+  // Limit for concurrent connections.
+  int32 max_open_conns = 6;
+
+  // Limit for idle connections.
+  int32 max_idle_conns = 7;
+
+  // Connection lifetime in milliseconds.
+  int32 conn_max_lifetime_ms = 8;
+}
+
+/**
+ * Confirmation of database creation.
+ */
+message CreateDatabaseResponse {
+  // True if the creation succeeded.
+  bool success = 1;
+
+  // Success or error message.
+  string message = 2;
+}
+
+/**
+ * Payload to update a tenant's runtime configuration.
+ */
+message UpdateDatabaseRequest {
+  // Tenant name to modify.
+  string name = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Partial configuration updates.
+  UpdateDatabaseConfig config = 2 [ (buf.validate.field).required = true ];
+}
+
+/**
+ * Confirmation of database update.
+ */
+message UpdateDatabaseResponse {
+  // True if the update was persists successfully.
+  bool success = 1;
+
+  // Success or error message.
+  string message = 2;
+}
+
+/**
+ * Command to decommission a tenant database and wipe its data.
+ */
+message DeleteDatabaseRequest {
+  // Tenant name to remove.
+  string name = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+/**
+ * Confirms the successful destruction of the database.
+ */
+message DeleteDatabaseResponse {
+  // True if the deletion succeeded.
+  bool success = 1;
+
+  // Success or error message.
+  string message = 2;
+}
+
+/**
+ * Payload to register an existing SQLite file into the platform.
+ */
+message MountDatabaseRequest {
+  // Unique name to assign to the mounted database.
+  string name = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Absolute physical path to the SQLite source file on the server.
+  string path = 2 [ (buf.validate.field).string.min_len = 1 ];
+
+  // Mount as read-only if true.
+  bool read_only = 3;
+
+  // Enable encryption (SQLCipher) if true.
+  bool is_encrypted = 4;
+
+  // Encryption key for SQLCipher.
+  string key = 5;
+
+  // List of extensions to preload.
+  repeated string extensions = 6;
+
+  // Map of PRAGMAs to apply.
+  map<string, string> pragmas = 7;
+
+  // Limit for concurrent connections.
+  int32 max_open_conns = 8;
+
+  // Limit for idle connections.
+  int32 max_idle_conns = 9;
+
+  // Connection lifetime in milliseconds.
+  int32 conn_max_lifetime_ms = 10;
+}
+
+/**
+ * Confirmation of database mounting.
+ */
+message MountDatabaseResponse {
+  // True if the mounting succeeded.
+  bool success = 1;
+
+  // Success or error message.
+  string message = 2;
+}
+
+/**
+ * Command to remove a database registration without wiping data.
+ */
+message UnMountDatabaseRequest {
+  // Tenant name to unmount.
+  string name = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+/**
+ * Confirms the successful unmounting of the database.
+ */
+message UnMountDatabaseResponse {
+  // True if the unmounting succeeded.
+  bool success = 1;
+
+  // Success or error message.
+  string message = 2;
+}
+
+// =============================================================================
+// PLATFORM UTILITY MESSAGES
+// =============================================================================
+/**
+ * Unary request for server metadata.
+ */
+message GetServerInfoRequest {}
+
+/**
+ * Result containing server metadata.
+ */
+message ServerInfo {
+  // Server version string.
+  string version = 1;
+
+  // Current server wall-clock time.
+  google.protobuf.Timestamp server_time = 2;
+
+  // Platform architecture (e.g. linux/amd64).
+  string architecture = 3;
+
+  // Go runtime version.
+  string go_version = 4;
+
+  // Underlying SQLite engine version.
+  string sqlite_version = 5;
+
+  // Total count of registered tenants.
+  int32 database_count = 6;
+
+  // Server uptime in seconds.
+  int64 uptime_seconds = 7;
+
+  // True if the server is running without authentication.
+  bool auth_disabled = 8;
+}
+
+/**
+ * Payload for credential-based authentication.
+ */
+message LoginRequest {
+  // System-wide username.
+  string username = 1 [ (buf.validate.field).string.min_len = 1 ];
+
+  // Plaintext password.
+  string password = 2 [ (buf.validate.field).string.min_len = 1 ];
+
+  // Optional requested session duration.
+  google.protobuf.Duration session_duration = 3;
+}
+
+/**
+ * Authentication result containing the secure session token.
+ */
+message LoginResponse {
+  // The temporary API key/token for subsequent requests.
+  string api_key = 1;
+
+  // Final processed username.
+  string key_id = 2;
+
+  // Timestamp when the session key expires.
+  google.protobuf.Timestamp expires_at = 3;
+
+  // User metadata for the authenticated identity.
+  User user = 4;
+}
+
+/**
+ * Request to invalidate an active session.
+ */
+message LogoutRequest {
+  // Username of the session.
+  string username = 1;
+
+  // Key ID or token to invalidate.
+  string key_id = 2;
+}
+
+/**
+ * Confirms the successful session termination.
+ */
+message LogoutResponse {
+  // True if the session was terminated successfully.
+  bool success = 1;
+}

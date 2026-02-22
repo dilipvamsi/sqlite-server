@@ -659,7 +659,7 @@
                     </div>
                     <div class="code-content">
                         <pre><span class="comment"># Simple Query</span>
-curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService/Query</span> \
+curl -X POST <span class="endpoint">http://localhost:50173/sqlrpc.v1.DatabaseService/Query</span> \
   -H <span class="string">"Content-Type: application/json"</span> \
   -H <span class="string">"Authorization: Bearer YOUR_API_KEY"</span> \
   -d <span class="string">'{
@@ -668,7 +668,7 @@ curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService
   }'</span>
 
 <span class="comment"># Begin Transaction</span>
-curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService/BeginTransaction</span> \
+curl -X POST <span class="endpoint">http://localhost:50173/sqlrpc.v1.DatabaseService/BeginTransaction</span> \
   -H <span class="string">"Content-Type: application/json"</span> \
   -H <span class="string">"Authorization: Bearer YOUR_API_KEY"</span> \
   -d <span class="string">'{"database": "primary", "timeout": "30s"}'</span></pre>
@@ -686,73 +686,129 @@ curl -X POST <span class="endpoint">http://localhost:50051/db.v1.DatabaseService
                 <div class="endpoint-list">
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/Query</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/Query</span>
                         <span class="endpoint-desc">Execute a simple query</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method stream">STREAM</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/QueryStream</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/QueryStream</span>
                         <span class="endpoint-desc">Stream large result sets</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/BeginTransaction</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/BeginTransaction</span>
                         <span class="endpoint-desc">Start a new transaction</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/TransactionQuery</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/Exec</span>
                         <span class="endpoint-desc">Execute query within transaction</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/CommitTransaction</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/CommitTransaction</span>
                         <span class="endpoint-desc">Commit the transaction</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/RollbackTransaction</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/RollbackTransaction</span>
                         <span class="endpoint-desc">Rollback the transaction</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method stream">STREAM</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/InteractiveTransaction</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/StreamExec</span>
                         <span class="endpoint-desc">Bidirectional streaming transaction</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/ExecuteTransaction</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/ExecuteTransaction</span>
                         <span class="endpoint-desc">Execute atomic transaction script</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/GetDatabaseSchema</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/GetDatabaseSchema</span>
                         <span class="endpoint-desc">Get full database schema</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/Explain</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/Explain</span>
                         <span class="endpoint-desc">Explain query plan</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/ListExtensions</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/ListExtensions</span>
                         <span class="endpoint-desc">List available SQLite extensions</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/LoadExtension</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/LoadExtension</span>
                         <span class="endpoint-desc">Load a managed extension</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.DatabaseService/Vacuum</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/Vacuum</span>
                         <span class="endpoint-desc">Run VACUUM command</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="endpoints-section" id="admin-api">
+            <div class="container">
+                <div class="section-header">
+                    <h2>Admin & Control Plane</h2>
+                    <p>System management and tenant provisioning endpoints</p>
+                </div>
+                <div class="endpoint-list">
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/Login</span>
+                        <span class="endpoint-desc">Authenticate and get API key</span>
                     </div>
                     <div class="endpoint-item">
                         <span class="method post">POST</span>
-                        <span class="endpoint-path">/db.v1.AdminService/Login</span>
-                        <span class="endpoint-desc">Authenticate and get API key</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/ListDatabases</span>
+                        <span class="endpoint-desc">List all managed database tenants</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/CreateDatabase</span>
+                        <span class="endpoint-desc">Provision a new isolated database</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/MountDatabase</span>
+                        <span class="endpoint-desc">Mount an existing SQLite file</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/UnMountDatabase</span>
+                        <span class="endpoint-desc">Gracefully unmount a database</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/DeleteDatabase</span>
+                        <span class="endpoint-desc">Permanently remove a database tenant</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/ListUsers</span>
+                        <span class="endpoint-desc">List all system users and roles</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/CreateUser</span>
+                        <span class="endpoint-desc">Provision a new user identity</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/GetServerInfo</span>
+                        <span class="endpoint-desc">Retrieve global server metadata</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.AdminService/Logout</span>
+                        <span class="endpoint-desc">Invalidate active session</span>
                     </div>
                 </div>
             </div>

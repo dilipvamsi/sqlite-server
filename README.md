@@ -87,7 +87,7 @@ A built-in web-based UI for database management:
 *   **Transaction Console:** Step-by-step interactive transactions with savepoint support.
 *   **Database Management:** Create, mount, unmount, and delete databases through the UI.
 
-Access the Studio at `http://localhost:50051/studio/`
+Access the Studio at `http://localhost:50173/studio/`
 
 ### 2. Authentication & Authorization
 Secure your server with built-in authentication:
@@ -274,14 +274,15 @@ make run-load-test-auth-dev
 SQLITE_SERVER_AUTH_ENABLED=false make run
 ```
 
-The server listens on `localhost:50051` using HTTP/2 (h2c).
+The server listens on `localhost:50173` using HTTP/2 (h2c).
 
+> **Why Port 50173?** Port numbers can go up to 65535. If you squint, **50173** looks a lot like **SQI7E** in leetspeak! It's a unique and memorable port exclusively for `sqlite-server`.
 ### 4. Configuration Reference
 You can configure the server via CLI flags or Environment Variables:
 
 | Flag | Env Var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--port` | `SQLITE_SERVER_PORT` | `50051` | Port to listen on. |
+| `--port` | `SQLITE_SERVER_PORT` | `50173` | Port to listen on. |
 | `--host` | `SQLITE_SERVER_HOST` | `localhost` | Host to bind to. |
 | `--mounts` | `SQLITE_SERVER_MOUNTS` | `""` | Path to JSON mounts file. |
 | `--auth-disabled` | `SQLITE_SERVER_AUTH_ENABLED` | `true` | Set to `false` to disable auth. |
@@ -292,10 +293,10 @@ You can configure the server via CLI flags or Environment Variables:
 ### 5. Access Points
 | Endpoint | Description |
 | :--- | :--- |
-| `http://localhost:50051/` | Landing page with server overview |
-| `http://localhost:50051/docs/` | Interactive OpenAPI documentation |
-| `http://localhost:50051/studio/` | Web-based database management UI |
-| `http://localhost:50051/db.v1.*` | gRPC/Connect API endpoints |
+| `http://localhost:50173/` | Landing page with server overview |
+| `http://localhost:50173/docs/` | Interactive OpenAPI documentation |
+| `http://localhost:50173/studio/` | Web-based database management UI |
+| `http://localhost:50173/sqlrpc.v1.*` | gRPC/Connect API endpoints |
 
 ---
 
@@ -311,7 +312,7 @@ Authentication is enabled by default. On first run, a default admin user is crea
 
 ### Login via API
 ```bash
-curl -X POST http://localhost:50051/db.v1.AdminService/Login \
+curl -X POST http://localhost:50173/sqlrpc.v1.AdminService/Login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "<password>"}'
 ```
@@ -329,7 +330,7 @@ Response:
 ### Using API Keys
 Include the API key in requests:
 ```bash
-curl -X POST http://localhost:50051/db.v1.DatabaseService/Query \
+curl -X POST http://localhost:50173/sqlrpc.v1.DatabaseService/Query \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer sk_019488b2..." \
   -d '{"database": "primary", "sql": "SELECT 1"}'
@@ -344,7 +345,7 @@ The API supports **Connect**, **gRPC**, and **gRPC-Web**. You can also use stand
 ### 1. Stateless Query (Unary)
 *Best for: Simple point-lookups.*
 
-**POST** `/db.v1.DatabaseService/Query`
+**POST** `/sqlrpc.v1.DatabaseService/Query`
 ```json
 {
   "database": "primary",
@@ -358,7 +359,7 @@ The API supports **Connect**, **gRPC**, and **gRPC-Web**. You can also use stand
 ### 2. Streaming Query (Server Stream)
 *Best for: Large datasets, exports.*
 
-**POST** `/db.v1.DatabaseService/QueryStream`
+**POST** `/sqlrpc.v1.DatabaseService/QueryStream`
 ```json
 {
   "database": "primary",
@@ -374,14 +375,14 @@ The API supports **Connect**, **gRPC**, and **gRPC-Web**. You can also use stand
 *Best for: HTTP Clients, Logic spanning multiple requests.*
 
 **Step A: Begin**
-**POST** `/db.v1.DatabaseService/BeginTransaction`
+**POST** `/sqlrpc.v1.DatabaseService/BeginTransaction`
 ```json
 { "database": "primary", "timeout": "30s", "mode": "TRANSACTION_MODE_IMMEDIATE" }
 ```
 *Response:* `{ "transaction_id": "018c..." }`
 
 **Step B: Execute**
-**POST** `/db.v1.DatabaseService/TransactionQuery`
+**POST** `/sqlrpc.v1.DatabaseService/Exec`
 ```json
 {
   "transaction_id": "018c...",
@@ -391,7 +392,7 @@ The API supports **Connect**, **gRPC**, and **gRPC-Web**. You can also use stand
 ```
 
 **Step C: Commit**
-**POST** `/db.v1.DatabaseService/CommitTransaction`
+**POST** `/sqlrpc.v1.DatabaseService/CommitTransaction`
 ```json
 { "transaction_id": "018c..." }
 ```
@@ -399,7 +400,7 @@ The API supports **Connect**, **gRPC**, and **gRPC-Web**. You can also use stand
 ### 4. Atomic Transaction Script
 *Best for: Batch operations with automatic rollback on failure.*
 
-**POST** `/db.v1.DatabaseService/ExecuteTransaction`
+**POST** `/sqlrpc.v1.DatabaseService/ExecuteTransaction`
 ```json
 {
   "database": "primary",
@@ -424,7 +425,7 @@ This requires a gRPC or Connect client that supports bidirectional streaming.
 ### 6. Explain Query Plan
 *Best for: Performance debugging.*
 
-**POST** `/db.v1.DatabaseService/Explain`
+**POST** `/sqlrpc.v1.DatabaseService/Explain`
 ```json
 {
   "database": "primary",
@@ -437,7 +438,7 @@ This requires a gRPC or Connect client that supports bidirectional streaming.
 ### 7. Maintenance (Vacuum)
 *Best for: optimizing storage.*
 
-**POST** `/db.v1.DatabaseService/Vacuum`
+**POST** `/sqlrpc.v1.DatabaseService/Vacuum`
 ```json
 { "database": "primary" }
 ```
@@ -504,11 +505,11 @@ make extensions-mview
 Once extensions are in the managed directory, you can load them dynamically into any active database:
 
 **Step A: List Extensions**
-**POST** `/db.v1.DatabaseService/ListExtensions`
+**POST** `/sqlrpc.v1.DatabaseService/ListExtensions`
 *Returns all extensions compatible with the host OS/Arch.*
 
 **Step B: Load Extension**
-**POST** `/db.v1.DatabaseService/LoadExtension`
+**POST** `/sqlrpc.v1.DatabaseService/LoadExtension`
 ```json
 {
   "database": "primary",
@@ -533,7 +534,7 @@ The built-in Studio provides a web interface for database management:
 *   **Dark Theme:** Modern, eye-friendly interface
 
 ### Screenshots
-Access the Studio at `http://localhost:50051/studio/` after logging in.
+Access the Studio at `http://localhost:50173/studio/` after logging in.
 
 ---
 
@@ -599,7 +600,7 @@ Errors are returned with detailed metadata.
   "message": "no such table: missing_table",
   "details": [
     {
-      "@type": "type.googleapis.com/db.v1.ErrorResponse",
+      "@type": "type.googleapis.com/sqlrpc.v1.ErrorResponse",
       "message": "no such table: missing_table",
       "failed_sql": "SELECT * FROM missing_table",
       "sqlite_error_code": "SQLITE_CODE_ERROR"

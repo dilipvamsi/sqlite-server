@@ -16,7 +16,7 @@ import Header from "../components/Header.astro";
 
     <script>
         import { getClient, getAuthHeaders } from "../lib/client";
-        import { DatabaseService } from "../gen/db/v1/db_service_pb";
+        import { DatabaseService } from "../gen/sqlrpc/v1/db_service_pb";
 
         const urlParams = new URLSearchParams(window.location.search);
         const dbName = urlParams.get("db");

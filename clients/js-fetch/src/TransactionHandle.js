@@ -39,41 +39,65 @@ class TransactionHandle {
 
         // Check for not found (expired tx)
         if (!res.ok) {
-            // Handled by _fetch mostly, but double check
             throw new Error(`Transaction Query Failed: ${res.statusText}`);
         }
 
         const json = await res.json();
+        const data = json.queryResult || json.select || json;
 
-        // The result from TransactionQuery is a QueryResult
-        // Which might be SELECT or DML
-        // JSON response from Connect looks like: { select: { columns: [], rows: [], columnTypes: [] } }
-        // or { dml: { rowsAffected: "1", lastInsertId: "123" } }
-
-        if (json.select) {
-            const { columns, rows, columnAffinities, columnDeclaredTypes, columnRawTypes } = json.select;
+        if (data.columns && data.columns.length > 0) {
+            const { columns, rows, columnAffinities, columnDeclaredTypes, columnRawTypes } = data;
             const affinities = normalizeColumnAffinities(columnAffinities || []);
             const declaredTypes = normalizeDeclaredTypes(columnDeclaredTypes || []);
             return {
-                type: 'SELECT',
                 columns: columns || [],
                 columnAffinities: affinities,
                 columnDeclaredTypes: declaredTypes,
                 columnRawTypes: columnRawTypes || [],
-                rows: (rows || []).map(r => hydrateRow(r, affinities, declaredTypes, this.config.typeParsers))
-            };
-        } else if (json.dml) {
-            return {
-                type: 'DML',
-                columns: [],
-                rows: [],
-                rowsAffected: Number(json.dml.rowsAffected || 0),
-                lastInsertId: Number(json.dml.lastInsertId || 0)
+                rows: (rows || []).map(r => {
+                    const row = (r && typeof r === 'object' && !Array.isArray(r) && r.values) ? r.values : r;
+                    return hydrateRow(row, affinities, declaredTypes, this.client.config.typeParsers)
+                }),
+                stats: json.stats || data.stats
             };
         }
 
-        // Empty/Unknown
-        return { type: 'UNKNOWN', rows: [] };
+        return { columns: [], columnAffinities: [], columnDeclaredTypes: [], columnRawTypes: [], rows: [] };
+    }
+
+    /**
+     * Executes a DML statement within this transaction context.
+     * @param {string|object} sqlOrObj - SQL string or object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<{rowsAffected: number, lastInsertId: number}>}
+     */
+    async exec(sqlOrObj, paramsOrHints, hintsOrNull) {
+        if (this.isFinalized) throw new Error("Transaction is already finalized.");
+
+        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+
+        const body = {
+            transactionId: this.txId,
+            sql: sql,
+            parameters: toParams(positional, named, hints)
+        };
+
+        const res = await this.client._fetch(RPC.TRANSACTION_EXEC, body);
+        if (!res.ok) {
+            throw new Error(`Transaction Exec Failed: ${res.statusText}`);
+        }
+
+        const json = await res.json();
+        const dml = json.dml || {};
+
+        return {
+            dml: {
+                rowsAffected: Number(dml.rowsAffected || 0),
+                lastInsertId: Number(dml.lastInsertId || 0)
+            },
+            stats: json.stats || {}
+        };
     }
 
     /**
@@ -153,15 +177,17 @@ class TransactionHandle {
         const typeParsers = this.config.typeParsers;
 
         // Yield batches
+        const self = this;
         const rowIterator = async function* () {
             for await (const msg of iterator) {
                 if (msg.error) {
                     throw new Error(msg.error.message);
                 }
                 if (msg.batch) {
-                    const rows = (msg.batch.rows || []).map(r =>
-                        hydrateRow(r, columnAffinities, columnDeclaredTypes, typeParsers)
-                    );
+                    const rows = (msg.batch.rows || []).map(r => {
+                        const row = (r && typeof r === 'object' && !Array.isArray(r) && r.values) ? r.values : r;
+                        return hydrateRow(row, columnAffinities, columnDeclaredTypes, self.client.config.typeParsers);
+                    });
                     yield rows;
                 }
             }

@@ -10,6 +10,7 @@
     "test-noauth": "node --expose-gc node_modules/.bin/jest --detectOpenHandles tests/client.test.js",
     "test-auth": "node --expose-gc node_modules/.bin/jest --detectOpenHandles tests/client.apikey.test.js",
     "test-basic": "node --expose-gc node_modules/.bin/jest --detectOpenHandles tests/client.basic.test.js",
+    "test-coverage": "node --expose-gc node_modules/.bin/jest --forceExit --coverage tests/client.basic.test.js",
     "lint": "eslint ."
   },
   "dependencies": {

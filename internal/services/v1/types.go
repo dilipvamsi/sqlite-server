@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 	"sync"
 	"time"
 )
@@ -50,7 +50,7 @@ type DbServer struct {
 	// UnimplementedDatabaseServiceHandler is embedded for forward compatibility.
 	// If the .proto definition changes (e.g., a new method is added), this struct
 	// ensures the server code still compiles, returning "Unimplemented" by default.
-	dbv1connect.UnimplementedDatabaseServiceHandler
+	sqlrpcv1connect.UnimplementedDatabaseServiceHandler
 
 	// dbManager handles connection lifecycle, lazy loading, and LRU eviction.
 	dbManager *DbManager
@@ -78,17 +78,17 @@ type DbServer struct {
 //	  2. `Transaction` (BidiStream)
 //	  3. Mocks (Unit Tests)
 type StreamWriter interface {
-	SendHeader(*dbv1.QueryResultHeader) error
-	SendRowBatch(*dbv1.QueryResultRowBatch) error
-	SendDMLResult(*dbv1.DMLResult) error
-	SendComplete(*dbv1.ExecutionStats) error
+	SendHeader(*sqlrpcv1.QueryResultHeader) error
+	SendRowBatch(*sqlrpcv1.QueryResultRowBatch) error
+	SendDMLResult(*sqlrpcv1.ExecResponse) error
+	SendComplete(*sqlrpcv1.ExecutionStats) error
 }
 
 // TypedStreamWriter is the typed variant of StreamWriter.
 // It uses SqlValue/SqlRow instead of ListValue for better type safety and wire efficiency.
 type TypedStreamWriter interface {
-	SendHeader(*dbv1.TypedQueryResultHeader) error
-	SendRowBatch(*dbv1.TypedQueryResultRowBatch) error
-	SendDMLResult(*dbv1.DMLResult) error
-	SendComplete(*dbv1.ExecutionStats) error
+	SendHeader(*sqlrpcv1.TypedQueryResultHeader) error
+	SendRowBatch(*sqlrpcv1.TypedQueryResultRowBatch) error
+	SendDMLResult(*sqlrpcv1.ExecResponse) error
+	SendComplete(*sqlrpcv1.ExecutionStats) error
 }

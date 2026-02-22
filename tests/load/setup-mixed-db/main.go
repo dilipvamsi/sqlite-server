@@ -6,7 +6,7 @@ import (
 	"os"
 	"sqlite-server/internal/sqldrivers"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 const (
@@ -20,15 +20,15 @@ func main() {
 	// Parse the command-line arguments.
 	flag.Parse()
 
-	var config *dbv1.DatabaseConfig
+	var config *sqlrpcv1.DatabaseConfig
 	if *enableCipher {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:        "loadtest-mixed-cipher",
 			DbPath:      "./data-test/loadtest-mixed-cipher.db",
 			IsEncrypted: true,
 		}
 	} else {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:   "loadtest",
 			DbPath: "./data-test/loadtest-mixed.db",
 		}

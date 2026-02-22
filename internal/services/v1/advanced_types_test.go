@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
@@ -60,18 +60,18 @@ func TestResolveAdvancedColumnTypes(t *testing.T) {
 	// Columns: id, meta, config, is_active, created_at, description, flag, ratio
 
 	// ID: UUID
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[0]) // Stored as Text
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_UUID, declaredTypes[0])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[0]) // Stored as Text
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_UUID, declaredTypes[0])
 	assert.Equal(t, "UUID", rawTypes[0])
 
 	// Meta: JSON
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[1]) // Stored as Text
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_JSON, declaredTypes[1])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[1]) // Stored as Text
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_JSON, declaredTypes[1])
 	assert.Equal(t, "JSON", rawTypes[1])
 
 	// Config: XML
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[2])
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_XML, declaredTypes[2])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[2])
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_XML, declaredTypes[2])
 	assert.Equal(t, "XML", rawTypes[2])
 
 	// Is_Active: BOOLEAN
@@ -81,33 +81,33 @@ func TestResolveAdvancedColumnTypes(t *testing.T) {
 	// In our code:
 	// case "BOOL": -> DeclaredType_BOOLEAN
 	// Affinity: default -> NUMERIC.
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC, affinities[3])
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_BOOLEAN, declaredTypes[3])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC, affinities[3])
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_BOOLEAN, declaredTypes[3])
 
 	// Created_At: DATETIME
 	// Affinity: default or NUMERIC?
 	// Our code checks "TIME" -> DeclaredType_DATETIME / TIME / TIMESTAMP
 	// But Affinity loop:
 	// case "DATE", "TIME" -> TEXT (via special override in resolveColumnTypes)
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[4])
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_DATETIME, declaredTypes[4])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[4])
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_DATETIME, declaredTypes[4])
 
 	// Description: VARCHAR(255)
 	// Affinity: TEXT
 	// Declared: VARCHAR
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[5])
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_VARCHAR, declaredTypes[5])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT, affinities[5])
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_VARCHAR, declaredTypes[5])
 	assert.Equal(t, "VARCHAR(255)", rawTypes[5])
 
 	// Flag: TINYINT
 	// Affinity: INTEGER (contains INT)
 	// Declared: TINYINT
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, affinities[6])
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_TINYINT, declaredTypes[6])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, affinities[6])
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_TINYINT, declaredTypes[6])
 
 	// Ratio: DOUBLE
 	// Affinity: REAL (contains DOUB)
 	// Declared: DOUBLE
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL, affinities[7])
-	assert.Equal(t, dbv1.DeclaredType_DECLARED_TYPE_DOUBLE, declaredTypes[7])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_REAL, affinities[7])
+	assert.Equal(t, sqlrpcv1.DeclaredType_DECLARED_TYPE_DOUBLE, declaredTypes[7])
 }

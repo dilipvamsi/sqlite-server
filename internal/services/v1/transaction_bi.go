@@ -7,7 +7,7 @@ import (
 	"io"
 	"log"
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"time"
 
 	"buf.build/go/protovalidate"
@@ -16,44 +16,38 @@ import (
 
 // transactionalStreamWriter adapts a `Transaction` (BidiStream).
 type transactionalStreamWriter struct {
-	stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse]
+	stream *connect.BidiStream[sqlrpcv1.TransactionRequest, sqlrpcv1.TransactionResponse]
 }
 
-func (w *transactionalStreamWriter) SendHeader(header *dbv1.QueryResultHeader) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_StreamResult{
-		StreamResult: &dbv1.QueryResponse{
-			Response: &dbv1.QueryResponse_Header{
+func (w *transactionalStreamWriter) SendHeader(header *sqlrpcv1.QueryResultHeader) error {
+	return w.stream.Send(&sqlrpcv1.TransactionResponse{Response: &sqlrpcv1.TransactionResponse_StreamResult{
+		StreamResult: &sqlrpcv1.QueryResponse{
+			Response: &sqlrpcv1.QueryResponse_Header{
 				Header: header,
 			},
 		},
 	}})
 }
 
-func (w *transactionalStreamWriter) SendRowBatch(b *dbv1.QueryResultRowBatch) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_StreamResult{
-		StreamResult: &dbv1.QueryResponse{
-			Response: &dbv1.QueryResponse_Batch{
+func (w *transactionalStreamWriter) SendRowBatch(b *sqlrpcv1.QueryResultRowBatch) error {
+	return w.stream.Send(&sqlrpcv1.TransactionResponse{Response: &sqlrpcv1.TransactionResponse_StreamResult{
+		StreamResult: &sqlrpcv1.QueryResponse{
+			Response: &sqlrpcv1.QueryResponse_Batch{
 				Batch: b,
 			},
 		},
 	}})
 }
 
-func (w *transactionalStreamWriter) SendDMLResult(r *dbv1.DMLResult) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_StreamResult{
-		StreamResult: &dbv1.QueryResponse{
-			Response: &dbv1.QueryResponse_Dml{
-				Dml: r,
-			},
-		},
-	}})
+func (w *transactionalStreamWriter) SendDMLResult(r *sqlrpcv1.ExecResponse) error {
+	return connect.NewError(connect.CodeInvalidArgument, errors.New("DML operations are not supported in stream queries"))
 }
 
-func (w *transactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_StreamResult{
-		StreamResult: &dbv1.QueryResponse{
-			Response: &dbv1.QueryResponse_Complete{
-				Complete: &dbv1.QueryComplete{Stats: s},
+func (w *transactionalStreamWriter) SendComplete(s *sqlrpcv1.ExecutionStats) error {
+	return w.stream.Send(&sqlrpcv1.TransactionResponse{Response: &sqlrpcv1.TransactionResponse_StreamResult{
+		StreamResult: &sqlrpcv1.QueryResponse{
+			Response: &sqlrpcv1.QueryResponse_Complete{
+				Complete: &sqlrpcv1.QueryComplete{Stats: s},
 			},
 		},
 	}})
@@ -61,44 +55,38 @@ func (w *transactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
 
 // typedTransactionalStreamWriter adapts a `Transaction` (BidiStream) for typed queries.
 type typedTransactionalStreamWriter struct {
-	stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse]
+	stream *connect.BidiStream[sqlrpcv1.TransactionRequest, sqlrpcv1.TransactionResponse]
 }
 
-func (w *typedTransactionalStreamWriter) SendHeader(header *dbv1.TypedQueryResultHeader) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
-		TypedStreamResult: &dbv1.TypedQueryResponse{
-			Response: &dbv1.TypedQueryResponse_Header{
+func (w *typedTransactionalStreamWriter) SendHeader(header *sqlrpcv1.TypedQueryResultHeader) error {
+	return w.stream.Send(&sqlrpcv1.TransactionResponse{Response: &sqlrpcv1.TransactionResponse_TypedStreamResult{
+		TypedStreamResult: &sqlrpcv1.TypedQueryResponse{
+			Response: &sqlrpcv1.TypedQueryResponse_Header{
 				Header: header,
 			},
 		},
 	}})
 }
 
-func (w *typedTransactionalStreamWriter) SendRowBatch(b *dbv1.TypedQueryResultRowBatch) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
-		TypedStreamResult: &dbv1.TypedQueryResponse{
-			Response: &dbv1.TypedQueryResponse_Batch{
+func (w *typedTransactionalStreamWriter) SendRowBatch(b *sqlrpcv1.TypedQueryResultRowBatch) error {
+	return w.stream.Send(&sqlrpcv1.TransactionResponse{Response: &sqlrpcv1.TransactionResponse_TypedStreamResult{
+		TypedStreamResult: &sqlrpcv1.TypedQueryResponse{
+			Response: &sqlrpcv1.TypedQueryResponse_Batch{
 				Batch: b,
 			},
 		},
 	}})
 }
 
-func (w *typedTransactionalStreamWriter) SendDMLResult(r *dbv1.DMLResult) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
-		TypedStreamResult: &dbv1.TypedQueryResponse{
-			Response: &dbv1.TypedQueryResponse_Dml{
-				Dml: r,
-			},
-		},
-	}})
+func (w *typedTransactionalStreamWriter) SendDMLResult(r *sqlrpcv1.ExecResponse) error {
+	return connect.NewError(connect.CodeInvalidArgument, errors.New("DML operations are not supported in typed stream queries"))
 }
 
-func (w *typedTransactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) error {
-	return w.stream.Send(&dbv1.TransactionResponse{Response: &dbv1.TransactionResponse_TypedStreamResult{
-		TypedStreamResult: &dbv1.TypedQueryResponse{
-			Response: &dbv1.TypedQueryResponse_Complete{
-				Complete: &dbv1.QueryComplete{Stats: s},
+func (w *typedTransactionalStreamWriter) SendComplete(s *sqlrpcv1.ExecutionStats) error {
+	return w.stream.Send(&sqlrpcv1.TransactionResponse{Response: &sqlrpcv1.TransactionResponse_TypedStreamResult{
+		TypedStreamResult: &sqlrpcv1.TypedQueryResponse{
+			Response: &sqlrpcv1.TypedQueryResponse_Complete{
+				Complete: &sqlrpcv1.QueryComplete{Stats: s},
 			},
 		},
 	}})
@@ -132,7 +120,7 @@ func (w *typedTransactionalStreamWriter) SendComplete(s *dbv1.ExecutionStats) er
 //	- Timeout Errors.
 //
 // This prevents "Zombie Transactions" from locking the SQLite file indefinitely.
-func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse]) error {
+func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[sqlrpcv1.TransactionRequest, sqlrpcv1.TransactionResponse]) error {
 	// 1. Generate Session Trace ID
 	// We favor a server-generated ID here to uniquely identify this specific socket connection.
 	traceID := genRequestID()
@@ -215,7 +203,7 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 		switch cmd := req.Command.(type) {
 
 		// --- BEGIN COMMAND ---
-		case *dbv1.TransactionRequest_Begin:
+		case *sqlrpcv1.TransactionRequest_Begin:
 			if tx != nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: transaction already active"))
 			}
@@ -238,8 +226,8 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			// SQLite "IMMEDIATE" and "EXCLUSIVE" help avoid busy loops in write-heavy scenarios.
 			txOpts := &sql.TxOptions{ReadOnly: false}
 			// Map the proto mode to the SQL driver
-			if cmd.Begin.Mode == dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE ||
-				cmd.Begin.Mode == dbv1.TransactionMode_TRANSACTION_MODE_EXCLUSIVE {
+			if cmd.Begin.Mode == sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE ||
+				cmd.Begin.Mode == sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_EXCLUSIVE {
 				// This is a common trick for mattn/go-sqlite3 to trigger IMMEDIATE/EXCLUSIVE
 				txOpts.Isolation = sql.LevelSerializable
 			}
@@ -253,9 +241,9 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 
 			// Send Success + Session ID
 			// The client can now use `traceID` to debug server-side logs.
-			_ = stream.Send(&dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_Begin{
-					Begin: &dbv1.BeginResponse{
+			_ = stream.Send(&sqlrpcv1.TransactionResponse{
+				Response: &sqlrpcv1.TransactionResponse_Begin{
+					Begin: &sqlrpcv1.BeginResponse{
 						Success:       true,
 						TransactionId: traceID,
 					},
@@ -264,7 +252,7 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			continue
 
 		// --- QUERY COMMAND ---
-		case *dbv1.TransactionRequest_Query:
+		case *sqlrpcv1.TransactionRequest_Query:
 			if tx == nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
 			}
@@ -286,8 +274,8 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 				log.Printf("[%s] Query error: %v", traceID, err)
 				sendAppError(stream, traceID, err, cmd.Query.Sql)
 			} else {
-				_ = stream.Send(&dbv1.TransactionResponse{
-					Response: &dbv1.TransactionResponse_QueryResult{
+				_ = stream.Send(&sqlrpcv1.TransactionResponse{
+					Response: &sqlrpcv1.TransactionResponse_QueryResult{
 						QueryResult: result,
 					},
 				})
@@ -295,7 +283,7 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			continue
 
 		// --- QUERY COMMAND ---
-		case *dbv1.TransactionRequest_QueryStream:
+		case *sqlrpcv1.TransactionRequest_QueryStream:
 			if tx == nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
 			}
@@ -323,7 +311,42 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			continue
 
 			// Inside Transaction event loop switch...
-		case *dbv1.TransactionRequest_Savepoint:
+
+		case *sqlrpcv1.TransactionRequest_Exec:
+			if tx == nil {
+				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
+			}
+			if err := ValidateStatelessQuery(cmd.Exec.Sql); err != nil {
+				return err
+			}
+			result, err := executeExecAndBuffer(ctx, tx, cmd.Exec.Sql, cmd.Exec.Parameters)
+			if err != nil {
+				sendAppError(stream, traceID, err, cmd.Exec.Sql)
+			} else {
+				_ = stream.Send(&sqlrpcv1.TransactionResponse{
+					Response: &sqlrpcv1.TransactionResponse_ExecResult{ExecResult: result},
+				})
+			}
+			continue
+
+		case *sqlrpcv1.TransactionRequest_TypedExec:
+			if tx == nil {
+				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
+			}
+			if err := ValidateStatelessQuery(cmd.TypedExec.Sql); err != nil {
+				return err
+			}
+			result, err := typedExecuteExecAndBuffer(ctx, tx, cmd.TypedExec.Sql, cmd.TypedExec.Parameters)
+			if err != nil {
+				sendAppError(stream, traceID, err, cmd.TypedExec.Sql)
+			} else {
+				_ = stream.Send(&sqlrpcv1.TransactionResponse{
+					Response: &sqlrpcv1.TransactionResponse_ExecResult{ExecResult: result},
+				})
+			}
+			continue
+
+		case *sqlrpcv1.TransactionRequest_Savepoint:
 			if tx == nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("no active transaction"))
 			}
@@ -341,9 +364,9 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			}
 
 			// Success response
-			_ = stream.Send(&dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_Savepoint{
-					Savepoint: &dbv1.SavepointResponse{
+			_ = stream.Send(&sqlrpcv1.TransactionResponse{
+				Response: &sqlrpcv1.TransactionResponse_Savepoint{
+					Savepoint: &sqlrpcv1.SavepointResponse{
 						Success: true,
 						Name:    cmd.Savepoint.Name,
 						Action:  cmd.Savepoint.Action,
@@ -352,8 +375,8 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			})
 
 		// --- COMMIT COMMAND ---
-		// Replaces: case *dbv1.TransactionRequest_Commit:
-		case *dbv1.TransactionRequest_Commit:
+		// Replaces: case *sqlrpcv1.TransactionRequest_Commit:
+		case *sqlrpcv1.TransactionRequest_Commit:
 			if tx == nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
 			}
@@ -368,26 +391,26 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			tx = nil // Successfully committed
 			log.Printf("[%s] Transaction committed successfully", traceID)
 
-			_ = stream.Send(&dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_Commit{Commit: &dbv1.CommitResponse{Success: true}},
+			_ = stream.Send(&sqlrpcv1.TransactionResponse{
+				Response: &sqlrpcv1.TransactionResponse_Commit{Commit: &sqlrpcv1.CommitResponse{Success: true}},
 			})
 			return nil // End of workflow
 
 		// --- ROLLBACK COMMAND ---
-		// Replaces: case *dbv1.TransactionRequest_Rollback:
-		case *dbv1.TransactionRequest_Rollback:
+		// Replaces: case *sqlrpcv1.TransactionRequest_Rollback:
+		case *sqlrpcv1.TransactionRequest_Rollback:
 			if tx != nil {
 				_ = tx.Rollback()
 				tx = nil
 			}
 			log.Printf("[%s] Client requested rollback", traceID)
-			_ = stream.Send(&dbv1.TransactionResponse{
-				Response: &dbv1.TransactionResponse_Rollback{Rollback: &dbv1.RollbackResponse{Success: true}},
+			_ = stream.Send(&sqlrpcv1.TransactionResponse{
+				Response: &sqlrpcv1.TransactionResponse_Rollback{Rollback: &sqlrpcv1.RollbackResponse{Success: true}},
 			})
 			return nil // End of workflow
 
 		// --- TYPED QUERY COMMAND ---
-		case *dbv1.TransactionRequest_TypedQuery:
+		case *sqlrpcv1.TransactionRequest_TypedQuery:
 			if tx == nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
 			}
@@ -402,8 +425,8 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 				log.Printf("[%s] Typed query error: %v", traceID, err)
 				sendAppError(stream, traceID, err, cmd.TypedQuery.Sql)
 			} else {
-				_ = stream.Send(&dbv1.TransactionResponse{
-					Response: &dbv1.TransactionResponse_TypedQueryResult{
+				_ = stream.Send(&sqlrpcv1.TransactionResponse{
+					Response: &sqlrpcv1.TransactionResponse_TypedQueryResult{
 						TypedQueryResult: result,
 					},
 				})
@@ -411,7 +434,7 @@ func (s *DbServer) Transaction(ctx context.Context, stream *connect.BidiStream[d
 			continue
 
 		// --- TYPED QUERY STREAM COMMAND ---
-		case *dbv1.TransactionRequest_TypedQueryStream:
+		case *sqlrpcv1.TransactionRequest_TypedQueryStream:
 			if tx == nil {
 				return connect.NewError(connect.CodeInvalidArgument, errors.New("protocol violation: no active transaction"))
 			}

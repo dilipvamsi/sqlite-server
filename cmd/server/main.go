@@ -64,7 +64,7 @@ func parseFlags() *server.Config {
 
 	// Define flags with both environment variable fallbacks and default values
 	fs.StringVar(&cfg.Mounts, "mounts", getEnv("SQLITE_SERVER_MOUNTS", ""), "Path to the JSON database mount configurations file")
-	fs.IntVar(&cfg.Port, "port", getEnvInt("SQLITE_SERVER_PORT", 50051), "Port to listen on")
+	fs.IntVar(&cfg.Port, "port", getEnvInt("SQLITE_SERVER_PORT", 50173), "Port to listen on")
 	fs.StringVar(&cfg.Host, "host", getEnv("SQLITE_SERVER_HOST", "localhost"), "Host to bind to")
 	fs.StringVar(&cfg.ExtDir, "extensions", getEnv("SQLITE_SERVER_EXTENSIONS", "./extensions"), "Path to the extensions directory")
 	fs.BoolVar(&cfg.AuthDisabled, "auth-disabled", getEnvBool("SQLITE_SERVER_AUTH_ENABLED", true) == false, "Disable authentication")

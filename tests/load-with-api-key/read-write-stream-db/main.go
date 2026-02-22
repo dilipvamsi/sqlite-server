@@ -23,13 +23,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 	"sqlite-server/internal/sqldrivers"
 )
 
 const (
-	serverAddr      = "http://localhost:50051"
+	serverAddr      = "http://localhost:50173"
 	numAccounts     = 100
 	numWriteWorkers = 10
 	numReadWorkers  = 90
@@ -105,7 +105,7 @@ func main() {
 	}
 
 	// Create client with interceptor that injects API key for all calls
-	client := dbv1connect.NewDatabaseServiceClient(
+	client := sqlrpcv1connect.NewDatabaseServiceClient(
 		h2cClient,
 		serverAddr,
 		connect.WithGRPCWeb(),
@@ -144,7 +144,7 @@ func main() {
 	verifyDataIntegrity()
 }
 
-func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.DatabaseServiceClient) {
+func readWorker(ctx context.Context, wg *sync.WaitGroup, client sqlrpcv1connect.DatabaseServiceClient) {
 	defer wg.Done()
 	authHeader := "Bearer " + apiKey
 
@@ -153,10 +153,10 @@ func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Data
 		case <-ctx.Done():
 			return
 		default:
-			req := connect.NewRequest(&dbv1.QueryRequest{
+			req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 				Database: dbName,
 				Sql:      "SELECT balance FROM accounts WHERE id = ?;",
-				Parameters: &dbv1.Parameters{
+				Parameters: &sqlrpcv1.Parameters{
 					Positional: listValue(rand.Intn(numAccounts) + 1),
 				},
 			})
@@ -180,7 +180,7 @@ func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Data
 	}
 }
 
-func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.DatabaseServiceClient) {
+func writeWorker(ctx context.Context, wg *sync.WaitGroup, client sqlrpcv1connect.DatabaseServiceClient) {
 	defer wg.Done()
 	for {
 		select {
@@ -197,7 +197,7 @@ func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Dat
 	}
 }
 
-func performOneWriteTransaction(ctx context.Context, client dbv1connect.DatabaseServiceClient) error {
+func performOneWriteTransaction(ctx context.Context, client sqlrpcv1connect.DatabaseServiceClient) error {
 	fromID := rand.Intn(numAccounts) + 1
 	toID := rand.Intn(numAccounts) + 1
 	if fromID == toID {
@@ -210,9 +210,9 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 
 	// Note: BidiStream auth is at connection/interceptor level
 
-	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{
+	if err := stream.Send(&sqlrpcv1.TransactionRequest{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{
 		Database: dbName,
-		Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
+		Mode:     sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE,
 	}}}); err != nil {
 		return err
 	}
@@ -220,11 +220,11 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 		return err
 	}
 
-	update1 := &dbv1.TransactionRequest{
-		Command: &dbv1.TransactionRequest_Query{
-			Query: &dbv1.TransactionalQueryRequest{
+	update1 := &sqlrpcv1.TransactionRequest{
+		Command: &sqlrpcv1.TransactionRequest_Query{
+			Query: &sqlrpcv1.TransactionalQueryRequest{
 				Sql:        "UPDATE accounts SET balance = balance - ? WHERE id = ?;",
-				Parameters: &dbv1.Parameters{Positional: listValue(amount, fromID)},
+				Parameters: &sqlrpcv1.Parameters{Positional: listValue(amount, fromID)},
 			},
 		},
 	}
@@ -235,11 +235,11 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 		return err
 	}
 
-	update2 := &dbv1.TransactionRequest{
-		Command: &dbv1.TransactionRequest_Query{
-			Query: &dbv1.TransactionalQueryRequest{
+	update2 := &sqlrpcv1.TransactionRequest{
+		Command: &sqlrpcv1.TransactionRequest_Query{
+			Query: &sqlrpcv1.TransactionalQueryRequest{
 				Sql:        "UPDATE accounts SET balance = balance + ? WHERE id = ?;",
-				Parameters: &dbv1.Parameters{Positional: listValue(amount, toID)},
+				Parameters: &sqlrpcv1.Parameters{Positional: listValue(amount, toID)},
 			},
 		},
 	}
@@ -250,7 +250,7 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 		return err
 	}
 
-	if err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}}); err != nil {
+	if err := stream.Send(&sqlrpcv1.TransactionRequest{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}}); err != nil {
 		return err
 	}
 	if _, err := stream.Receive(); err != nil {
@@ -272,15 +272,15 @@ func performOneWriteTransaction(ctx context.Context, client dbv1connect.Database
 }
 
 func verifyDataIntegrity() {
-	var config *dbv1.DatabaseConfig
+	var config *sqlrpcv1.DatabaseConfig
 	if *enableCipher {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:        dbName,
 			DbPath:      dbPath,
 			IsEncrypted: true,
 		}
 	} else {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:   dbName,
 			DbPath: dbPath,
 		}
@@ -309,7 +309,7 @@ func verifyDataIntegrity() {
 	}
 }
 
-func listValue(vals ...any) *structpb.ListValue {
+func listValue(vals ...any) []*structpb.Value {
 	l, _ := structpb.NewList(vals)
-	return l
+	return l.Values
 }

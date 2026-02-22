@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"sqlite-server/internal/sqldrivers"
 )
 
@@ -19,7 +19,7 @@ import (
 // - Dual Pools (ReadWrite vs ReadOnly)
 // - Graceful Shutdown
 type DbManager struct {
-	configs   map[string]*dbv1.DatabaseConfig
+	configs   map[string]*sqlrpcv1.DatabaseConfig
 	muConfigs sync.RWMutex
 
 	// cacheRW for Read-Write connections (sync.Map for high concurrency)
@@ -48,9 +48,9 @@ const (
 )
 
 // NewDbManager creates a new manager and optionally validates all configs.
-func NewDbManager(configs []*dbv1.DatabaseConfig) *DbManager {
+func NewDbManager(configs []*sqlrpcv1.DatabaseConfig) *DbManager {
 	mgr := &DbManager{
-		configs: make(map[string]*dbv1.DatabaseConfig),
+		configs: make(map[string]*sqlrpcv1.DatabaseConfig),
 		// sync.Map zero value is valid, no make() needed
 		ttl:        10 * time.Minute, // Default TTL
 		shutdownCh: make(chan struct{}),
@@ -115,7 +115,7 @@ func (m *DbManager) CloseAll() {
 }
 
 // Mount adds a new database configuration.
-func (m *DbManager) Mount(config *dbv1.DatabaseConfig) error {
+func (m *DbManager) Mount(config *sqlrpcv1.DatabaseConfig) error {
 	m.muConfigs.RLock()
 	if _, exists := m.configs[config.Name]; exists {
 		m.muConfigs.RUnlock()
@@ -141,7 +141,7 @@ func (m *DbManager) Mount(config *dbv1.DatabaseConfig) error {
 }
 
 // UpdateDatabase updates an existing database configuration and invalidates cached connections.
-func (m *DbManager) UpdateDatabase(config *dbv1.DatabaseConfig) error {
+func (m *DbManager) UpdateDatabase(config *sqlrpcv1.DatabaseConfig) error {
 	m.muConfigs.Lock()
 	if _, exists := m.configs[config.Name]; !exists {
 		m.muConfigs.Unlock()
@@ -175,7 +175,7 @@ func (m *DbManager) Unmount(name string) error {
 }
 
 // AttachDatabase adds a new attached database to an existing primary database.
-func (m *DbManager) AttachDatabase(parentName string, attachment *dbv1.Attachment) error {
+func (m *DbManager) AttachDatabase(parentName string, attachment *sqlrpcv1.Attachment) error {
 	m.muConfigs.Lock()
 	config, ok := m.configs[parentName]
 	if !ok {
@@ -220,7 +220,7 @@ func (m *DbManager) DetachDatabase(parentName string, alias string) error {
 	}
 
 	found := false
-	newAttachments := make([]*dbv1.Attachment, 0, len(config.Attachments))
+	newAttachments := make([]*sqlrpcv1.Attachment, 0, len(config.Attachments))
 	for _, existing := range config.Attachments {
 		if existing.Alias == alias {
 			found = true
@@ -393,7 +393,7 @@ func (m *DbManager) evictStale() {
 	}
 }
 
-func (m *DbManager) resolveAttachments(config *dbv1.DatabaseConfig) []sqldrivers.AttachmentInfo {
+func (m *DbManager) resolveAttachments(config *sqlrpcv1.DatabaseConfig) []sqldrivers.AttachmentInfo {
 	m.muConfigs.RLock()
 	defer m.muConfigs.RUnlock()
 
@@ -415,7 +415,7 @@ func (m *DbManager) resolveAttachments(config *dbv1.DatabaseConfig) []sqldrivers
 }
 
 // validateConnection opens a transient connection to check config validity
-func (m *DbManager) validateConnection(config *dbv1.DatabaseConfig) error {
+func (m *DbManager) validateConnection(config *sqlrpcv1.DatabaseConfig) error {
 	attachments := m.resolveAttachments(config)
 
 	// Always validate as ReadWrite to ensure connectivity.

@@ -2,7 +2,7 @@ package servicesv1
 
 import (
 	"context"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -15,7 +15,7 @@ func TestQueryStream_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		stream, err := client.QueryStream(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		stream, err := client.QueryStream(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "non_existent_db",
 			Sql:      "SELECT 1",
 		}))
@@ -32,7 +32,7 @@ func TestQueryStream_Coverage(t *testing.T) {
 	})
 
 	t.Run("Invalid SQL - Returns Error Message in Stream", func(t *testing.T) {
-		stream, err := client.QueryStream(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		stream, err := client.QueryStream(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM non_existent_table",
 		}))
@@ -47,7 +47,7 @@ func TestQueryStream_Coverage(t *testing.T) {
 
 	t.Run("Transaction Control Not Allowed", func(t *testing.T) {
 		// "BEGIN" should be caught by ValidateStatelessQuery
-		stream, err := client.QueryStream(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		stream, err := client.QueryStream(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "BEGIN",
 		}))
@@ -64,7 +64,7 @@ func TestQueryStream_Coverage(t *testing.T) {
 
 	t.Run("Proto Validation Error", func(t *testing.T) {
 		// Empty SQL is invalid per proto rules (likely) or at least internal logic
-		stream, err := client.QueryStream(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		stream, err := client.QueryStream(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "", // Empty SQL
 		}))
@@ -82,7 +82,7 @@ func TestQuery_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Proto Validation Error", func(t *testing.T) {
-		_, err := client.Query(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		_, err := client.Query(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "", // Empty SQL
 		}))
@@ -99,45 +99,45 @@ func TestTypedQuery_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("SELECT Success", func(t *testing.T) {
-		res, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		res, err := client.TypedQuery(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT id, name FROM users WHERE id = 1",
 		}))
 		require.NoError(t, err)
-		assert.NotNil(t, res.Msg.GetSelect())
-		assert.Len(t, res.Msg.GetSelect().Rows, 1)
+		assert.NotNil(t, res.Msg.Rows)
+		assert.Len(t, res.Msg.Rows, 1)
 		// Check typed values
-		row := res.Msg.GetSelect().Rows[0]
+		row := res.Msg.Rows[0]
 		assert.Equal(t, int64(1), row.Values[0].GetIntegerValue())
 		assert.Equal(t, "Alice", row.Values[1].GetTextValue())
 	})
 
 	t.Run("DML Success", func(t *testing.T) {
-		res, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		res, err := client.TypedQuery(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "INSERT INTO users (name) VALUES ('TypedUser')",
 		}))
 		require.NoError(t, err)
-		assert.NotNil(t, res.Msg.GetDml())
-		assert.Equal(t, int64(1), res.Msg.GetDml().RowsAffected)
+		// TypedQuery handles SELECTs only. DML should fail or not be checked like this.
+		assert.Nil(t, res.Msg.Rows)
 	})
 
 	t.Run("SELECT with Parameters", func(t *testing.T) {
-		res, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		res, err := client.TypedQuery(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT name FROM users WHERE id = ?",
-			Parameters: &dbv1.TypedParameters{
-				Positional: []*dbv1.SqlValue{
-					{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 1}},
+			Parameters: &sqlrpcv1.TypedParameters{
+				Positional: []*sqlrpcv1.SqlValue{
+					{Value: &sqlrpcv1.SqlValue_IntegerValue{IntegerValue: 1}},
 				},
 			},
 		}))
 		require.NoError(t, err)
-		assert.Equal(t, "Alice", res.Msg.GetSelect().Rows[0].Values[0].GetTextValue())
+		assert.Equal(t, "Alice", res.Msg.Rows[0].Values[0].GetTextValue())
 	})
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "missing",
 			Sql:      "SELECT 1",
 		}))
@@ -146,7 +146,7 @@ func TestTypedQuery_Coverage(t *testing.T) {
 	})
 
 	t.Run("Transaction Control Blocked", func(t *testing.T) {
-		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "BEGIN",
 		}))
@@ -155,7 +155,7 @@ func TestTypedQuery_Coverage(t *testing.T) {
 	})
 
 	t.Run("Invalid SQL", func(t *testing.T) {
-		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM missing_table",
 		}))
@@ -163,7 +163,7 @@ func TestTypedQuery_Coverage(t *testing.T) {
 	})
 
 	t.Run("Proto Validation Error", func(t *testing.T) {
-		_, err := client.TypedQuery(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		_, err := client.TypedQuery(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "", // Empty SQL
 		}))
@@ -176,7 +176,7 @@ func TestTypedQueryStream_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("SELECT Success", func(t *testing.T) {
-		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT id, name FROM users",
 		}))
@@ -202,18 +202,19 @@ func TestTypedQueryStream_Coverage(t *testing.T) {
 	})
 
 	t.Run("DML Success", func(t *testing.T) {
-		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "INSERT INTO users (name) VALUES ('StreamTypedUser')",
 		}))
 		require.NoError(t, err)
 
 		assert.True(t, stream.Receive())
-		assert.NotNil(t, stream.Msg().GetDml())
+		assert.NotNil(t, stream.Msg().GetError())
+		assert.Contains(t, stream.Msg().GetError().Message, "DML operations are not supported in typed stream queries")
 	})
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "missing",
 			Sql:      "SELECT 1",
 		}))
@@ -227,7 +228,7 @@ func TestTypedQueryStream_Coverage(t *testing.T) {
 	})
 
 	t.Run("Transaction Control Blocked", func(t *testing.T) {
-		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "BEGIN",
 		}))
@@ -241,7 +242,7 @@ func TestTypedQueryStream_Coverage(t *testing.T) {
 	})
 
 	t.Run("Invalid SQL - Returns Error in Stream", func(t *testing.T) {
-		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM missing_table",
 		}))
@@ -255,7 +256,7 @@ func TestTypedQueryStream_Coverage(t *testing.T) {
 	})
 
 	t.Run("Proto Validation Error", func(t *testing.T) {
-		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		stream, err := client.TypedQueryStream(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "", // Empty SQL
 		}))

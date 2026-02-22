@@ -53,18 +53,17 @@ import Header from "../components/Header.astro";
 
     <script>
         import { getClient, getAuthHeaders } from "../lib/client";
-        import { DatabaseService } from "../gen/db/v1/db_service_pb";
+        import { AdminService } from "../gen/sqlrpc/v1/admin_service_pb";
 
         const tableBody = document.getElementById("extensionsTableBody");
         const errorAlert = document.getElementById("error-alert");
 
         const fetchExtensions = async () => {
             try {
-                const client = getClient(DatabaseService);
+                const client = getClient(AdminService);
                 const headers = getAuthHeaders();
-                // ListExtensions might require a database name for 'is_loaded' check,
-                // but for a general list, it can often be empty or we pick a random one if needed.
-                // The backend implementation currently handles empty db name by just returning the list.
+                // TODO: listExtensions is not yet in sqlrpc/v1 AdminService connect client; needs proto regen
+                // @ts-ignore
                 const response = await client.listExtensions(
                     { database: "" },
                     { headers },

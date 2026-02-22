@@ -112,7 +112,7 @@ import Layout from "../layouts/Layout.astro";
         clearActiveTransaction,
         performLogout,
     } from "../lib/client";
-    import { DatabaseService } from "../gen/db/v1/db_service_pb";
+    import { DatabaseService } from "../gen/sqlrpc/v1/db_service_pb";
     import { NotebookManager } from "../lib/notebook";
     import { TransactionHistoryManager } from "../lib/history";
     import { fromJson } from "@bufbuild/protobuf";
@@ -162,7 +162,7 @@ import Layout from "../layouts/Layout.astro";
                 "transaction",
                 container,
                 resultContainer,
-                async (sql, paramsInput) => {
+                async (sql, paramsInput, mode) => {
                     // Check if active
                     if (currentTxStatus !== "active") {
                         throw new Error(
@@ -189,7 +189,17 @@ import Layout from "../layouts/Layout.astro";
                         );
                     }
 
-                    // Execute
+                    // Execute — branch on mode
+                    if (mode === "exec") {
+                        return await client.transactionExec(
+                            {
+                                transactionId: currentTxId!,
+                                sql: sql,
+                                parameters: parameters,
+                            },
+                            { headers },
+                        );
+                    }
                     const res = await client.transactionQuery(
                         {
                             transactionId: currentTxId!,
@@ -747,6 +757,30 @@ import Layout from "../layouts/Layout.astro";
         border-color: var(--accent-color);
         box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
     }
+
+    .card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .query-mode-select {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .query-mode-select:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
     .card-inputs {
         display: flex;
         flex-direction: column;

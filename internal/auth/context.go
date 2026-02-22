@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 type contextKey struct{}
@@ -27,5 +27,5 @@ func IsReadOnly(ctx context.Context) bool {
 	if !ok {
 		return true
 	}
-	return claims.Role == dbv1.Role_ROLE_READ_ONLY
+	return claims.Role == sqlrpcv1.Role_ROLE_READ_ONLY
 }

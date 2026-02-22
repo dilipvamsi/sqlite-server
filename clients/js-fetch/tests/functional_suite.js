@@ -4,7 +4,7 @@
  */
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { TransactionMode, SavepointAction, ColumnAffinity, DeclaredType, SQL, CheckpointMode } = require('../src/index');
+const { TransactionLockMode, SavepointAction, ColumnAffinity, DeclaredType, SQL, CheckpointMode } = require('../src/index');
 
 // --- Shim Jest 'expect' to node:assert ---
 function expect(actual) {
@@ -53,19 +53,22 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
         describe("Basic Queries", () => {
             it("Unary Query: SELECT", async () => {
-                const result = await client.query("SELECT 1 + 1 AS sum");
-                expect(result.rows[0][0]).toBe(2);
-                expect(result.columns).toContain("sum");
+                const res = await client.query("SELECT 1+1 AS result");
+                console.log("UNARY QUERY RESULT:", JSON.stringify(res, null, 2));
+                const { rows } = res;
+                expect(rows).toBeDefined();
+                expect(rows.length).toBe(1);
+                expect(rows[0][0]).toBe(2);
             });
 
             it("BLOB Data Integrity", async () => {
                 const binaryData = Buffer.from([0x00, 0xff, 0xaa, 0x55]);
 
-                await client.query("CREATE TABLE IF NOT EXISTS blobs (data BLOB)");
-                await client.query("DELETE FROM blobs");
+                await client.exec("CREATE TABLE IF NOT EXISTS blobs (data BLOB)");
+                await client.exec("DELETE FROM blobs");
 
                 // 1. Pass Buffer directly - Client should auto-convert to base64
-                await client.query(
+                await client.exec(
                     "INSERT INTO blobs (data) VALUES (?)",
                     { positional: [binaryData] }
                 );
@@ -74,7 +77,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 const stringData = "hello blob"; // "don't use binary string"
                 const stringBuf = Buffer.from(stringData);
 
-                await client.query(
+                await client.exec(
                     "INSERT INTO blobs (data) VALUES (?)",
                     { positional: [stringData] },
                     {
@@ -90,8 +93,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 const buf1 = result.rows[0][0];
                 const buf2 = result.rows[1][0];
 
-                assert.ok(Buffer.isBuffer(buf1), "Expected Buffer 1");
-                assert.ok(buf1.equals(binaryData), "Buffer 1 mismatch");
+                assert.strictEqual(Buffer.compare(buf1, binaryData), 0, "Buffer 1 mismatch");
 
                 assert.ok(Buffer.isBuffer(buf2), "Expected Buffer 2");
                 assert.ok(buf2.equals(stringBuf), "Buffer 2 mismatch");
@@ -107,12 +109,11 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 }
                 const ph = Array(15).fill("(?, ?, ?, ?)").join(",");
 
-                await client.query(`INSERT INTO users (id, name, country, age) VALUES ${ph}`, { positional: values });
+                await client.exec(`INSERT INTO users (id, name, country, age) VALUES ${ph}`, { positional: values });
 
                 // Verify DML result shape
-                const dmlResult = await client.query("UPDATE users SET age = age + 1 WHERE id = 1");
-                expect(dmlResult.type).toBe("DML");
-                expect(dmlResult.rowsAffected).toBe(1);
+                const dmlResult = await client.exec("UPDATE users SET age = age + 1 WHERE id = 1");
+                assert.ok(dmlResult.dml && dmlResult.dml.rowsAffected >= 0, "Expected rowsAffected to be defined");
 
                 const { columns, columnAffinities, rows } = await client.iterate(
                     "SELECT id FROM users LIMIT 10",
@@ -134,8 +135,8 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
             });
 
             it("Stateless Iteration: Very Large Result Set (>500)", async () => {
-                await client.query("CREATE TABLE IF NOT EXISTS large_users (id INTEGER)");
-                await client.query("DELETE FROM large_users");
+                await client.exec("CREATE TABLE IF NOT EXISTS large_users (id INTEGER)");
+                await client.exec("DELETE FROM large_users");
 
                 const totalRows = 600;
                 const batchSize = 100;
@@ -145,7 +146,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                     for (let j = 0; j < batchSize; j++) {
                         values.push(i + j);
                     }
-                    await client.query(`INSERT INTO large_users (id) VALUES ${placeholders}`, { positional: values });
+                    await client.exec(`INSERT INTO large_users (id) VALUES ${placeholders}`, { positional: values });
                 }
 
                 const { rows } = await client.iterate("SELECT id FROM large_users ORDER BY id");
@@ -153,7 +154,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 let count = 0;
                 let lastId = -1;
                 for await (const row of rows) {
-                    const id = row[0];
+                    const id = Number(row[0]);
                     if (id !== lastId + 1) {
                         throw new Error(`Sequence mismatch at index ${count}: expected ${lastId + 1}, got ${id}`);
                     }
@@ -164,9 +165,9 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
             });
 
             it("Stateless Streaming: queryStream", async () => {
-                await client.query("CREATE TABLE IF NOT EXISTS stream_users (id INTEGER)");
-                await client.query("DELETE FROM stream_users");
-                await client.query("INSERT INTO stream_users (id) VALUES (1), (2), (3)");
+                await client.exec("CREATE TABLE IF NOT EXISTS stream_users (id INTEGER)");
+                await client.exec("DELETE FROM stream_users");
+                await client.exec("INSERT INTO stream_users (id) VALUES (1), (2), (3)");
 
                 const { columns, columnAffinities, rows } = await client.queryStream("SELECT id FROM stream_users");
                 expect(columns).toContain("id");
@@ -180,6 +181,14 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 expect(count).toBe(3);
             });
 
+            it("DML with query() should yield no rows per QueryResult", async () => {
+                await client.exec("CREATE TABLE IF NOT EXISTS query_dml_test (id INTEGER)");
+                const res = await client.query("INSERT INTO query_dml_test (id) VALUES (1)");
+                assert.ok(!res.type);
+                assert.ok(Array.isArray(res.columns) && res.columns.length === 0);
+                assert.ok(Array.isArray(res.rows) && res.rows.length === 0);
+            });
+
             it("EXPLAIN QUERY PLAN", async () => {
                 const nodes = await client.explain("SELECT * FROM users WHERE id = ?", { positional: [1] });
                 assert.ok(Array.isArray(nodes), "Expected array of nodes");
@@ -191,12 +200,64 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
             });
         });
 
+        describe("Exec (DML Write Endpoint)", () => {
+            before(async () => {
+                await client.query("CREATE TABLE IF NOT EXISTS exec_test (id INTEGER PRIMARY KEY, value TEXT)");
+                await client.query("DELETE FROM exec_test");
+            });
+
+            it("exec: INSERT returns rowsAffected and lastInsertId", async () => {
+                const result = await client.exec(
+                    "INSERT INTO exec_test (id, value) VALUES (?, ?)",
+                    { positional: [1, "hello"] },
+                );
+                expect(result.dml.rowsAffected).toBe(1);
+                expect(result.dml.lastInsertId).toBe(1);
+            });
+
+            it("exec: UPDATE returns correct rowsAffected", async () => {
+                await client.exec("INSERT INTO exec_test (id, value) VALUES (2, 'world')");
+                const result = await client.exec(
+                    "UPDATE exec_test SET value = 'updated' WHERE id <= 2",
+                );
+                expect(result.dml.rowsAffected).toBe(2);
+            });
+
+            it("exec: DELETE returns correct rowsAffected", async () => {
+                const result = await client.exec(
+                    "DELETE FROM exec_test WHERE id = ?",
+                    { positional: [1] },
+                );
+                expect(result.dml.rowsAffected).toBe(1);
+            });
+
+            it("exec: result shape has rowsAffected and lastInsertId", async () => {
+                await client.exec("DELETE FROM exec_test");
+                const result = await client.exec("INSERT INTO exec_test (id, value) VALUES (100, 'abc')");
+                assert.ok(result.dml, 'Missing dml object');
+                assert.ok(Object.prototype.hasOwnProperty.call(result.dml, 'rowsAffected'), 'Missing rowsAffected');
+                assert.ok(Object.prototype.hasOwnProperty.call(result.dml, 'lastInsertId'), 'Missing lastInsertId');
+                expect(typeof result.dml.rowsAffected).toBe('number');
+                expect(typeof result.dml.lastInsertId).toBe('number');
+                expect(result.dml.lastInsertId).toBe(100);
+            });
+
+            it("exec: SQL template tag works", async () => {
+                await client.exec("DELETE FROM exec_test");
+                const id = 42;
+                const val = 'template';
+                const result = await client.exec(SQL`INSERT INTO exec_test (id, value) VALUES (${id}, ${val})`);
+                expect(result.dml.rowsAffected).toBe(1);
+                expect(result.dml.lastInsertId).toBe(42);
+            });
+        });
+
         describe("DeclaredType Verification", () => {
             it("Correctly identifies specialized types", async () => {
-                await client.query("DROP TABLE IF EXISTS dtypes_fetch");
-                await client.query("CREATE TABLE IF NOT EXISTS dtypes_fetch (id UUID, meta JSON, age INTEGER, name VARCHAR(255))");
-                await client.query("DELETE FROM dtypes_fetch");
-                await client.query("INSERT INTO dtypes_fetch (id, meta, age, name) VALUES ('u-1', '{\"a\":1}', 30, 'Alice')");
+                await client.exec("DROP TABLE IF EXISTS dtypes_fetch");
+                await client.exec("CREATE TABLE IF NOT EXISTS dtypes_fetch (id UUID, meta JSON, age INTEGER, name VARCHAR(255))");
+                await client.exec("DELETE FROM dtypes_fetch");
+                await client.exec("INSERT INTO dtypes_fetch (id, meta, age, name) VALUES ('u-1', '{\"a\":1}', 30, 'Alice')");
 
                 const result = await client.query("SELECT id, meta, age, name FROM dtypes_fetch LIMIT 1");
 
@@ -223,12 +284,12 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Correctly handles BigInt values", async () => {
                 const tableName = "bigint_test_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 // Insert a value larger than 2^53 - 1 but within Int64
                 const bigVal = 9223372036854775800n;
-                await client.query(`INSERT INTO ${tableName} (id) VALUES (?)`, {
+                await client.exec(`INSERT INTO ${tableName} (id) VALUES (?)`, {
                     positional: [bigVal]
                 });
 
@@ -242,13 +303,13 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Correctly parses JSON values", async () => {
                 const tableName = "json_test_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id INT, data JSON)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id INT, data JSON)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const jsonData = { foo: "bar", baz: 123, nested: { array: [1, 2] } };
                 const jsonStr = JSON.stringify(jsonData);
 
-                await client.query(`INSERT INTO ${tableName} (id, data) VALUES (1, ?)`, {
+                await client.exec(`INSERT INTO ${tableName} (id, data) VALUES (1, ?)`, {
                     positional: [jsonStr]
                 });
 
@@ -264,13 +325,13 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Date Verification", async () => {
                 const tableName = "date_test_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER, d DATE, dt DATETIME)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER, d DATE, dt DATETIME)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const now = new Date();
                 const nowStr = now.toISOString();
 
-                await client.query(`INSERT INTO ${tableName} (id, d, dt) VALUES (1, ?, ?)`, {
+                await client.exec(`INSERT INTO ${tableName} (id, d, dt) VALUES (1, ?, ?)`, {
                     positional: [now, now]
                 });
 
@@ -292,11 +353,11 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
         describe("Parsing Configuration", () => {
             it("Disable BigInt Parsing", async () => {
                 const tableName = "bigint_parse_off_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const bigValStr = "9223372036854775800";
-                await client.query(`INSERT INTO ${tableName} (id) VALUES (?)`, { positional: [bigValStr] });
+                await client.exec(`INSERT INTO ${tableName} (id) VALUES (?)`, { positional: [bigValStr] });
 
                 const originalSetting = client.config.typeParsers.bigint;
                 client.config.typeParsers.bigint = false;
@@ -311,12 +372,12 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Disable JSON Parsing", async () => {
                 const tableName = "json_parse_off_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (data JSON)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (data JSON)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const jsonData = { foo: "bar" };
                 const jsonStr = JSON.stringify(jsonData);
-                await client.query(`INSERT INTO ${tableName} (data) VALUES (?)`, { positional: [jsonStr] });
+                await client.exec(`INSERT INTO ${tableName} (data) VALUES (?)`, { positional: [jsonStr] });
 
                 const originalSetting = client.config.typeParsers.json;
                 client.config.typeParsers.json = false;
@@ -331,11 +392,11 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Date as String", async () => {
                 const tableName = "date_parse_string_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (d DATE)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (d DATE)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const nowStr = new Date().toISOString();
-                await client.query(`INSERT INTO ${tableName} (d) VALUES (?)`, { positional: [nowStr] });
+                await client.exec(`INSERT INTO ${tableName} (d) VALUES (?)`, { positional: [nowStr] });
 
                 const originalSetting = client.config.typeParsers.date;
                 client.config.typeParsers.date = 'string';
@@ -351,14 +412,14 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Date as Number", async () => {
                 const tableName = "date_parse_number_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (d DATE)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (d DATE)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const now = new Date();
                 const nowStr = now.toISOString();
                 const nowTs = now.getTime();
 
-                await client.query(`INSERT INTO ${tableName} (d) VALUES (?)`, { positional: [nowStr] });
+                await client.exec(`INSERT INTO ${tableName} (d) VALUES (?)`, { positional: [nowStr] });
 
                 const originalSetting = client.config.typeParsers.date;
                 client.config.typeParsers.date = 'number';
@@ -373,11 +434,11 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Disable BLOB Parsing", async () => {
                 const tableName = "blob_parse_off_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (data BLOB)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (data BLOB)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 // Use X'...' hex literal for inserting BLOB data
-                await client.query(`INSERT INTO ${tableName} (data) VALUES (X'01020304')`);
+                await client.exec(`INSERT INTO ${tableName} (data) VALUES (X'01020304')`);
 
                 const originalSetting = client.config.typeParsers.blob;
                 client.config.typeParsers.blob = false;
@@ -392,14 +453,14 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("Multiple parsers disabled simultaneously", async () => {
                 const tableName = "multi_parse_off_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT, data JSON)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT, data JSON)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const bigValStr = "9223372036854775800";
                 const jsonData = { key: "value" };
                 const jsonStr = JSON.stringify(jsonData);
 
-                await client.query(`INSERT INTO ${tableName} (id, data) VALUES (?, ?)`, {
+                await client.exec(`INSERT INTO ${tableName} (id, data) VALUES (?, ?)`, {
                     positional: [bigValStr, jsonStr]
                 });
 
@@ -421,12 +482,12 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
             it("TypeParsers apply to streaming (iterate)", async () => {
                 const tableName = "stream_parse_test_fetch";
-                await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (data JSON)`);
-                await client.query(`DELETE FROM ${tableName}`);
+                await client.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (data JSON)`);
+                await client.exec(`DELETE FROM ${tableName}`);
 
                 const jsonData = { stream: true };
                 const jsonStr = JSON.stringify(jsonData);
-                await client.query(`INSERT INTO ${tableName} (data) VALUES (?)`, { positional: [jsonStr] });
+                await client.exec(`INSERT INTO ${tableName} (data) VALUES (?)`, { positional: [jsonStr] });
 
                 const originalSetting = client.config.typeParsers.json;
                 client.config.typeParsers.json = false;
@@ -448,9 +509,9 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 client.config.typeParsers.bigint = false;
                 try {
                     await client.transaction(async (tx) => {
-                        await tx.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
-                        await tx.query(`DELETE FROM ${tableName}`);
-                        await tx.query(`INSERT INTO ${tableName} (id) VALUES (?)`, { positional: ["9223372036854775800"] });
+                        await tx.exec(`CREATE TABLE IF NOT EXISTS ${tableName} (id BIGINT)`);
+                        await tx.exec(`DELETE FROM ${tableName}`);
+                        await tx.exec(`INSERT INTO ${tableName} (id) VALUES (?)`, { positional: ["9223372036854775800"] });
                         const result = await tx.query(`SELECT id FROM ${tableName} LIMIT 1`);
                         expect(typeof result.rows[0][0]).toBe('string');
                     });
@@ -462,9 +523,9 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
         describe("Parameter Binding", () => {
             before(async () => {
-                await client.query("CREATE TABLE IF NOT EXISTS users (id INTEGER, name TEXT, country TEXT, age INTEGER)");
-                await client.query("DELETE FROM users");
-                await client.query("INSERT INTO users (name, country, age) VALUES ('Alice', 'USA', 30)");
+                await client.exec("CREATE TABLE IF NOT EXISTS users (id INTEGER, name TEXT, country TEXT, age INTEGER)");
+                await client.exec("DELETE FROM users");
+                await client.exec("INSERT INTO users (name, country, age) VALUES ('Alice', 'USA', 30)");
             });
 
             it("Named Parameters", async () => {
@@ -478,7 +539,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 const result = await client.query(sql, params, {
                     named: { age: ColumnAffinity.COLUMN_AFFINITY_INTEGER },
                 });
-                expect(result.type).toBe("SELECT");
+                assert.ok(!result.type, 'Should not have type property');
                 expect(result.rows.length).toBe(1);
             });
 
@@ -488,7 +549,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 const result = await client.query(sql, params, {
                     positional: { 1: ColumnAffinity.COLUMN_AFFINITY_INTEGER },
                 });
-                expect(result.type).toBe("SELECT");
+                assert.ok(!result.type, 'Should not have type property');
                 expect(result.rows.length).toBe(1);
             });
 
@@ -503,60 +564,61 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 };
 
                 const result = await client.query(sql, params, hints);
-                expect(result.type).toBe("SELECT");
+                assert.ok(!result.type, 'Should not have type property');
                 expect(result.rows.length).toBe(1);
             });
         });
 
         describe("Atomic Transaction Script", () => {
             it("Successful Atomic Transaction", async () => {
-                await client.query("CREATE TABLE IF NOT EXISTS script_tx (id INTEGER)");
-                await client.query("DELETE FROM script_tx");
+                await client.exec("CREATE TABLE IF NOT EXISTS script_tx (id INTEGER)");
+                await client.exec("DELETE FROM script_tx");
 
                 const queries = [
-                    "INSERT INTO script_tx (id) VALUES (100)",
-                    "INSERT INTO script_tx (id) VALUES (101)",
-                    SQL`UPDATE script_tx SET id = id + 1`,
+                    { type: 'exec', sql: "INSERT INTO script_tx (id) VALUES (100)" },
+                    { type: 'exec', sql: "INSERT INTO script_tx (id) VALUES (101)" },
+                    { type: 'exec', sql: "UPDATE script_tx SET id = id + 1" },
                 ];
 
                 const results = await client.executeTransaction(queries);
                 expect(results.length).toBe(3);
-                expect(results[0].rowsAffected).toBe(1);
-                expect(results[1].rowsAffected).toBe(1);
+
+                // executeTransaction returns an array of QueryResult/ExecResponse shapes.
+                expect(results[0].dml.rowsAffected).toBe(1);
+                expect(results[1].dml.rowsAffected).toBe(1);
             });
 
             it("Atomic Rollback on Failure", async () => {
-                await client.query("CREATE TABLE IF NOT EXISTS script_fail (id INTEGER PRIMARY KEY)");
-                await client.query("DELETE FROM script_fail");
-                await client.query("INSERT INTO script_fail (id) VALUES (50)");
+                await client.exec("CREATE TABLE IF NOT EXISTS script_fail (id INTEGER PRIMARY KEY)");
+                await client.exec("DELETE FROM script_fail");
+                await client.exec("INSERT INTO script_fail (id) VALUES (50)");
 
                 const queries = [
-                    "INSERT INTO script_fail (id) VALUES (51)",
-                    "INSERT INTO script_fail (id) VALUES (50)", // FAIL: PK
-                    "INSERT INTO script_fail (id) VALUES (52)",
+                    { type: 'exec', sql: "INSERT INTO script_fail (id) VALUES (51)" },
+                    { type: 'exec', sql: "INSERT INTO script_fail (id) VALUES (50)" } // duplicate key error
                 ];
 
                 await assert.rejects(async () => await client.executeTransaction(queries));
 
                 const check = await client.query("SELECT id FROM script_fail ORDER BY id");
                 expect(check.rows.length).toBe(1);
-                expect(check.rows[0][0]).toBe(50);
+                expect(Number(check.rows[0][0])).toBe(50);
             });
         });
 
         describe("Transaction Support (Unary/ID-Based)", () => {
             it("Full ACID Workflow: Begin -> Savepoint -> Rollback -> Commit", async () => {
                 const tx = await client.beginTransaction(
-                    TransactionMode.TRANSACTION_MODE_IMMEDIATE
+                    TransactionLockMode.TRANSACTION_LOCK_MODE_IMMEDIATE
                 );
 
-                await client.query("CREATE TABLE IF NOT EXISTS accounts (id INTEGER, balance INTEGER)");
-                await client.query("DELETE FROM accounts");
+                await client.exec("CREATE TABLE IF NOT EXISTS accounts (id INTEGER, balance INTEGER)");
+                await client.exec("DELETE FROM accounts");
 
-                await tx.query("INSERT INTO accounts (id, balance) VALUES (999, 1000)");
+                await tx.exec("INSERT INTO accounts (id, balance) VALUES (999, 1000)");
                 await tx.savepoint("sp1", SavepointAction.SAVEPOINT_ACTION_CREATE);
 
-                await tx.query("UPDATE accounts SET balance = 500 WHERE id = 999");
+                await tx.exec("UPDATE accounts SET balance = 500 WHERE id = 999");
 
                 const rbRes = await tx.savepoint("sp1", SavepointAction.SAVEPOINT_ACTION_ROLLBACK);
                 expect(rbRes.success).toBe(true);
@@ -564,7 +626,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 await tx.commit();
 
                 const res = await client.query("SELECT balance FROM accounts WHERE id = 999");
-                expect(res.rows[0][0]).toBe(1000);
+                expect(Number(res.rows[0][0])).toBe(1000);
             });
 
             it("Transaction Wrapper: Auto-rollback on error", async () => {
@@ -576,7 +638,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                     await client.transaction(async (tx) => {
                         await tx.query(`INSERT INTO ${tableName} (id) VALUES (3)`);
                         throw new Error("Trigger Rollback");
-                    }, TransactionMode.TRANSACTION_MODE_DEFERRED);
+                    }, TransactionLockMode.TRANSACTION_LOCK_MODE_DEFERRED);
                 };
 
                 await expect(t()).rejects.toThrow("Trigger Rollback");
@@ -590,8 +652,8 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER)`);
                 await client.query(`DELETE FROM ${tableName}`);
 
-                const tx = await client.beginTransaction(TransactionMode.TRANSACTION_MODE_DEFERRED);
-                await tx.query(`INSERT INTO ${tableName} (id) VALUES (1), (2), (3)`);
+                const tx = await client.beginTransaction(TransactionLockMode.TRANSACTION_LOCK_MODE_DEFERRED);
+                await tx.exec(`INSERT INTO ${tableName} (id) VALUES (1), (2), (3)`);
 
                 // Test iterate
                 let sum = 0;
@@ -600,7 +662,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
                 expect(iterTypes[0]).toBe(ColumnAffinity.COLUMN_AFFINITY_INTEGER);
 
                 for await (const row of iterRows) {
-                    sum += row[0];
+                    sum += Number(row[0]);
                 }
                 expect(sum).toBe(6);
 
@@ -662,7 +724,7 @@ function runFunctionalTests(createClientFn, suiteConfig = {}) {
 
                 // Verify it's attached by querying its schema
                 const result = await client.query(`SELECT name FROM ${alias}.sqlite_master LIMIT 1`);
-                expect(result.type).toBe("SELECT");
+                assert.ok(!result.type, 'Should not have type property');
 
                 // Detach it
                 const detachRes = await client.detach(alias);

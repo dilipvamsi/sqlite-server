@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +29,7 @@ func setupStore(t *testing.T) (*auth.MetaStore, string, string) {
 
 	ctx := context.Background()
 	// Create user
-	userID, err := store.CreateUser(ctx, "testuser", "password123", dbv1.Role_ROLE_READ_WRITE)
+	userID, err := store.CreateUser(ctx, "testuser", "password123", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	// Create API key
@@ -241,11 +241,11 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	// Create a user in the store for valid auth tests
 	ctx := context.Background()
-	userID, _ := storeS.CreateUser(ctx, "testuser", "testpass", dbv1.Role_ROLE_READ_ONLY)
+	userID, _ := storeS.CreateUser(ctx, "testuser", "testpass", sqlrpcv1.Role_ROLE_READ_ONLY)
 	apiKey, _, _ := storeS.CreateApiKey(ctx, userID, "testkey", nil)
 
 	next := func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		return connect.NewResponse(&dbv1.QueryResponse{}), nil
+		return connect.NewResponse(&sqlrpcv1.QueryResponse{}), nil
 	}
 	wrap := interceptor.WrapUnary(next)
 
@@ -263,7 +263,7 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			realReq := connect.NewRequest(&dbv1.QueryRequest{})
+			realReq := connect.NewRequest(&sqlrpcv1.QueryRequest{})
 			if tt.header != "" {
 				realReq.Header().Set("Authorization", tt.header)
 			}
@@ -272,7 +272,7 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 			req := &mockRequest{
 				AnyRequest: realReq,
 				spec: connect.Spec{
-					Procedure: "/db.v1.DatabaseService/Query",
+					Procedure: "/sqlrpc.v1.DatabaseService/Query",
 				},
 			}
 
@@ -284,11 +284,11 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	t.Run("Cache Expiration", func(t *testing.T) {
 		authHeader := "Bearer " + apiKey
-		realReq := connect.NewRequest(&dbv1.QueryRequest{})
+		realReq := connect.NewRequest(&sqlrpcv1.QueryRequest{})
 		realReq.Header().Set("Authorization", authHeader)
 		req := &mockRequest{
 			AnyRequest: realReq,
-			spec:       connect.Spec{Procedure: "/db.v1.DatabaseService/Query"},
+			spec:       connect.Spec{Procedure: "/sqlrpc.v1.DatabaseService/Query"},
 		}
 
 		// 1. First call to populate cache
@@ -310,22 +310,22 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 		authHeader := "Bearer " + apiKey // RO user
 		// ListApiKeys is now allowed for everyone in interceptor (auth happens in handler)
 		{
-			realReq := connect.NewRequest(&dbv1.ListApiKeysRequest{})
+			realReq := connect.NewRequest(&sqlrpcv1.ListAPIKeysRequest{})
 			realReq.Header().Set("Authorization", authHeader)
 			req := &mockRequest{
 				AnyRequest: realReq,
-				spec:       connect.Spec{Procedure: "/db.v1.AdminService/ListApiKeys"},
+				spec:       connect.Spec{Procedure: "/sqlrpc.v1.AdminService/ListAPIKeys"},
 			}
 			_, err := wrap(context.Background(), req)
 			assert.NoError(t, err)
 		}
 		// DeleteUser
 		{
-			realReq := connect.NewRequest(&dbv1.DeleteUserRequest{})
+			realReq := connect.NewRequest(&sqlrpcv1.DeleteUserRequest{})
 			realReq.Header().Set("Authorization", authHeader)
 			req := &mockRequest{
 				AnyRequest: realReq,
-				spec:       connect.Spec{Procedure: "/db.v1.AdminService/DeleteUser"},
+				spec:       connect.Spec{Procedure: "/sqlrpc.v1.AdminService/DeleteUser"},
 			}
 			_, err := wrap(context.Background(), req)
 			assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
@@ -334,11 +334,11 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	t.Run("Invalid_Message_Type", func(t *testing.T) {
 		authHeader := "Bearer " + apiKey
-		realReq := connect.NewRequest(&dbv1.QueryResponse{}) // WRONG message type for Query RPC
+		realReq := connect.NewRequest(&sqlrpcv1.QueryResponse{}) // WRONG message type for Query RPC
 		realReq.Header().Set("Authorization", authHeader)
 		req := &mockRequest{
 			AnyRequest: realReq,
-			spec:       connect.Spec{Procedure: "/db.v1.DatabaseService/Query"},
+			spec:       connect.Spec{Procedure: "/sqlrpc.v1.DatabaseService/Query"},
 		}
 		_, err := wrap(context.Background(), req)
 		// It might not return error, just default to read-only check or pass.
@@ -348,11 +348,11 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	t.Run("DatabaseService_RO_Write", func(t *testing.T) {
 		authHeader := "Bearer " + apiKey // RO user
-		realReq := connect.NewRequest(&dbv1.QueryRequest{Sql: "DELETE FROM users"})
+		realReq := connect.NewRequest(&sqlrpcv1.QueryRequest{Sql: "DELETE FROM users"})
 		realReq.Header().Set("Authorization", authHeader)
 		req := &mockRequest{
 			AnyRequest: realReq,
-			spec:       connect.Spec{Procedure: "/db.v1.DatabaseService/Query"},
+			spec:       connect.Spec{Procedure: "/sqlrpc.v1.DatabaseService/Query"},
 		}
 		_, err := wrap(context.Background(), req)
 		require.Error(t, err)
@@ -361,11 +361,11 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	t.Run("AdminService RBAC", func(t *testing.T) {
 		authHeader := "Bearer " + apiKey // This user is ROLE_READ_ONLY
-		realReq := connect.NewRequest(&dbv1.CreateUserRequest{})
+		realReq := connect.NewRequest(&sqlrpcv1.CreateUserRequest{})
 		realReq.Header().Set("Authorization", authHeader)
 		req := &mockRequest{
 			AnyRequest: realReq,
-			spec:       connect.Spec{Procedure: "/db.v1.AdminService/CreateUser"},
+			spec:       connect.Spec{Procedure: "/sqlrpc.v1.AdminService/CreateUser"},
 		}
 
 		_, err := wrap(context.Background(), req)
@@ -377,11 +377,11 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 		authHeader := "Bearer " + apiKey
 		// TransactionQuery (Write)
 		{
-			realReq := connect.NewRequest(&dbv1.TransactionQueryRequest{Sql: "DELETE FROM x"})
+			realReq := connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{Sql: "DELETE FROM x"})
 			realReq.Header().Set("Authorization", authHeader)
 			req := &mockRequest{
 				AnyRequest: realReq,
-				spec:       connect.Spec{Procedure: "/db.v1.DatabaseService/TransactionQuery"},
+				spec:       connect.Spec{Procedure: "/sqlrpc.v1.DatabaseService/TransactionQuery"},
 			}
 			_, err := wrap(context.Background(), req)
 			require.Error(t, err)
@@ -389,11 +389,11 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 		}
 		// TypedTransactionQuery (Read)
 		{
-			realReq := connect.NewRequest(&dbv1.TypedTransactionQueryRequest{Sql: "SELECT 1"})
+			realReq := connect.NewRequest(&sqlrpcv1.TypedTransactionQueryRequest{Sql: "SELECT 1"})
 			realReq.Header().Set("Authorization", authHeader)
 			req := &mockRequest{
 				AnyRequest: realReq,
-				spec:       connect.Spec{Procedure: "/db.v1.DatabaseService/TypedTransactionQuery"},
+				spec:       connect.Spec{Procedure: "/sqlrpc.v1.DatabaseService/TypedTransactionQuery"},
 			}
 			_, err := wrap(context.Background(), req)
 			assert.NoError(t, err)
@@ -402,18 +402,18 @@ func TestAuthInterceptor_WrapUnary_AuthFormats(t *testing.T) {
 
 	t.Run("ExecuteTransaction_Coverage", func(t *testing.T) {
 		authHeader := "Bearer " + apiKey
-		reqContent := &dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{}}},
-				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "DELETE FROM x"}}},
-				{Command: &dbv1.TransactionRequest_Commit{}},
+		reqContent := &sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "DELETE FROM x"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{}},
 			},
 		}
 		realReq := connect.NewRequest(reqContent)
 		realReq.Header().Set("Authorization", authHeader)
 		req := &mockRequest{
 			AnyRequest: realReq,
-			spec:       connect.Spec{Procedure: "/db.v1.DatabaseService/ExecuteTransaction"},
+			spec:       connect.Spec{Procedure: "/sqlrpc.v1.DatabaseService/ExecuteTransaction"},
 		}
 		_, err := wrap(context.Background(), req)
 		require.Error(t, err)
@@ -426,7 +426,7 @@ func TestAuthInterceptor_Stream_Receive_RBAC(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, _ := auth.NewMetaStore(filepath.Join(tmpDir, "stream_rbac.db"))
 	defer store.Close()
-	_, _ = store.CreateUser(context.Background(), "rouser", "pass", dbv1.Role_ROLE_READ_ONLY)
+	_, _ = store.CreateUser(context.Background(), "rouser", "pass", sqlrpcv1.Role_ROLE_READ_ONLY)
 	apiKey, _, _ := store.CreateApiKey(context.Background(), 1, "streamkey", nil)
 
 	interceptor := NewAuthInterceptor(store)
@@ -435,16 +435,16 @@ func TestAuthInterceptor_Stream_Receive_RBAC(t *testing.T) {
 	// Use WrapStreamingHandler to get the wrapper
 	wrapperFunc := interceptor.WrapStreamingHandler(func(ctx context.Context, conn connect.StreamingHandlerConn) error {
 		// Try to receive. This should trigger the auth check in Receive().
-		var msg dbv1.TransactionRequest
+		var msg sqlrpcv1.TransactionRequest
 		return conn.Receive(&msg)
 	})
 
 	// Now we call wrapperFunc with our mock connection
 	mockConn := &mockStreamingConn{
 		header: http.Header{"Authorization": {authHeader}},
-		msg: &dbv1.TransactionRequest{
-			Command: &dbv1.TransactionRequest_Query{
-				Query: &dbv1.TransactionalQueryRequest{
+		msg: &sqlrpcv1.TransactionRequest{
+			Command: &sqlrpcv1.TransactionRequest_Query{
+				Query: &sqlrpcv1.TransactionalQueryRequest{
 					Sql: "DELETE FROM users", // WRITE query
 				},
 			},
@@ -497,13 +497,13 @@ func TestAuthInterceptor_WrapUnary_Procedures_Coverage(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, _ := auth.NewMetaStore(filepath.Join(tmpDir, "interceptor_cov.db"))
 	defer store.Close()
-	_, _ = store.CreateUser(context.Background(), "admin", "adminpass", dbv1.Role_ROLE_ADMIN)
+	_, _ = store.CreateUser(context.Background(), "admin", "adminpass", sqlrpcv1.Role_ROLE_ADMIN)
 	apiKey, _, _ := store.CreateApiKey(context.Background(), 1, "adminkey", nil)
 	authHeader := "Bearer " + apiKey
 
 	interceptor := NewAuthInterceptor(store)
 	next := func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		return connect.NewResponse(&dbv1.QueryResponse{}), nil
+		return connect.NewResponse(&sqlrpcv1.QueryResponse{}), nil
 	}
 	wrap := interceptor.WrapUnary(next)
 
@@ -512,12 +512,12 @@ func TestAuthInterceptor_WrapUnary_Procedures_Coverage(t *testing.T) {
 		procedure string
 		req       any
 	}{
-		{"Login", "/db.v1.AdminService/Login", &dbv1.LoginRequest{}},
-		{"Vacuum", "/db.v1.DatabaseService/Vacuum", &dbv1.VacuumRequest{}},
-		{"Checkpoint", "/db.v1.DatabaseService/Checkpoint", &dbv1.CheckpointRequest{}},
-		{"TypedQuery_Read", "/db.v1.DatabaseService/TypedQuery", &dbv1.TypedQueryRequest{Sql: "SELECT 1"}},
-		{"TypedQuery_Write", "/db.v1.DatabaseService/TypedQuery", &dbv1.TypedQueryRequest{Sql: "DELETE FROM x"}},
-		{"QueryStream_Write", "/db.v1.DatabaseService/QueryStream", &dbv1.QueryRequest{Sql: "DELETE FROM x"}},
+		{"Login", "/sqlrpc.v1.AdminService/Login", &sqlrpcv1.LoginRequest{}},
+		{"Vacuum", "/sqlrpc.v1.DatabaseService/Vacuum", &sqlrpcv1.VacuumRequest{}},
+		{"Checkpoint", "/sqlrpc.v1.DatabaseService/Checkpoint", &sqlrpcv1.CheckpointRequest{}},
+		{"TypedQuery_Read", "/sqlrpc.v1.DatabaseService/TypedQuery", &sqlrpcv1.TypedQueryRequest{Sql: "SELECT 1"}},
+		{"TypedQuery_Write", "/sqlrpc.v1.DatabaseService/TypedQuery", &sqlrpcv1.TypedQueryRequest{Sql: "DELETE FROM x"}},
+		{"QueryStream_Write", "/sqlrpc.v1.DatabaseService/QueryStream", &sqlrpcv1.QueryRequest{Sql: "DELETE FROM x"}},
 	}
 
 	for _, tt := range tests {
@@ -530,18 +530,18 @@ func TestAuthInterceptor_WrapUnary_Procedures_Coverage(t *testing.T) {
 
 			var realReq connect.AnyRequest
 			switch v := tt.req.(type) {
-			case *dbv1.LoginRequest:
+			case *sqlrpcv1.LoginRequest:
 				realReq = connect.NewRequest(v)
-			case *dbv1.VacuumRequest:
+			case *sqlrpcv1.VacuumRequest:
 				realReq = connect.NewRequest(v)
-			case *dbv1.CheckpointRequest:
+			case *sqlrpcv1.CheckpointRequest:
 				realReq = connect.NewRequest(v)
-			case *dbv1.TypedQueryRequest:
+			case *sqlrpcv1.TypedQueryRequest:
 				realReq = connect.NewRequest(v)
-			case *dbv1.QueryRequest:
+			case *sqlrpcv1.QueryRequest:
 				realReq = connect.NewRequest(v)
 			}
-			if tt.procedure != "/db.v1.AdminService/Login" {
+			if tt.procedure != "/sqlrpc.v1.AdminService/Login" {
 				realReq.Header().Set("Authorization", authHeader)
 			}
 
@@ -562,38 +562,38 @@ func TestAuthInterceptor_Receive_Types_Coverage(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, _ := auth.NewMetaStore(filepath.Join(tmpDir, "receive_cov.db"))
 	defer store.Close()
-	_, _ = store.CreateUser(context.Background(), "admin", "adminpass", dbv1.Role_ROLE_ADMIN)
+	_, _ = store.CreateUser(context.Background(), "admin", "adminpass", sqlrpcv1.Role_ROLE_ADMIN)
 	apiKey, _, _ := store.CreateApiKey(context.Background(), 1, "receivekey", nil)
 	authHeader := "Bearer " + apiKey
 
 	interceptor := NewAuthInterceptor(store)
 
 	wrapperFunc := interceptor.WrapStreamingHandler(func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		var msg dbv1.TransactionRequest
+		var msg sqlrpcv1.TransactionRequest
 		return conn.Receive(&msg)
 	})
 
 	tests := []struct {
 		name string
-		msg  *dbv1.TransactionRequest
+		msg  *sqlrpcv1.TransactionRequest
 	}{
-		{"QueryStream", &dbv1.TransactionRequest{
-			Command: &dbv1.TransactionRequest_QueryStream{
-				QueryStream: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"},
+		{"QueryStream", &sqlrpcv1.TransactionRequest{
+			Command: &sqlrpcv1.TransactionRequest_QueryStream{
+				QueryStream: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT 1"},
 			},
 		}},
-		{"TypedQuery", &dbv1.TransactionRequest{
-			Command: &dbv1.TransactionRequest_TypedQuery{
-				TypedQuery: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT 1"},
+		{"TypedQuery", &sqlrpcv1.TransactionRequest{
+			Command: &sqlrpcv1.TransactionRequest_TypedQuery{
+				TypedQuery: &sqlrpcv1.TypedTransactionalQueryRequest{Sql: "SELECT 1"},
 			},
 		}},
-		{"TypedQueryStream", &dbv1.TransactionRequest{
-			Command: &dbv1.TransactionRequest_TypedQueryStream{
-				TypedQueryStream: &dbv1.TypedTransactionalQueryRequest{Sql: "SELECT 1"},
+		{"TypedQueryStream", &sqlrpcv1.TransactionRequest{
+			Command: &sqlrpcv1.TransactionRequest_TypedQueryStream{
+				TypedQueryStream: &sqlrpcv1.TypedTransactionalQueryRequest{Sql: "SELECT 1"},
 			},
 		}},
-		{"Default/Other", &dbv1.TransactionRequest{
-			Command: &dbv1.TransactionRequest_Commit{},
+		{"Default/Other", &sqlrpcv1.TransactionRequest{
+			Command: &sqlrpcv1.TransactionRequest_Commit{},
 		}},
 	}
 
@@ -618,7 +618,7 @@ func TestNoAuthInterceptor(t *testing.T) {
 			claims, ok := auth.FromContext(ctx)
 			require.True(t, ok)
 			assert.Equal(t, "anonymous-admin", claims.Username)
-			assert.Equal(t, dbv1.Role_ROLE_ADMIN, claims.Role)
+			assert.Equal(t, sqlrpcv1.Role_ROLE_ADMIN, claims.Role)
 			return connect.NewResponse(&struct{}{}), nil
 		})
 

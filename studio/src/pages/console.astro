@@ -62,7 +62,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
     import { getClient, getAuthHeaders, performLogout } from "../lib/client";
-    import { DatabaseService } from "../gen/db/v1/db_service_pb";
+    import { DatabaseService } from "../gen/sqlrpc/v1/db_service_pb";
     import { NotebookManager } from "../lib/notebook";
     import { fromJson } from "@bufbuild/protobuf";
     import { ListValueSchema, StructSchema } from "@bufbuild/protobuf/wkt";
@@ -169,7 +169,7 @@ import Layout from "../layouts/Layout.astro";
             "query",
             container,
             resultContainer,
-            async (sql, paramsInput) => {
+            async (sql, paramsInput, mode) => {
                 const client = getClient(DatabaseService);
                 const headers = getAuthHeaders() as HeadersInit;
 
@@ -189,7 +189,17 @@ import Layout from "../layouts/Layout.astro";
                     );
                 }
 
-                // Execute
+                // Execute — branch on mode
+                if (mode === "exec") {
+                    return await client.exec(
+                        {
+                            database: dbName!,
+                            sql: sql,
+                            parameters: parameters,
+                        },
+                        { headers },
+                    );
+                }
                 return await client.query(
                     {
                         database: dbName!,
@@ -342,10 +352,27 @@ import Layout from "../layouts/Layout.astro";
         box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
     }
 
-    .card-controls {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
+    .card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .query-mode-select {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .query-mode-select:disabled {
+        opacity: 0.5;
+        cursor: default;
     }
 
     .card-inputs {

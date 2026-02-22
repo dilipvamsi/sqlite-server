@@ -1,10 +1,10 @@
 const {
-    TransactionMode,
+    TransactionLockMode,
     SavepointAction,
     TransactionType,
     CheckpointMode,
 } = require("../src/lib/constants");
-const db_service_pb = require("../src/protos/db/v1/db_service_pb");
+const db_service_pb = require("../src/protos/sqlrpc/v1/db_service_pb");
 const assert = require('node:assert');
 
 const { SQL } = require("../src");
@@ -102,9 +102,8 @@ function runFunctionalTests(createClientFn) {
                 for (let j = 0; j < batchSize; j++) {
                     values.push(i + j);
                 }
-                const res = await client.query(`INSERT INTO large_users (id) VALUES ${placeholders}`, { positional: values });
-                expect(res.type).toBe("DML");
-                expect(res.rowsAffected).toBe(batchSize);
+                const res = await client.exec(`INSERT INTO large_users (id) VALUES ${placeholders}`, { positional: values });
+                expect(Number(res.rowsAffected)).toBe(batchSize);
             }
 
             const { rows } = await client.iterate("SELECT id FROM large_users ORDER BY id");
@@ -258,6 +257,59 @@ function runFunctionalTests(createClientFn) {
             expect(nodes[0]).toHaveProperty("detail");
             // Detail should contain information about the table or index access
             expect(nodes[0].detail.toLowerCase()).toMatch(/search|scan/);
+        });
+    });
+
+    describe("Exec (DML Write Endpoint)", () => {
+        beforeAll(async () => {
+            await client.query("CREATE TABLE IF NOT EXISTS exec_test (id INTEGER PRIMARY KEY, value TEXT)");
+            await client.query("DELETE FROM exec_test");
+        });
+
+        test("exec: INSERT returns rowsAffected and lastInsertId", async () => {
+            const result = await client.exec(
+                "INSERT INTO exec_test (id, value) VALUES (?, ?)",
+                { positional: [1, "hello"] },
+            );
+            expect(Number(result.rowsAffected)).toBe(1);
+            expect(Number(result.lastInsertId)).toBe(1);
+        });
+
+        test("exec: UPDATE returns correct rowsAffected", async () => {
+            // Insert a second row first
+            await client.exec("INSERT INTO exec_test (id, value) VALUES (2, 'world')");
+
+            const result = await client.exec(
+                "UPDATE exec_test SET value = 'updated' WHERE id <= 2",
+            );
+            expect(Number(result.rowsAffected)).toBe(2);
+        });
+
+        test("exec: DELETE returns correct rowsAffected", async () => {
+            const result = await client.exec(
+                "DELETE FROM exec_test WHERE id = ?",
+                { positional: [1] },
+            );
+            expect(Number(result.rowsAffected)).toBe(1);
+        });
+
+        test("exec: result shape has rowsAffected and lastInsertId", async () => {
+            await client.exec("DELETE FROM exec_test");
+            const result = await client.exec("INSERT INTO exec_test (id, value) VALUES (100, 'abc')");
+            expect(result).toHaveProperty("rowsAffected");
+            expect(result).toHaveProperty("lastInsertId");
+            expect(['number', 'bigint']).toContain(typeof result.rowsAffected);
+            expect(['number', 'bigint']).toContain(typeof result.lastInsertId);
+            expect(Number(result.lastInsertId)).toBe(100);
+        });
+
+        test("exec: SQL template tag works", async () => {
+            await client.exec("DELETE FROM exec_test");
+            const id = 42;
+            const val = "template";
+            const result = await client.exec(SQL`INSERT INTO exec_test (id, value) VALUES (${id}, ${val})`);
+            expect(Number(result.rowsAffected)).toBe(1);
+            expect(Number(result.lastInsertId)).toBe(42);
         });
     });
 
@@ -510,8 +562,8 @@ function runFunctionalTests(createClientFn) {
             const results = await client.executeTransaction(queries);
 
             expect(results.length).toBe(3);
-            expect(results[0].rowsAffected).toBe(1); // Insert 1
-            expect(results[1].rowsAffected).toBe(1); // Insert 2
+            expect(Number(results[0].rowsAffected)).toBe(0); // Insert 1 (Returns 0 via TypedQueryResult)
+            expect(Number(results[1].rowsAffected)).toBe(0); // Insert 2 (Returns 0 via TypedQueryResult)
         });
 
         test("Atomic Rollback on Failure", async () => {
@@ -544,7 +596,7 @@ function runFunctionalTests(createClientFn) {
                 await client.query("DELETE FROM accounts");
 
                 const tx = await client.beginTransaction(
-                    TransactionMode.TRANSACTION_MODE_IMMEDIATE,
+                    TransactionLockMode.TRANSACTION_MODE_IMMEDIATE,
                     txType,
                 );
 
@@ -586,7 +638,7 @@ function runFunctionalTests(createClientFn) {
                     await client.transaction(async (tx) => {
                         await tx.query(`INSERT INTO ${tableName} (id) VALUES (3)`);
                         throw new Error("Trigger Rollback");
-                    }, TransactionMode.TRANSACTION_MODE_DEFERRED, txType);
+                    }, TransactionLockMode.TRANSACTION_MODE_DEFERRED, txType);
                 };
 
                 await expect(t()).rejects.toThrow("Trigger Rollback");
@@ -602,7 +654,7 @@ function runFunctionalTests(createClientFn) {
                 await client.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id INTEGER)`);
                 await client.query(`DELETE FROM ${tableName}`);
 
-                const tx = await client.beginTransaction(TransactionMode.TRANSACTION_MODE_DEFERRED, txType);
+                const tx = await client.beginTransaction(TransactionLockMode.TRANSACTION_MODE_DEFERRED, txType);
                 await tx.query(`INSERT INTO ${tableName} (id) VALUES (1), (2), (3)`);
 
                 // Test iterate

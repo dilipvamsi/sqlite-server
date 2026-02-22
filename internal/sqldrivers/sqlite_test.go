@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 func TestNewSqliteDb_Extended(t *testing.T) {
@@ -19,7 +19,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 		tmpDir := t.TempDir()
 		dbPath := filepath.Join(tmpDir, "test.db")
 
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "test_basic",
 			DbPath: dbPath,
 		}
@@ -38,7 +38,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 
 	// 2. In-Memory Database
 	t.Run("creates in-memory db", func(t *testing.T) {
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "test_mem",
 			DbPath: ":memory:",
 		}
@@ -56,7 +56,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 		// Ensure cleanup
 		defer os.Remove(relPath)
 
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "test_rel",
 			DbPath: relPath,
 		}
@@ -80,7 +80,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 		// Let's try file:///
 		uriPath := "file://" + absPath
 
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "test_uri",
 			DbPath: uriPath,
 		}
@@ -103,7 +103,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 			initDB.Close()
 		}
 
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:     "test_ro",
 			DbPath:   dbPath,
 			ReadOnly: true,
@@ -131,7 +131,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 			initDB.Close()
 		}
 
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "test_sec_ro",
 			DbPath: dbPath,
 			// Config says writeable, but function arg says readOnlySecured
@@ -153,7 +153,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 	// but we can verify the function tries to register a custom driver.
 	t.Run("registers custom driver for extensions", func(t *testing.T) {
 		// Just ensure it doesn't panic and logic runs
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:       "test_ext",
 			DbPath:     ":memory:",
 			Extensions: []string{"/path/to/missing/ext.so"},
@@ -176,7 +176,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 
 	// 8. Pool Settings
 	t.Run("applies pool settings", func(t *testing.T) {
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:              "test_pool",
 			DbPath:            ":memory:",
 			MaxOpenConns:      10,
@@ -200,7 +200,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 		// We rely on string checking or just running the code.
 		// Since we can't inspect the DSN string inside sql.DB,
 		// we verify the "IsEncrypted" block is covered.
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:        "test_crypto",
 			DbPath:      ":memory:",
 			IsEncrypted: true,
@@ -229,7 +229,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 
 		dbPath := filepath.Join(tmpDir, "init_cmd.db")
 
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "test_init",
 			DbPath: dbPath,
 			InitCommands: []string{
@@ -258,7 +258,7 @@ func TestNewSqliteDb_Extended(t *testing.T) {
 
 func TestNewSqliteDb_EncryptionDefaults(t *testing.T) {
 	// Test default key assignment
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:        "test_crypto_default",
 		DbPath:      ":memory:",
 		IsEncrypted: true,
@@ -275,7 +275,7 @@ func TestNewSqliteDb_EncryptionDefaults(t *testing.T) {
 
 func TestNewSqliteDb_AttachedFailures(t *testing.T) {
 	t.Run("invalid attach path", func(t *testing.T) {
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "primary_fail",
 			DbPath: ":memory:",
 		}
@@ -296,7 +296,7 @@ func TestNewSqliteDb_AttachedFailures(t *testing.T) {
 	})
 
 	t.Run("invalid init command", func(t *testing.T) {
-		config := &dbv1.DatabaseConfig{
+		config := &sqlrpcv1.DatabaseConfig{
 			Name:   "primary_bad_sql",
 			DbPath: ":memory:",
 			InitCommands: []string{
@@ -323,7 +323,7 @@ func TestNewSqliteDb_AttachedAdvancedFeatures(t *testing.T) {
 		db.Close()
 	}
 
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   "primary_adv",
 		DbPath: ":memory:",
 	}
@@ -350,7 +350,7 @@ func TestNewSqliteDb_AttachedAdvancedFeatures(t *testing.T) {
 }
 
 func TestNewSqliteDb_Pragmas(t *testing.T) {
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   "test_pragmas",
 		DbPath: ":memory:",
 		Pragmas: map[string]string{
@@ -374,7 +374,7 @@ func TestNewSqliteDb_Pragmas(t *testing.T) {
 func TestNewSqliteDb_PathResolution_EdgeCases(t *testing.T) {
 	// Test with already absolute path to ensure filepath.Abs branch handling
 	absPath, _ := filepath.Abs("something.db")
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   "test_abs",
 		DbPath: absPath,
 	}

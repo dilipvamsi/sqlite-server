@@ -388,7 +388,8 @@ busy_timeout=5000"></textarea>
     isAdmin,
     canManageDatabases,
   } from "../lib/client";
-  import { AdminService, DatabaseService } from "../gen/db/v1/db_service_pb";
+  import { DatabaseService } from "../gen/sqlrpc/v1/db_service_pb";
+  import { AdminService } from "../gen/sqlrpc/v1/admin_service_pb";
 
   const dbList = document.getElementById("db-list");
   const errorAlert = document.getElementById("error-alert");
@@ -528,13 +529,13 @@ busy_timeout=5000"></textarea>
     e.preventDefault();
     const formData = new FormData(formMount);
 
-    // Build DatabaseConfig directly (MountDatabase takes DatabaseConfig as request)
-    const config = {
+    // Build MountDatabaseRequest
+    const req = {
       name: formData.get("name") as string,
-      dbPath: formData.get("dbPath") as string,
+      path: formData.get("dbPath") as string,
+      readOnly: formData.get("readOnly") === "on",
       isEncrypted: formData.get("isEncrypted") === "on",
       key: (formData.get("key") as string) || "",
-      readOnly: formData.get("readOnly") === "on",
       extensions: parseExtensions((formData.get("extensions") as string) || ""),
       pragmas: parsePragmas((formData.get("pragmas") as string) || ""),
       maxOpenConns: parseInt(formData.get("maxOpenConns") as string) || 0,
@@ -546,7 +547,7 @@ busy_timeout=5000"></textarea>
     try {
       const client = getClient(AdminService);
       const headers = getAuthHeaders();
-      await client.mountDatabase(config, { headers });
+      await client.mountDatabase(req, { headers });
       formMount.reset();
       if (mountKeyRow) mountKeyRow.style.display = "none";
       modalMount.close();
@@ -596,6 +597,8 @@ busy_timeout=5000"></textarea>
     try {
       const client = getClient(DatabaseService);
       const headers = getAuthHeaders();
+      // TODO: loadExtension not yet in sqlrpc/v1 DatabaseService connect client; needs proto regen
+      // @ts-ignore
       await client.loadExtension(
         {
           database: database,
@@ -916,6 +919,8 @@ busy_timeout=5000"></textarea>
       try {
         const client = getClient(DatabaseService);
         const headers = getAuthHeaders();
+        // TODO: listExtensions not yet in sqlrpc/v1 DatabaseService connect client; needs proto regen
+        // @ts-ignore
         const response = await client.listExtensions(
           { database: dbName },
           { headers },
@@ -925,7 +930,7 @@ busy_timeout=5000"></textarea>
           '<option value="">-- Select an extension --</option>' +
           response.extensions
             .map(
-              (ext) =>
+              (ext: any) =>
                 `<option value="${ext.folderName}" ${ext.isLoaded ? "disabled" : ""}>${ext.name} v${ext.version} ${ext.isLoaded ? "(Already loaded)" : ""}</option>`,
             )
             .join("");

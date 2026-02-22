@@ -5,14 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // AttachDatabase attaches a database to a parent database
-func (s *DbServer) AttachDatabase(ctx context.Context, req *connect.Request[dbv1.AttachDatabaseRequest]) (*connect.Response[dbv1.AttachDatabaseResponse], error) {
+func (s *DbServer) AttachDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.AttachDatabaseRequest]) (*connect.Response[sqlrpcv1.AttachDatabaseResponse], error) {
 	name := req.Msg.ParentDatabase
 	attachment := req.Msg.Attachment
 
@@ -26,7 +26,7 @@ func (s *DbServer) AttachDatabase(ctx context.Context, req *connect.Request[dbv1
 	}
 
 	// 2. Unmarshal existing settings
-	currentConfig := &dbv1.DatabaseConfig{}
+	currentConfig := &sqlrpcv1.DatabaseConfig{}
 	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
 	}
@@ -47,7 +47,7 @@ func (s *DbServer) AttachDatabase(ctx context.Context, req *connect.Request[dbv1
 
 	// 4. Return if already attached
 	if isAlreadyAttached {
-		return connect.NewResponse(&dbv1.AttachDatabaseResponse{
+		return connect.NewResponse(&sqlrpcv1.AttachDatabaseResponse{
 			Success: true,
 			Message: "Database already attached previously",
 		}), nil
@@ -72,14 +72,14 @@ func (s *DbServer) AttachDatabase(ctx context.Context, req *connect.Request[dbv1
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.AttachDatabaseResponse{
+	return connect.NewResponse(&sqlrpcv1.AttachDatabaseResponse{
 		Success: true,
 		Message: "Database attached successfully",
 	}), nil
 }
 
 // DetachDatabase detaches a database from a parent database
-func (s *DbServer) DetachDatabase(ctx context.Context, req *connect.Request[dbv1.DetachDatabaseRequest]) (*connect.Response[dbv1.DetachDatabaseResponse], error) {
+func (s *DbServer) DetachDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.DetachDatabaseRequest]) (*connect.Response[sqlrpcv1.DetachDatabaseResponse], error) {
 	name := req.Msg.ParentDatabase
 	alias := req.Msg.Alias
 
@@ -93,14 +93,14 @@ func (s *DbServer) DetachDatabase(ctx context.Context, req *connect.Request[dbv1
 	}
 
 	// 2. Unmarshal existing settings
-	currentConfig := &dbv1.DatabaseConfig{}
+	currentConfig := &sqlrpcv1.DatabaseConfig{}
 	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse existing config: %w", err))
 	}
 
 	// 3. Update attachments
 	found := false
-	newAttachments := make([]*dbv1.Attachment, 0, len(currentConfig.Attachments))
+	newAttachments := make([]*sqlrpcv1.Attachment, 0, len(currentConfig.Attachments))
 	for _, adb := range currentConfig.Attachments {
 		if adb.Alias == alias {
 			found = true
@@ -127,7 +127,7 @@ func (s *DbServer) DetachDatabase(ctx context.Context, req *connect.Request[dbv1
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.DetachDatabaseResponse{
+	return connect.NewResponse(&sqlrpcv1.DetachDatabaseResponse{
 		Success: true,
 		Message: "Database detached successfully",
 	}), nil

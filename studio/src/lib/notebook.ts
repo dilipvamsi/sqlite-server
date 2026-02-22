@@ -1,12 +1,14 @@
 import localforage from 'localforage';
 import { toJson } from "@bufbuild/protobuf";
 import { ValueSchema } from "@bufbuild/protobuf/wkt";
-import { DeclaredType, type QueryPlanNode } from "../gen/db/v1/db_service_pb";
+import { DeclaredType } from "../gen/sqlrpc/v1/enums_pb";
+import type { QueryPlanNode } from "../gen/sqlrpc/v1/types_pb";
 
 export interface NotebookCard {
     id: string;
     sql: string;
     params: string;
+    queryMode: 'query' | 'exec'; // 'query' = read-only SELECT path, 'exec' = write DML path
     // Result is now optional and may be loaded lazily
     result?: {
         columns?: string[];
@@ -24,7 +26,7 @@ export interface NotebookCard {
     explainResult?: QueryPlanNode[]; // For Explain mode
 }
 
-export type RunQueryCallback = (sql: string, params: string) => Promise<any>;
+export type RunQueryCallback = (sql: string, params: string, mode: 'query' | 'exec') => Promise<any>;
 
 // Use a generic store name, we will manage keys physically with prefixes
 const STORE_NAME = 'sqlite-studio-data';
@@ -143,7 +145,23 @@ export class NotebookManager {
             } else if (target.matches('.params-editor')) {
                 card.params = (target as HTMLTextAreaElement).value;
                 this.saveCardMetadata(card);
+            } else if (target.matches('.query-mode-select')) {
+                card.queryMode = (target as HTMLSelectElement).value as 'query' | 'exec';
+                this.saveCardMetadata(card);
             }
+        });
+
+        // Also handle 'change' events for the select (fires on selection change)
+        this.cardContainer.addEventListener('change', (e) => {
+            if (this.readOnly) return;
+            const target = e.target as HTMLElement;
+            if (!target.matches('.query-mode-select')) return;
+            const cardEl = target.closest('.notebook-card') as HTMLElement;
+            if (!cardEl) return;
+            const card = this.cards.find(c => c.id === cardEl.dataset.id!);
+            if (!card || card.readOnly) return;
+            card.queryMode = (target as HTMLSelectElement).value as 'query' | 'exec';
+            this.saveCardMetadata(card);
         });
 
         // Ctrl+Enter
@@ -240,6 +258,7 @@ export class NotebookManager {
             id: crypto.randomUUID(),
             sql: '',
             params: '',
+            queryMode: 'query', // Default to query mode
             status: 'idle'
         };
         this.cards.push(newCard);
@@ -364,7 +383,7 @@ export class NotebookManager {
         this.renderResultPanel(); // Show loading state
 
         try {
-            const result = await this.runCallback(card.sql, card.params);
+            const result = await this.runCallback(card.sql, card.params, card.queryMode ?? 'query');
 
             // Process result
             card.status = 'success';
@@ -377,20 +396,25 @@ export class NotebookManager {
                     // Explain Response
                     card.explainResult = result.nodes;
                 }
+            } else if (result.dml) {
+                // ExecResponse shape: { dml: { rowsAffected, lastInsertId, stats }, stats }
+                // Timing may also be on dml.stats
+                if (!card.executionTimeMs && result.dml.stats?.durationMs) {
+                    card.executionTimeMs = result.dml.stats.durationMs;
+                }
+                card.result = {
+                    rowsAffected: result.dml.rowsAffected.toString(),
+                    lastInsertId: result.dml.lastInsertId.toString(),
+                };
             } else {
-                // Query or Transaction Response
-                if (result.result.case === 'select') {
+                // sqlrpc/v1 QueryResult is flat — columns/rows/stats at top level (no result.case oneof)
+                if (result.columns) {
                     card.result = {
-                        columns: result.result.value.columns,
-                        columnAffinities: result.result.value.columnAffinities,
-                        columnDeclaredTypes: result.result.value.columnDeclaredTypes,
-                        columnRawTypes: result.result.value.columnRawTypes,
-                        rows: result.result.value.rows,
-                    };
-                } else if (result.result.case === 'dml') {
-                    card.result = {
-                        rowsAffected: result.result.value.rowsAffected.toString(),
-                        lastInsertId: result.result.value.lastInsertId.toString()
+                        columns: result.columns,
+                        columnAffinities: result.columnAffinities,
+                        columnDeclaredTypes: result.columnDeclaredTypes,
+                        columnRawTypes: result.columnRawTypes,
+                        rows: result.rows,
                     };
                 }
             }
@@ -442,9 +466,11 @@ export class NotebookManager {
 
                 const sqlEditor = cardEl.querySelector('.sql-editor') as HTMLTextAreaElement;
                 const paramsEditor = cardEl.querySelector('.params-editor') as HTMLTextAreaElement;
+                const modeSelect = cardEl.querySelector('.query-mode-select') as HTMLSelectElement;
 
                 if (sqlEditor) sqlEditor.value = c.sql;
                 if (paramsEditor) paramsEditor.value = c.params;
+                if (modeSelect) modeSelect.value = c.queryMode ?? 'query';
             });
         }
 
@@ -475,13 +501,15 @@ export class NotebookManager {
             }
         }
 
-        // Also update textareas disabled state if readOnly Changed dynamically
+        // Also update textareas and mode select disabled state if readOnly changed dynamically
         const sqlEditor = cardEl.querySelector('.sql-editor') as HTMLTextAreaElement;
         const paramsEditor = cardEl.querySelector('.params-editor') as HTMLTextAreaElement;
+        const modeSelect = cardEl.querySelector('.query-mode-select') as HTMLSelectElement;
         const isLocked = this.readOnly || card.readOnly;
 
         if (sqlEditor) sqlEditor.disabled = !!isLocked;
         if (paramsEditor) paramsEditor.disabled = !!isLocked;
+        if (modeSelect) modeSelect.disabled = !!isLocked;
 
 
         // Update duration if exists or append
@@ -558,14 +586,19 @@ export class NotebookManager {
         // Remove button should probably be hidden if locked to prevent accidental history modification
         const removeBtnStyle = isLocked ? 'style="display:none"' : '';
 
+        const mode = card.queryMode ?? 'query';
+
         return `
         <div class="notebook-card${isActive}" data-id="${card.id}">
-            <div class="card-controls">
+            <div class="card-header-row">
+                <select class="query-mode-select" title="Execution mode" ${disabledAttr}>
+                    <option value="query"${mode === 'query' ? ' selected' : ''}>Query</option>
+                    <option value="exec"${mode === 'exec' ? ' selected' : ''}>Exec</option>
+                </select>
                 <button class="btn btn-sm remove-btn" title="Remove Card" ${removeBtnStyle}>&times;</button>
             </div>
             <div class="card-inputs">
                 <div class="input-group">
-                    <label>SQL</label>
                     <textarea class="sql-editor" rows="3" placeholder="SELECT * FROM ..." ${disabledAttr}>${card.sql}</textarea>
                 </div>
                 <div class="input-group">

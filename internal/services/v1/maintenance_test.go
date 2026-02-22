@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"sqlite-server/internal/sqldrivers"
 
 	"connectrpc.com/connect"
@@ -17,13 +17,13 @@ func TestMaintenanceRPCs(t *testing.T) {
 	dbName := "maintenance_test"
 	dbPath := filepath.Join(tmpDir, "maintenance.db")
 
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   dbName,
 		DbPath: dbPath,
 	}
 
 	// Initialize Server
-	server := NewDbServer([]*dbv1.DatabaseConfig{config}, nil)
+	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, nil)
 	defer server.Stop()
 
 	// Pre-populate DB
@@ -41,7 +41,7 @@ func TestMaintenanceRPCs(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Vacuum", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.VacuumRequest{
+		req := connect.NewRequest(&sqlrpcv1.VacuumRequest{
 			Database: dbName,
 		})
 		res, err := server.Vacuum(ctx, req)
@@ -55,7 +55,7 @@ func TestMaintenanceRPCs(t *testing.T) {
 
 	t.Run("Vacuum Into", func(t *testing.T) {
 		backupFile := filepath.Join(tmpDir, "backup.db")
-		req := connect.NewRequest(&dbv1.VacuumRequest{
+		req := connect.NewRequest(&sqlrpcv1.VacuumRequest{
 			Database: dbName,
 			IntoFile: &backupFile,
 		})
@@ -68,7 +68,7 @@ func TestMaintenanceRPCs(t *testing.T) {
 		}
 
 		// Verify backup exists and is valid
-		backupDB, err := sqldrivers.NewSqliteDb(&dbv1.DatabaseConfig{Name: "backup", DbPath: backupFile}, false)
+		backupDB, err := sqldrivers.NewSqliteDb(&sqlrpcv1.DatabaseConfig{Name: "backup", DbPath: backupFile}, false)
 		if err != nil {
 			t.Fatalf("Failed to open backup DB: %v", err)
 		}
@@ -84,15 +84,15 @@ func TestMaintenanceRPCs(t *testing.T) {
 	})
 
 	t.Run("Checkpoint", func(t *testing.T) {
-		modes := []dbv1.CheckpointMode{
-			dbv1.CheckpointMode_CHECKPOINT_MODE_PASSIVE,
-			dbv1.CheckpointMode_CHECKPOINT_MODE_FULL,
-			dbv1.CheckpointMode_CHECKPOINT_MODE_RESTART,
-			dbv1.CheckpointMode_CHECKPOINT_MODE_TRUNCATE,
+		modes := []sqlrpcv1.CheckpointMode{
+			sqlrpcv1.CheckpointMode_CHECKPOINT_MODE_PASSIVE,
+			sqlrpcv1.CheckpointMode_CHECKPOINT_MODE_FULL,
+			sqlrpcv1.CheckpointMode_CHECKPOINT_MODE_RESTART,
+			sqlrpcv1.CheckpointMode_CHECKPOINT_MODE_TRUNCATE,
 		}
 
 		for _, mode := range modes {
-			req := connect.NewRequest(&dbv1.CheckpointRequest{
+			req := connect.NewRequest(&sqlrpcv1.CheckpointRequest{
 				Database: dbName,
 				Mode:     mode,
 			})
@@ -109,7 +109,7 @@ func TestMaintenanceRPCs(t *testing.T) {
 	})
 
 	t.Run("IntegrityCheck", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.IntegrityCheckRequest{
+		req := connect.NewRequest(&sqlrpcv1.IntegrityCheckRequest{
 			Database: dbName,
 		})
 		res, err := server.IntegrityCheck(ctx, req)
@@ -125,7 +125,7 @@ func TestMaintenanceRPCs(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.VacuumRequest{
+		req := connect.NewRequest(&sqlrpcv1.VacuumRequest{
 			Database: "nonexistent",
 		})
 		_, err := server.Vacuum(ctx, req)
@@ -143,7 +143,7 @@ func TestIntegrityCheck_QueryError(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Mount DB
-	if err := dbServer.MountDatabase(&dbv1.DatabaseConfig{Name: "integrity_fail", DbPath: ":memory:"}); err != nil {
+	if err := dbServer.MountDatabase(&sqlrpcv1.DatabaseConfig{Name: "integrity_fail", DbPath: ":memory:"}); err != nil {
 		t.Fatalf("MountDatabase failed: %v", err)
 	}
 
@@ -156,7 +156,7 @@ func TestIntegrityCheck_QueryError(t *testing.T) {
 	cancel()
 
 	// 3. Run Integrity Check
-	checkReq := connect.NewRequest(&dbv1.IntegrityCheckRequest{
+	checkReq := connect.NewRequest(&sqlrpcv1.IntegrityCheckRequest{
 		Database: "integrity_fail",
 	})
 	_, err := dbServer.IntegrityCheck(ctx, checkReq)

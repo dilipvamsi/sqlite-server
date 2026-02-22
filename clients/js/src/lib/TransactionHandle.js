@@ -3,9 +3,9 @@
  * @description Manages a stateful, bidirectional gRPC stream for SQLite transactions.
  */
 
-const db_service_pb = require("../protos/db/v1/db_service_pb");
+const db_service_pb = require("../protos/sqlrpc/v1/db_service_pb");
 const google_protobuf_empty_pb = require("google-protobuf/google/protobuf/empty_pb");
-const { TransactionMode, SavepointAction } = require("./constants");
+const { TransactionLockMode, SavepointAction } = require("./constants");
 const {
   resolveArgs,
   getAuthMetadata,
@@ -179,7 +179,7 @@ class TransactionHandle {
 
       const beginReq = new db_service_pb.BeginRequest();
       beginReq.setDatabase(this.databaseName);
-      beginReq.setMode(this.mode || TransactionMode.TRANSACTION_MODE_DEFERRED);
+      beginReq.setMode(this.mode || TransactionLockMode.TRANSACTION_MODE_DEFERRED);
 
       const req = new db_service_pb.TransactionRequest();
       req.setBegin(beginReq);
@@ -210,7 +210,7 @@ class TransactionHandle {
     if (this.pendingResolver || this.activeQueue)
       throw new Error("Transaction is busy");
 
-    const { sql, positional, named } = resolveArgs(
+    const { sql, positional, named, hints } = resolveArgs(
       sqlOrObj,
       paramsOrHints,
       hintsOrNull,
@@ -222,10 +222,43 @@ class TransactionHandle {
       // Use TypedTransactionalQueryRequest for better wire efficiency
       const queryReq = new db_service_pb.TypedTransactionalQueryRequest();
       queryReq.setSql(sql);
-      queryReq.setParameters(toTypedProtoParams(positional, named));
+      queryReq.setParameters(toTypedProtoParams(positional, named, hints));
 
       const req = new db_service_pb.TransactionRequest();
       req.setTypedQuery(queryReq);
+
+      this.stream.write(req);
+    });
+  }
+
+  /**
+   * Executes a DML statement (INSERT, UPDATE, DELETE) within a transaction.
+   * Leverages the TypedTransactionExec RPC for transactional write routing.
+   *
+   * @param {string|object} sqlOrObj - SQL string or Template Object.
+   * @param {Array|object} [paramsOrHints]
+   * @param {object} [hintsOrNull]
+   * @returns {Promise<{rowsAffected: number, lastInsertId: number}>}
+   */
+  async exec(sqlOrObj, paramsOrHints, hintsOrNull) {
+    if (this.pendingResolver || this.activeQueue)
+      throw new Error("Transaction is busy");
+
+    const { sql, positional, named, hints } = resolveArgs(
+      sqlOrObj,
+      paramsOrHints,
+      hintsOrNull,
+    );
+
+    return new Promise((resolve, reject) => {
+      this.pendingResolver = { resolve, reject, type: "DML_RESULT" };
+
+      const execReq = new db_service_pb.TypedTransactionalQueryRequest();
+      execReq.setSql(sql);
+      execReq.setParameters(toTypedProtoParams(positional, named, hints));
+
+      const req = new db_service_pb.TransactionRequest();
+      req.setTypedExec(execReq);
 
       this.stream.write(req);
     });
@@ -484,8 +517,8 @@ class TransactionHandle {
         // Special Case: DML with RETURNING clause in streaming mode
         const dml = streamRes.getDml();
         this.activeQueue.dmlResult = {
-          rowsAffected: dml.getRowsAffected(),
-          lastInsertId: dml.getLastInsertId(),
+          rowsAffected: this.config.typeParsers.bigint !== false ? BigInt(dml.getRowsAffected()) : dml.getRowsAffected(),
+          lastInsertId: this.config.typeParsers.bigint !== false ? BigInt(dml.getLastInsertId()) : dml.getLastInsertId(),
         };
         this._currentColumnAffinities = [];
         this._currentColumnDeclaredTypes = [];

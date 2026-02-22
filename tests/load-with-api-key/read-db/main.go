@@ -16,12 +16,12 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 )
 
 const (
-	serverAddr   = "http://localhost:50051"
+	serverAddr   = "http://localhost:50173"
 	databaseName = "loadtest"
 	querySQL     = "SELECT * FROM users WHERE country = ? LIMIT 100;"
 	numWorkers   = 50
@@ -47,7 +47,7 @@ func main() {
 		log.Fatal("LOADTEST_API_KEY environment variable is required.\nRun: go run ./tests/load-with-auth/setup-apikey")
 	}
 
-	client := dbv1connect.NewDatabaseServiceClient(http.DefaultClient, serverAddr)
+	client := sqlrpcv1connect.NewDatabaseServiceClient(http.DefaultClient, serverAddr)
 
 	jobs := make(chan int, numRequests)
 	results := make(chan result, numRequests)
@@ -92,19 +92,19 @@ func main() {
 	log.Println("----------------------------------------")
 }
 
-func worker(id int, client dbv1connect.DatabaseServiceClient, wg *sync.WaitGroup, jobs <-chan int, results chan<- result) {
+func worker(id int, client sqlrpcv1connect.DatabaseServiceClient, wg *sync.WaitGroup, jobs <-chan int, results chan<- result) {
 	defer wg.Done()
 
 	// Use Bearer token (fast SHA256-based validation)
 	authHeader := "Bearer " + apiKey
 
-	params, _ := structpb.NewList([]any{"USA"})
+	params := []*structpb.Value{structpb.NewStringValue("USA")}
 
 	for range jobs {
-		req := connect.NewRequest(&dbv1.QueryRequest{
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database:   databaseName,
 			Sql:        querySQL,
-			Parameters: &dbv1.Parameters{Positional: params},
+			Parameters: &sqlrpcv1.Parameters{Positional: params},
 		})
 		req.Header().Set("Authorization", authHeader)
 

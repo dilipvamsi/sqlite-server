@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"strconv"
 	"strings"
 	"sync"
@@ -67,7 +67,7 @@ func IsReadOnly(sql string) bool {
 // convertParameters transforms the Proto `Parameters` message into a format
 // compatible with the Go `database/sql` driver.
 // It uses Regex to map Positional/Named arguments to their correct order in the SQL.
-func convertParameters(sqlQuery string, params *dbv1.Parameters) ([]any, error) {
+func convertParameters(sqlQuery string, params *sqlrpcv1.Parameters) ([]any, error) {
 	if params == nil {
 		return nil, nil
 	}
@@ -75,17 +75,10 @@ func convertParameters(sqlQuery string, params *dbv1.Parameters) ([]any, error) 
 	var converted []any
 
 	// 1. Prepare Data Sources
-	var positional []any
-	if params.Positional != nil {
-		positional = params.Positional.AsSlice()
-	}
-	var named map[string]any
-	if params.Named != nil {
-		named = params.Named.AsMap()
-	}
+	positional := params.Positional
+	named := params.Named // This is a map[string]*structpb.Value
 
 	// 2. Scan SQL to Interleave Parameters correctly
-	// Matches ? or :name, @name, $name
 	paramRegex := regexp.MustCompile(`(\?)|([:@$]\w+)`)
 	matches := paramRegex.FindAllString(sqlQuery, -1)
 
@@ -96,14 +89,18 @@ func convertParameters(sqlQuery string, params *dbv1.Parameters) ([]any, error) 
 		if match == "?" {
 			// Consume next positional parameter
 			if posIndex < len(positional) {
-				val := positional[posIndex]
-				hint, hasHint := params.PositionalHints[int32(posIndex)]
-				converted = append(converted, applyHint(val, hint, hasHint))
+				val := positional[posIndex].AsInterface()
+				hintKey := fmt.Sprintf("%d", posIndex)
+				if params.Hints != nil {
+					if hint, ok := params.Hints[hintKey]; ok {
+						val = applyHint(val, hint, true)
+					}
+				}
+				converted = append(converted, val)
 				posIndex++
 			}
 		} else {
 			// Named parameter (e.g. :country)
-			// Look for it in the map using exact key or cleaned key
 			key := match
 			cleanKey := strings.TrimLeft(key, ":@$")
 
@@ -111,41 +108,53 @@ func convertParameters(sqlQuery string, params *dbv1.Parameters) ([]any, error) 
 			var foundKey string
 			var found bool
 
-			if v, ok := named[key]; ok {
-				val = v
-				foundKey = key
-				found = true
-			} else if v, ok := named[cleanKey]; ok {
-				val = v
-				foundKey = cleanKey
-				found = true
+			if named != nil {
+				if v, ok := named[key]; ok {
+					val = v.AsInterface()
+					foundKey = key
+					found = true
+				} else if v, ok := named[cleanKey]; ok {
+					val = v.AsInterface()
+					foundKey = cleanKey
+					found = true
+				}
 			}
 
 			if found && !namedUsed[foundKey] {
-				hint, hasHint := params.NamedHints[foundKey]
-				finalVal := applyHint(val, hint, hasHint)
-				converted = append(converted, sql.Named(cleanKey, finalVal))
+				if params.Hints != nil {
+					if hint, ok := params.Hints[foundKey]; ok {
+						val = applyHint(val, hint, true)
+					}
+				}
+				converted = append(converted, sql.Named(cleanKey, val))
 				namedUsed[foundKey] = true
 			}
 		}
 	}
 
 	// 3. Append Leftover Positional Parameters
-	// (Essential if Regex failed to find placeholders e.g. due to complexity)
 	for i := posIndex; i < len(positional); i++ {
-		val := positional[i]
-		hint, hasHint := params.PositionalHints[int32(i)]
-		converted = append(converted, applyHint(val, hint, hasHint))
+		val := positional[i].AsInterface()
+		hintKey := fmt.Sprintf("%d", i)
+		if params.Hints != nil {
+			if hint, ok := params.Hints[hintKey]; ok {
+				val = applyHint(val, hint, true)
+			}
+		}
+		converted = append(converted, val)
 	}
 
 	// 4. Append Leftover Named Parameters
-	for key, val := range named {
-		// Use simple cleaned key check. Note: `namedUsed` stores the key from the map.
+	for key, pbVal := range named {
 		if !namedUsed[key] {
 			cleanKey := strings.TrimLeft(key, ":@$")
-			hint, hasHint := params.NamedHints[key]
-			finalVal := applyHint(val, hint, hasHint)
-			converted = append(converted, sql.Named(cleanKey, finalVal))
+			val := pbVal.AsInterface()
+			if params.Hints != nil {
+				if hint, ok := params.Hints[key]; ok {
+					val = applyHint(val, hint, true)
+				}
+			}
+			converted = append(converted, sql.Named(cleanKey, val))
 		}
 	}
 
@@ -154,7 +163,7 @@ func convertParameters(sqlQuery string, params *dbv1.Parameters) ([]any, error) 
 
 // applyHint performs type coercion based on the "Sparse Hint" provided by the client.
 // This solves the problem of JSON (and Proto Structs) lacking native support for BLOBs and Integers.
-func applyHint(val any, hint dbv1.ColumnAffinity, hasHint bool) any {
+func applyHint(val any, hint sqlrpcv1.ColumnAffinity, hasHint bool) any {
 	if !hasHint || val == nil {
 		// Basic boolean to integer coercion for SQLite even without hints,
 		// because SQLite doesn't support native booleans.
@@ -168,16 +177,20 @@ func applyHint(val any, hint dbv1.ColumnAffinity, hasHint bool) any {
 	}
 
 	switch hint {
-	case dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
+	case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
 		// Logic: Clients send binary data as Base64 strings.
 		// We decode it back to []byte so SQLite driver uses binary mode.
 		if strVal, ok := val.(string); ok {
 			if decoded, err := base64.StdEncoding.DecodeString(strVal); err == nil {
+				// log.Printf("[DEBUG] applyHint BLOB success, inLen: %d, outLen: %d, inVal: %s", len(strVal), len(decoded), strVal)
 				return decoded
+			} else {
+				// log.Printf("[DEBUG] applyHint BLOB FAILED: %v (input: %q)", err, strVal)
 			}
 		}
+		return val // Fallback
 
-	case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
+	case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
 		// Logic: Handle precision safety and boolean coercion.
 		switch v := val.(type) {
 		case string:
@@ -193,7 +206,7 @@ func applyHint(val any, hint dbv1.ColumnAffinity, hasHint bool) any {
 			return 0
 		}
 
-	case dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
+	case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
 		if s, ok := val.(string); ok {
 			if f, err := strconv.ParseFloat(s, 64); err == nil {
 				return f
@@ -206,15 +219,15 @@ func applyHint(val any, hint dbv1.ColumnAffinity, hasHint bool) any {
 
 // resolveColumnTypes inspects the `sql.Rows` metadata to map SQLite types to Proto Enums.
 // Returns: Affinities (Storage), DeclaredTypes (Semantic), and Raw Types (Strings).
-func resolveColumnTypes(rows *sql.Rows) ([]dbv1.ColumnAffinity, []dbv1.DeclaredType, []string, error) {
+func resolveColumnTypes(rows *sql.Rows) ([]sqlrpcv1.ColumnAffinity, []sqlrpcv1.DeclaredType, []string, error) {
 	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	count := len(columnTypes)
-	affinities := make([]dbv1.ColumnAffinity, count)
-	declaredTypes := make([]dbv1.DeclaredType, count)
+	affinities := make([]sqlrpcv1.ColumnAffinity, count)
+	declaredTypes := make([]sqlrpcv1.DeclaredType, count)
 	rawTypes := make([]string, count)
 
 	for i, ct := range columnTypes {
@@ -225,27 +238,27 @@ func resolveColumnTypes(rows *sql.Rows) ([]dbv1.ColumnAffinity, []dbv1.DeclaredT
 		// Rules based on SQLite 3: https://www.sqlite.org/datatype3.html
 		switch {
 		case strings.Contains(dbType, "INT"):
-			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER
+			affinities[i] = sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER
 		case strings.Contains(dbType, "CHAR") || strings.Contains(dbType, "CLOB") || strings.Contains(dbType, "TEXT"):
-			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT
+			affinities[i] = sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT
 		case strings.Contains(dbType, "BLOB") || strings.Contains(dbType, "BINARY"):
-			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB
+			affinities[i] = sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_BLOB
 		case strings.Contains(dbType, "REAL") || strings.Contains(dbType, "FLOA") || strings.Contains(dbType, "DOUB"):
-			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL
+			affinities[i] = sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_REAL
 		default:
 			// "NUMERIC" behavior or fallback
-			affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC
+			affinities[i] = sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC
 		}
 		// Special override for JSON/UUID/XML/DATE which are text-based but semantic
 		// If SQLite says "UUID", the rule above might fallback to NUMERIC or unspecified.
 		// Commonly, specialized types like UUID/JSON are stored as TEXT, but
 		// DatabaseTypeName() returns "UUID".
-		if affinities[i] == dbv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC || affinities[i] == dbv1.ColumnAffinity_COLUMN_AFFINITY_UNSPECIFIED {
+		if affinities[i] == sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_NUMERIC || affinities[i] == sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_UNSPECIFIED {
 			// Check if it's a known text alias
 			if strings.Contains(dbType, "JSON") || strings.Contains(dbType, "UUID") ||
 				strings.Contains(dbType, "XML") || strings.Contains(dbType, "TIME") ||
 				strings.Contains(dbType, "DATE") {
-				affinities[i] = dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT
+				affinities[i] = sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT
 			}
 		}
 
@@ -256,129 +269,129 @@ func resolveColumnTypes(rows *sql.Rows) ([]dbv1.ColumnAffinity, []dbv1.DeclaredT
 	return affinities, declaredTypes, rawTypes, nil
 }
 
-func mapDeclaredType(dbType string) dbv1.DeclaredType {
+func mapDeclaredType(dbType string) sqlrpcv1.DeclaredType {
 	ts := strings.ToUpper(dbType)
 
 	// Exact matches for specialized types
 	switch ts {
 	case "INT":
-		return dbv1.DeclaredType_DECLARED_TYPE_INT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_INT
 	case "INTEGER":
-		return dbv1.DeclaredType_DECLARED_TYPE_INTEGER
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_INTEGER
 	case "TINYINT":
-		return dbv1.DeclaredType_DECLARED_TYPE_TINYINT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_TINYINT
 	case "SMALLINT":
-		return dbv1.DeclaredType_DECLARED_TYPE_SMALLINT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_SMALLINT
 	case "MEDIUMINT":
-		return dbv1.DeclaredType_DECLARED_TYPE_MEDIUMINT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_MEDIUMINT
 	case "BIGINT":
-		return dbv1.DeclaredType_DECLARED_TYPE_BIGINT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_BIGINT
 	case "UNSIGNED BIG INT":
-		return dbv1.DeclaredType_DECLARED_TYPE_BIGINT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_BIGINT
 	case "INT2":
-		return dbv1.DeclaredType_DECLARED_TYPE_INT2
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_INT2
 	case "INT8":
-		return dbv1.DeclaredType_DECLARED_TYPE_INT8
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_INT8
 	case "CHARACTER":
-		return dbv1.DeclaredType_DECLARED_TYPE_CHARACTER
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_CHARACTER
 	case "VARCHAR":
-		return dbv1.DeclaredType_DECLARED_TYPE_VARCHAR
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_VARCHAR
 	case "VARYING CHARACTER":
-		return dbv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER
 	case "NCHAR":
-		return dbv1.DeclaredType_DECLARED_TYPE_NCHAR
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_NCHAR
 	case "NATIVE CHARACTER":
-		return dbv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER
 	case "NVARCHAR":
-		return dbv1.DeclaredType_DECLARED_TYPE_NVARCHAR
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_NVARCHAR
 	case "TEXT":
-		return dbv1.DeclaredType_DECLARED_TYPE_TEXT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_TEXT
 	case "CLOB":
-		return dbv1.DeclaredType_DECLARED_TYPE_CLOB
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_CLOB
 	case "BLOB":
-		return dbv1.DeclaredType_DECLARED_TYPE_BLOB
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_BLOB
 	case "REAL":
-		return dbv1.DeclaredType_DECLARED_TYPE_REAL
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_REAL
 	case "DOUBLE":
-		return dbv1.DeclaredType_DECLARED_TYPE_DOUBLE
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_DOUBLE
 	case "FLOAT":
-		return dbv1.DeclaredType_DECLARED_TYPE_FLOAT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_FLOAT
 	case "NUMERIC":
-		return dbv1.DeclaredType_DECLARED_TYPE_NUMERIC
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_NUMERIC
 	case "BOOLEAN", "BOOL":
-		return dbv1.DeclaredType_DECLARED_TYPE_BOOLEAN
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_BOOLEAN
 	case "DATE":
-		return dbv1.DeclaredType_DECLARED_TYPE_DATE
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_DATE
 	case "DATETIME":
-		return dbv1.DeclaredType_DECLARED_TYPE_DATETIME
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_DATETIME
 	case "TIMESTAMP":
-		return dbv1.DeclaredType_DECLARED_TYPE_TIMESTAMP
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_TIMESTAMP
 	case "TIME":
-		return dbv1.DeclaredType_DECLARED_TYPE_TIME
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_TIME
 	case "JSON":
-		return dbv1.DeclaredType_DECLARED_TYPE_JSON
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_JSON
 	case "UUID":
-		return dbv1.DeclaredType_DECLARED_TYPE_UUID
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_UUID
 	case "XML":
-		return dbv1.DeclaredType_DECLARED_TYPE_XML
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_XML
 	case "YEAR":
-		return dbv1.DeclaredType_DECLARED_TYPE_YEAR
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_YEAR
 	}
 
 	// Pattern matching for types with sizes like VARCHAR(255)
 	switch {
 	case strings.Contains(ts, "INT"):
 		if strings.Contains(ts, "BIG") {
-			return dbv1.DeclaredType_DECLARED_TYPE_BIGINT
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_BIGINT
 		}
 		if strings.Contains(ts, "SMALL") {
-			return dbv1.DeclaredType_DECLARED_TYPE_SMALLINT
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_SMALLINT
 		}
 		if strings.Contains(ts, "TINY") {
-			return dbv1.DeclaredType_DECLARED_TYPE_TINYINT
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_TINYINT
 		}
 		if strings.Contains(ts, "MEDIUM") {
-			return dbv1.DeclaredType_DECLARED_TYPE_MEDIUMINT
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_MEDIUMINT
 		}
-		return dbv1.DeclaredType_DECLARED_TYPE_INTEGER
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_INTEGER
 
 	case strings.Contains(ts, "CHAR"):
 		if strings.Contains(ts, "NVARCHAR") {
-			return dbv1.DeclaredType_DECLARED_TYPE_NVARCHAR
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_NVARCHAR
 		}
 		if strings.Contains(ts, "VARYING CHARACTER") {
-			return dbv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_VARYING_CHARACTER
 		}
 		if strings.Contains(ts, "VARCHAR") {
-			return dbv1.DeclaredType_DECLARED_TYPE_VARCHAR
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_VARCHAR
 		}
 		if strings.Contains(ts, "NATIVE CHARACTER") {
-			return dbv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_NATIVE_CHARACTER
 		}
 		if strings.Contains(ts, "NCHAR") {
-			return dbv1.DeclaredType_DECLARED_TYPE_NCHAR
+			return sqlrpcv1.DeclaredType_DECLARED_TYPE_NCHAR
 		}
-		return dbv1.DeclaredType_DECLARED_TYPE_CHARACTER
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_CHARACTER
 
 	case strings.Contains(ts, "TEXT"):
-		return dbv1.DeclaredType_DECLARED_TYPE_TEXT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_TEXT
 	case strings.Contains(ts, "CLOB"):
-		return dbv1.DeclaredType_DECLARED_TYPE_CLOB
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_CLOB
 	case strings.Contains(ts, "BLOB"):
-		return dbv1.DeclaredType_DECLARED_TYPE_BLOB
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_BLOB
 	case strings.Contains(ts, "REAL"):
-		return dbv1.DeclaredType_DECLARED_TYPE_REAL
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_REAL
 	case strings.Contains(ts, "DOUB"):
-		return dbv1.DeclaredType_DECLARED_TYPE_DOUBLE
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_DOUBLE
 	case strings.Contains(ts, "FLOAT"):
-		return dbv1.DeclaredType_DECLARED_TYPE_FLOAT
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_FLOAT
 	case strings.Contains(ts, "DECIMAL"):
-		return dbv1.DeclaredType_DECLARED_TYPE_DECIMAL
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_DECIMAL
 	case strings.Contains(ts, "NUMERIC"):
-		return dbv1.DeclaredType_DECLARED_TYPE_NUMERIC
+		return sqlrpcv1.DeclaredType_DECLARED_TYPE_NUMERIC
 	}
 
-	return dbv1.DeclaredType_DECLARED_TYPE_UNSPECIFIED
+	return sqlrpcv1.DeclaredType_DECLARED_TYPE_UNSPECIFIED
 }
 
 // --- Execution Logic ---
@@ -448,7 +461,7 @@ func putbackBuffer(buf *scanBuffer) {
 //     c. Iterate Rows (buffering up to `chunkSize`).
 //     d. Flush Batches.
 //     e. Send Complete w/ Stats.
-func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.Parameters, writer StreamWriter) error {
+func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsMsg *sqlrpcv1.Parameters, writer StreamWriter) error {
 	startTime := time.Now()
 
 	params, err := convertParameters(sqlQuery, paramsMsg)
@@ -464,7 +477,12 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 		}
 		rowsAffected, _ := res.RowsAffected()
 		lastInsertId, _ := res.LastInsertId()
-		return writer.SendDMLResult(&dbv1.DMLResult{RowsAffected: rowsAffected, LastInsertId: lastInsertId})
+		return writer.SendDMLResult(&sqlrpcv1.ExecResponse{
+			Dml: &sqlrpcv1.DMLResult{
+				RowsAffected: rowsAffected,
+				LastInsertId: lastInsertId,
+			},
+		})
 	}
 
 	// --- READ PATH (Streaming) ---
@@ -485,7 +503,7 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 	}
 
 	// Step 1: Send Header
-	if err := writer.SendHeader(&dbv1.QueryResultHeader{
+	if err := writer.SendHeader(&sqlrpcv1.QueryResultHeader{
 		Columns:             cols,
 		ColumnAffinities:    affinities,
 		ColumnDeclaredTypes: declaredTypes,
@@ -516,7 +534,7 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 
 		// Flush Batch
 		if len(rowBuffer) >= chunkSize {
-			if err := writer.SendRowBatch(&dbv1.QueryResultRowBatch{Rows: rowBuffer}); err != nil {
+			if err := writer.SendRowBatch(&sqlrpcv1.QueryResultRowBatch{Rows: rowBuffer}); err != nil {
 				return err
 			}
 			rowBuffer = make([]*structpb.ListValue, 0, chunkSize)
@@ -524,7 +542,7 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 	}
 	// Flush Remainder
 	if len(rowBuffer) > 0 {
-		if err := writer.SendRowBatch(&dbv1.QueryResultRowBatch{Rows: rowBuffer}); err != nil {
+		if err := writer.SendRowBatch(&sqlrpcv1.QueryResultRowBatch{Rows: rowBuffer}); err != nil {
 			return err
 		}
 	}
@@ -534,7 +552,7 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 	}
 
 	// Step 3: Complete
-	stats := &dbv1.ExecutionStats{
+	stats := &sqlrpcv1.ExecutionStats{
 		DurationMs: float64(time.Since(startTime).Milliseconds()),
 		RowsRead:   rowsReadCount,
 	}
@@ -548,80 +566,81 @@ func streamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsM
 //
 // This function allocates memory proportional to the result set size.
 // It is intended for small, precise lookups only.
-func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.Parameters) (*dbv1.QueryResult, error) {
+func executeQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *sqlrpcv1.Parameters) (*sqlrpcv1.QueryResult, error) {
 	startTime := time.Now()
-	// log.Printf("sql: %s", sqlQuery)
-
 	params, err := convertParameters(sqlQuery, paramsMsg)
 	if err != nil {
 		return nil, fmt.Errorf("parameter error: %w", err)
 	}
 
-	if IsReader(sqlQuery) {
-		rows, err := q.QueryContext(ctx, sqlQuery, params...)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		columns, err := rows.Columns()
-		if err != nil {
-			return nil, err
-		}
-		affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
-		if err != nil {
-			return nil, err
-		}
-
-		selectResult := &dbv1.SelectResult{
-			Columns:             columns,
-			ColumnAffinities:    affinities,
-			ColumnDeclaredTypes: declaredTypes,
-			ColumnRawTypes:      rawTypes,
-		}
-
-		// Rent the buffer
-		buf := getScanBuffer(len(columns))
-		// Ensure it is ALWAYS put back, even if a row.Scan or proto conversion panics.
-		defer putbackBuffer(buf)
-
-		var rowsRead int64
-		for rows.Next() {
-			if err := rows.Scan(buf.args...); err != nil {
-				return nil, err
-			}
-			rowsRead++
-			protoRow := valuesToProto(buf.values, affinities)
-			selectResult.Rows = append(selectResult.Rows, protoRow)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-		stats := &dbv1.ExecutionStats{
-			DurationMs: float64(time.Since(startTime).Milliseconds()),
-			RowsRead:   rowsRead,
-		}
-		// log.Printf("select: %s", selectResult)
-		return &dbv1.QueryResult{
-			Result: &dbv1.QueryResult_Select{Select: selectResult},
-			Stats:  stats,
-		}, nil
-	} else {
-		res, err := q.ExecContext(ctx, sqlQuery, params...)
-		if err != nil {
-			return nil, err
-		}
-		rowsAffected, _ := res.RowsAffected()
-		lastInsertId, _ := res.LastInsertId()
-		stats := &dbv1.ExecutionStats{
-			DurationMs:  float64(time.Since(startTime).Milliseconds()),
-			RowsWritten: rowsAffected,
-		}
-		return &dbv1.QueryResult{
-			Result: &dbv1.QueryResult_Dml{Dml: &dbv1.DMLResult{RowsAffected: rowsAffected, LastInsertId: lastInsertId}},
-			Stats:  stats,
-		}, nil
+	rows, err := q.QueryContext(ctx, sqlQuery, params...)
+	if err != nil {
+		return nil, err
 	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &sqlrpcv1.QueryResult{
+		Columns:             columns,
+		ColumnAffinities:    affinities,
+		ColumnDeclaredTypes: declaredTypes,
+		ColumnRawTypes:      rawTypes,
+	}
+
+	buf := getScanBuffer(len(columns))
+	defer putbackBuffer(buf)
+
+	var rowsRead int64
+	for rows.Next() {
+		if err := rows.Scan(buf.args...); err != nil {
+			return nil, err
+		}
+		rowsRead++
+		protoRow := valuesToProto(buf.values, affinities)
+		result.Rows = append(result.Rows, protoRow)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	result.Stats = &sqlrpcv1.ExecutionStats{
+		DurationMs: float64(time.Since(startTime).Milliseconds()),
+		RowsRead:   rowsRead,
+	}
+	return result, nil
+}
+
+func executeExecAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *sqlrpcv1.Parameters) (*sqlrpcv1.ExecResponse, error) {
+	startTime := time.Now()
+	params, err := convertParameters(sqlQuery, paramsMsg)
+	if err != nil {
+		return nil, fmt.Errorf("parameter error: %w", err)
+	}
+
+	res, err := q.ExecContext(ctx, sqlQuery, params...)
+	if err != nil {
+		return nil, err
+	}
+	rowsAffected, _ := res.RowsAffected()
+	lastInsertId, _ := res.LastInsertId()
+	stats := &sqlrpcv1.ExecutionStats{
+		DurationMs:  float64(time.Since(startTime).Milliseconds()),
+		RowsWritten: rowsAffected,
+	}
+	return &sqlrpcv1.ExecResponse{
+		Dml: &sqlrpcv1.DMLResult{
+			RowsAffected: rowsAffected,
+			LastInsertId: lastInsertId,
+		},
+		Stats: stats,
+	}, nil
 }
 
 // maxSafeInteger is 2^53 - 1. Integers larger than this lose precision
@@ -635,7 +654,7 @@ const maxSafeInteger = (1 << 53) - 1
 //  2. No Reflection: Uses ColumnAffinity hints to drive a manual type switch.
 //  3. Minimal Allocations: Allocates only the final required Protobuf objects.
 //  4. Precision Safety: Automatically handles the 2^53 integer limit for JS clients.
-func valuesToProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *structpb.ListValue {
+func valuesToProto(values []sql.RawBytes, affinities []sqlrpcv1.ColumnAffinity) *structpb.ListValue {
 	// Pre-allocate the slice for the Protobuf values to avoid mid-loop growth.
 	pbValues := make([]*structpb.Value, len(values))
 
@@ -647,7 +666,7 @@ func valuesToProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *str
 		}
 
 		switch affinities[i] {
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
 			// 1. Convert RawBytes to a temporary string using unsafe (No Allocation)
 			tempStr := UnsafeBytesToStringNoCopy(rb)
 
@@ -668,12 +687,12 @@ func valuesToProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *str
 				pbValues[i] = structpb.NewNumberValue(float64(val))
 			}
 
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT:
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT:
 			// A copy is REQUIRED here because rb (RawBytes) will be
 			// overwritten by the driver on the next row.
 			pbValues[i] = structpb.NewStringValue(string(rb))
 
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
 			tempStr := UnsafeBytesToStringNoCopy(rb)
 			val, _ := strconv.ParseFloat(tempStr, 64)
 			// Handle Infinity/NaN if needed, but standard JSON doesn't support them.
@@ -684,7 +703,7 @@ func valuesToProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *str
 				pbValues[i] = structpb.NewNumberValue(val)
 			}
 
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
 			// Base64 encoding creates a new string (Allocation required)
 			pbValues[i] = structpb.NewStringValue(base64.StdEncoding.EncodeToString(rb))
 
@@ -733,17 +752,17 @@ func valuesToProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *str
 // While 'protovalidate' constraints on the .proto file should prevent SQL
 // injection, this function acts as the final guard to ensure the command
 // structure is syntactically correct before it reaches the database driver.
-func generateSavepointSQL(sp *dbv1.SavepointRequest) (string, error) {
+func generateSavepointSQL(sp *sqlrpcv1.SavepointRequest) (string, error) {
 	if sp == nil || sp.Name == "" {
 		return "", errors.New("savepoint name is required")
 	}
 
 	switch sp.Action {
-	case dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE:
+	case sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE:
 		return fmt.Sprintf("SAVEPOINT %s", sp.Name), nil
-	case dbv1.SavepointAction_SAVEPOINT_ACTION_RELEASE:
+	case sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_RELEASE:
 		return fmt.Sprintf("RELEASE %s", sp.Name), nil
-	case dbv1.SavepointAction_SAVEPOINT_ACTION_ROLLBACK:
+	case sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_ROLLBACK:
 		return fmt.Sprintf("ROLLBACK TO %s", sp.Name), nil
 	default:
 		return "", fmt.Errorf("unsupported savepoint action: %v", sp.Action)
@@ -758,7 +777,7 @@ func generateSavepointSQL(sp *dbv1.SavepointRequest) (string, error) {
 
 // convertTypedParameters transforms TypedParameters into database/sql compatible args.
 // Unlike convertParameters, this uses the explicit SqlValue types directly (no hints needed).
-func convertTypedParameters(sqlQuery string, params *dbv1.TypedParameters) ([]any, error) {
+func convertTypedParameters(sqlQuery string, params *sqlrpcv1.TypedParameters) ([]any, error) {
 	if params == nil {
 		return nil, nil
 	}
@@ -787,7 +806,7 @@ func convertTypedParameters(sqlQuery string, params *dbv1.TypedParameters) ([]an
 			key := match
 			cleanKey := strings.TrimLeft(key, ":@$")
 
-			var val *dbv1.SqlValue
+			var val *sqlrpcv1.SqlValue
 			var foundKey string
 			var found bool
 
@@ -825,21 +844,21 @@ func convertTypedParameters(sqlQuery string, params *dbv1.TypedParameters) ([]an
 }
 
 // sqlValueToAny converts a typed SqlValue proto to a Go value for database/sql.
-func sqlValueToAny(v *dbv1.SqlValue) any {
+func sqlValueToAny(v *sqlrpcv1.SqlValue) any {
 	if v == nil {
 		return nil
 	}
 
 	switch val := v.Value.(type) {
-	case *dbv1.SqlValue_IntegerValue:
+	case *sqlrpcv1.SqlValue_IntegerValue:
 		return val.IntegerValue
-	case *dbv1.SqlValue_RealValue:
+	case *sqlrpcv1.SqlValue_RealValue:
 		return val.RealValue
-	case *dbv1.SqlValue_TextValue:
+	case *sqlrpcv1.SqlValue_TextValue:
 		return val.TextValue
-	case *dbv1.SqlValue_BlobValue:
+	case *sqlrpcv1.SqlValue_BlobValue:
 		return val.BlobValue // []byte directly, no base64
-	case *dbv1.SqlValue_NullValue:
+	case *sqlrpcv1.SqlValue_NullValue:
 		return nil
 	default:
 		return nil
@@ -850,44 +869,44 @@ func sqlValueToAny(v *dbv1.SqlValue) any {
 // This is more efficient than valuesToProto because:
 //  1. BLOBs are sent as raw bytes (no base64 encoding overhead)
 //  2. Integers are always int64 (no precision loss or string fallback)
-func valuesToTypedProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity) *dbv1.SqlRow {
-	sqlValues := make([]*dbv1.SqlValue, len(values))
+func valuesToTypedProto(values []sql.RawBytes, affinities []sqlrpcv1.ColumnAffinity) *sqlrpcv1.SqlRow {
+	sqlValues := make([]*sqlrpcv1.SqlValue, len(values))
 
 	for i, rb := range values {
 		// NULL handling
 		if rb == nil {
-			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_NullValue{NullValue: true}}
+			sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_NullValue{NullValue: true}}
 			continue
 		}
 
 		switch affinities[i] {
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER:
 			tempStr := UnsafeBytesToStringNoCopy(rb)
 			val, err := strconv.ParseInt(tempStr, 10, 64)
 			if err != nil {
 				// Fallback to text
-				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_TextValue{TextValue: string(rb)}}
+				sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_TextValue{TextValue: string(rb)}}
 				continue
 			}
-			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: val}}
+			sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_IntegerValue{IntegerValue: val}}
 
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_TEXT:
-			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_TextValue{TextValue: string(rb)}}
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_TEXT:
+			sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_TextValue{TextValue: string(rb)}}
 
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_REAL:
 			tempStr := UnsafeBytesToStringNoCopy(rb)
 			val, _ := strconv.ParseFloat(tempStr, 64)
 			if math.IsNaN(val) || math.IsInf(val, 0) {
-				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_NullValue{NullValue: true}}
+				sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_NullValue{NullValue: true}}
 			} else {
-				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_RealValue{RealValue: val}}
+				sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_RealValue{RealValue: val}}
 			}
 
-		case dbv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
+		case sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_BLOB:
 			// Copy the bytes since RawBytes will be overwritten on next row
 			blobCopy := make([]byte, len(rb))
 			copy(blobCopy, rb)
-			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_BlobValue{BlobValue: blobCopy}}
+			sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_BlobValue{BlobValue: blobCopy}}
 
 		default:
 			// Fallback (NUMERIC or UNSPECIFIED): Try to guess
@@ -895,27 +914,27 @@ func valuesToTypedProto(values []sql.RawBytes, affinities []dbv1.ColumnAffinity)
 
 			// Try Integer
 			if val, err := strconv.ParseInt(tempStr, 10, 64); err == nil {
-				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: val}}
+				sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_IntegerValue{IntegerValue: val}}
 				continue
 			}
 
 			// Try Float
 			if val, err := strconv.ParseFloat(tempStr, 64); err == nil {
-				sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_RealValue{RealValue: val}}
+				sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_RealValue{RealValue: val}}
 				continue
 			}
 
 			// Fallback to Text
-			sqlValues[i] = &dbv1.SqlValue{Value: &dbv1.SqlValue_TextValue{TextValue: string(rb)}}
+			sqlValues[i] = &sqlrpcv1.SqlValue{Value: &sqlrpcv1.SqlValue_TextValue{TextValue: string(rb)}}
 		}
 	}
 
-	return &dbv1.SqlRow{Values: sqlValues}
+	return &sqlrpcv1.SqlRow{Values: sqlValues}
 }
 
 // typedStreamQueryResults is the typed variant of streamQueryResults.
 // It uses TypedStreamWriter to send SqlRow instead of ListValue.
-func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.TypedParameters, writer TypedStreamWriter) error {
+func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, paramsMsg *sqlrpcv1.TypedParameters, writer TypedStreamWriter) error {
 	startTime := time.Now()
 
 	params, err := convertTypedParameters(sqlQuery, paramsMsg)
@@ -931,7 +950,12 @@ func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, pa
 		}
 		rowsAffected, _ := res.RowsAffected()
 		lastInsertId, _ := res.LastInsertId()
-		return writer.SendDMLResult(&dbv1.DMLResult{RowsAffected: rowsAffected, LastInsertId: lastInsertId})
+		return writer.SendDMLResult(&sqlrpcv1.ExecResponse{
+			Dml: &sqlrpcv1.DMLResult{
+				RowsAffected: rowsAffected,
+				LastInsertId: lastInsertId,
+			},
+		})
 	}
 
 	// --- READ PATH (Streaming) ---
@@ -951,7 +975,7 @@ func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, pa
 	}
 
 	// Step 1: Send Typed Header
-	if err := writer.SendHeader(&dbv1.TypedQueryResultHeader{
+	if err := writer.SendHeader(&sqlrpcv1.TypedQueryResultHeader{
 		Columns:             cols,
 		ColumnAffinities:    affinities,
 		ColumnDeclaredTypes: declaredTypes,
@@ -962,7 +986,7 @@ func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, pa
 
 	// Step 2: Stream Rows
 	const chunkSize = 500
-	rowBuffer := make([]*dbv1.SqlRow, 0, chunkSize)
+	rowBuffer := make([]*sqlrpcv1.SqlRow, 0, chunkSize)
 
 	buf := getScanBuffer(len(cols))
 	defer putbackBuffer(buf)
@@ -980,16 +1004,16 @@ func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, pa
 
 		// Flush Batch
 		if len(rowBuffer) >= chunkSize {
-			if err := writer.SendRowBatch(&dbv1.TypedQueryResultRowBatch{Rows: rowBuffer}); err != nil {
+			if err := writer.SendRowBatch(&sqlrpcv1.TypedQueryResultRowBatch{Rows: rowBuffer}); err != nil {
 				return err
 			}
-			rowBuffer = make([]*dbv1.SqlRow, 0, chunkSize)
+			rowBuffer = make([]*sqlrpcv1.SqlRow, 0, chunkSize)
 		}
 	}
 
 	// Flush Remainder
 	if len(rowBuffer) > 0 {
-		if err := writer.SendRowBatch(&dbv1.TypedQueryResultRowBatch{Rows: rowBuffer}); err != nil {
+		if err := writer.SendRowBatch(&sqlrpcv1.TypedQueryResultRowBatch{Rows: rowBuffer}); err != nil {
 			return err
 		}
 	}
@@ -999,7 +1023,7 @@ func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, pa
 	}
 
 	// Step 3: Complete
-	stats := &dbv1.ExecutionStats{
+	stats := &sqlrpcv1.ExecutionStats{
 		DurationMs: float64(time.Since(startTime).Milliseconds()),
 		RowsRead:   rowsReadCount,
 	}
@@ -1008,75 +1032,79 @@ func typedStreamQueryResults(ctx context.Context, q querier, sqlQuery string, pa
 
 // typedExecuteQueryAndBuffer executes a query and returns a TypedQueryResult.
 // This is the typed variant of executeQueryAndBuffer.
-func typedExecuteQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *dbv1.TypedParameters) (*dbv1.TypedQueryResult, error) {
+func typedExecuteQueryAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *sqlrpcv1.TypedParameters) (*sqlrpcv1.TypedQueryResult, error) {
 	startTime := time.Now()
-
 	params, err := convertTypedParameters(sqlQuery, paramsMsg)
 	if err != nil {
 		return nil, fmt.Errorf("parameter error: %w", err)
 	}
 
-	if IsReader(sqlQuery) {
-		rows, err := q.QueryContext(ctx, sqlQuery, params...)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		columns, err := rows.Columns()
-		if err != nil {
-			return nil, err
-		}
-		affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
-		if err != nil {
-			return nil, err
-		}
-
-		selectResult := &dbv1.TypedSelectResult{
-			Columns:             columns,
-			ColumnAffinities:    affinities,
-			ColumnDeclaredTypes: declaredTypes,
-			ColumnRawTypes:      rawTypes,
-		}
-
-		buf := getScanBuffer(len(columns))
-		defer putbackBuffer(buf)
-
-		var rowsRead int64
-		for rows.Next() {
-			if err := rows.Scan(buf.args...); err != nil {
-				return nil, err
-			}
-			rowsRead++
-			typedRow := valuesToTypedProto(buf.values, affinities)
-			selectResult.Rows = append(selectResult.Rows, typedRow)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-
-		stats := &dbv1.ExecutionStats{
-			DurationMs: float64(time.Since(startTime).Milliseconds()),
-			RowsRead:   rowsRead,
-		}
-		return &dbv1.TypedQueryResult{
-			Result: &dbv1.TypedQueryResult_Select{Select: selectResult},
-			Stats:  stats,
-		}, nil
-	} else {
-		res, err := q.ExecContext(ctx, sqlQuery, params...)
-		if err != nil {
-			return nil, err
-		}
-		rowsAffected, _ := res.RowsAffected()
-		lastInsertId, _ := res.LastInsertId()
-		stats := &dbv1.ExecutionStats{
-			DurationMs:  float64(time.Since(startTime).Milliseconds()),
-			RowsWritten: rowsAffected,
-		}
-		return &dbv1.TypedQueryResult{
-			Result: &dbv1.TypedQueryResult_Dml{Dml: &dbv1.DMLResult{RowsAffected: rowsAffected, LastInsertId: lastInsertId}},
-			Stats:  stats,
-		}, nil
+	rows, err := q.QueryContext(ctx, sqlQuery, params...)
+	if err != nil {
+		return nil, err
 	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	affinities, declaredTypes, rawTypes, err := resolveColumnTypes(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &sqlrpcv1.TypedQueryResult{
+		Columns:             columns,
+		ColumnAffinities:    affinities,
+		ColumnDeclaredTypes: declaredTypes,
+		ColumnRawTypes:      rawTypes,
+	}
+
+	buf := getScanBuffer(len(columns))
+	defer putbackBuffer(buf)
+
+	var rowsRead int64
+	for rows.Next() {
+		if err := rows.Scan(buf.args...); err != nil {
+			return nil, err
+		}
+		rowsRead++
+		protoRow := valuesToTypedProto(buf.values, affinities)
+		result.Rows = append(result.Rows, protoRow)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	result.Stats = &sqlrpcv1.ExecutionStats{
+		DurationMs: float64(time.Since(startTime).Milliseconds()),
+		RowsRead:   rowsRead,
+	}
+	return result, nil
+}
+
+func typedExecuteExecAndBuffer(ctx context.Context, q querier, sqlQuery string, paramsMsg *sqlrpcv1.TypedParameters) (*sqlrpcv1.ExecResponse, error) {
+	startTime := time.Now()
+	params, err := convertTypedParameters(sqlQuery, paramsMsg)
+	if err != nil {
+		return nil, fmt.Errorf("parameter error: %w", err)
+	}
+
+	res, err := q.ExecContext(ctx, sqlQuery, params...)
+	if err != nil {
+		return nil, err
+	}
+	rowsAffected, _ := res.RowsAffected()
+	lastInsertId, _ := res.LastInsertId()
+	stats := &sqlrpcv1.ExecutionStats{
+		DurationMs:  float64(time.Since(startTime).Milliseconds()),
+		RowsWritten: rowsAffected,
+	}
+	return &sqlrpcv1.ExecResponse{
+		Dml: &sqlrpcv1.DMLResult{
+			RowsAffected: rowsAffected,
+			LastInsertId: lastInsertId,
+		},
+		Stats: stats,
+	}, nil
 }

@@ -9,7 +9,7 @@ const {
     normalizeDeclaredTypes
 } = require('./utils');
 const {
-    TransactionMode,
+    TransactionLockMode,
     RPC
 } = require('./constants');
 const Transaction = require('./TransactionHandle');
@@ -18,7 +18,7 @@ const Transaction = require('./TransactionHandle');
 
 class DatabaseClient {
     /**
-     * @param { string } address - Base URL(e.g. "http://localhost:50051")
+     * @param { string } address - Base URL(e.g. "http://localhost:50173")
      * @param { string } database - Database name
      * @param { object } config - Configuration options.
      * @param { object } [config.auth] - { type: 'basic' | 'bearer', username, password, token }
@@ -199,7 +199,8 @@ class DatabaseClient {
             throw new Error(msg.error.message);
         }
 
-        if (msg.dml) {
+        if (msg.dml || msg.execResult) {
+            const dml = msg.dml || (msg.execResult || {}).dml || {};
             return {
                 iterator,
                 columns: [],
@@ -208,8 +209,8 @@ class DatabaseClient {
                 columnRawTypes: [],
                 isDml: true,
                 dmlStats: {
-                    rowsAffected: Number(msg.dml.rowsAffected || 0),
-                    lastInsertId: Number(msg.dml.lastInsertId || 0)
+                    rowsAffected: Number(dml.rowsAffected || 0),
+                    lastInsertId: Number(dml.lastInsertId || 0)
                 }
             };
         }
@@ -224,6 +225,7 @@ class DatabaseClient {
             columnAffinities = normalizeColumnAffinities(msg.header.columnAffinities || []);
             columnDeclaredTypes = normalizeDeclaredTypes(msg.header.columnDeclaredTypes || []);
             columnRawTypes = msg.header.columnRawTypes || [];
+            // console.log("STREAM HEADER:", { columns, columnAffinities });
         }
 
         return { iterator, columns, columnAffinities, columnDeclaredTypes, columnRawTypes, isDml: false };
@@ -246,38 +248,65 @@ class DatabaseClient {
         };
 
         const res = await this._fetch(RPC.QUERY, body);
-        const json = await res.json();
+        const text = await res.text();
+        const json = JSON.parse(text);
 
-        if (json.select) {
-            const { columns, rows, columnAffinities, columnDeclaredTypes, columnRawTypes } = json.select;
+        const data = json.queryResult || json.select || json;
+
+        if (data.columns && data.columns.length > 0) {
+            const { columns, rows, columnAffinities, columnDeclaredTypes, columnRawTypes } = data;
             const affinities = normalizeColumnAffinities(columnAffinities || []);
             const declaredTypes = normalizeDeclaredTypes(columnDeclaredTypes || []);
 
             return {
-                type: 'SELECT',
                 columns: columns || [],
                 columnAffinities: affinities,
                 columnDeclaredTypes: declaredTypes,
                 columnRawTypes: columnRawTypes || [],
                 rows: (rows || []).map(r => {
-                    // console.log("DEBUG ROW:", JSON.stringify(r));
-                    return hydrateRow(r, affinities, declaredTypes, this.config.typeParsers)
+                    const row = (r && typeof r === 'object' && !Array.isArray(r) && r.values) ? r.values : r;
+                    return hydrateRow(row, affinities, declaredTypes, this.config.typeParsers)
                 }),
-                stats: json.stats
-            };
-        } else if (json.dml) {
-            return {
-                type: 'DML',
-                rowsAffected: Number(json.dml.rowsAffected || 0),
-                lastInsertId: Number(json.dml.lastInsertId || 0),
-                stats: json.stats
+                stats: json.stats || data.stats
             };
         }
-        return { type: 'UNKNOWN', rows: [] };
+
+        return { columns: [], columnAffinities: [], columnDeclaredTypes: [], columnRawTypes: [], rows: [] };
     }
 
     /**
-     * Returns the structured EXPLAIN QUERY PLAN for a given query.
+     * Executes a DML statement (INSERT, UPDATE, DELETE) and returns affected row info.
+     * Routes strictly to a Read-Write connection.
+     *
+     * @param {string|object} sqlOrObj - SQL string or SQLStatement object.
+     * @param {object|Array} [paramsOrHints] - Parameters or hints.
+     * @param {object} [hintsOrNull] - Hints.
+     * @returns {Promise<{rowsAffected: number, lastInsertId: number, stats?: object}>}
+     */
+    async exec(sqlOrObj, paramsOrHints, hintsOrNull) {
+        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+
+        const body = {
+            database: this.database,
+            sql: sql,
+            parameters: toParams(positional, named, hints)
+        };
+
+        const res = await this._fetch(RPC.EXEC, body);
+        const json = await res.json();
+
+        const dml = json.dml || {};
+
+        return {
+            dml: {
+                rowsAffected: Number(dml.rowsAffected || 0),
+                lastInsertId: Number(dml.lastInsertId || 0)
+            },
+            stats: json.stats || {}
+        };
+    }
+
+    /**
      *
      * @param {string|object} sqlOrObj - SQL string or object.
      * @param {object|Array} [paramsOrHints] - Parameters or hints.
@@ -333,15 +362,17 @@ class DatabaseClient {
         const typeParsers = this.config.typeParsers;
 
         // Yield batches
+        const self = this;
         const rowIterator = async function* () {
             for await (const msg of iterator) {
                 if (msg.error) {
                     throw new Error(msg.error.message);
                 }
                 if (msg.batch) {
-                    const rows = (msg.batch.rows || []).map(r =>
-                        hydrateRow(r, columnAffinities, columnDeclaredTypes, typeParsers)
-                    );
+                    const rows = (msg.batch.rows || []).map(r => {
+                        const row = (r && typeof r === 'object' && !Array.isArray(r) && r.values) ? r.values : r;
+                        return hydrateRow(row, columnAffinities, columnDeclaredTypes, self.config.typeParsers);
+                    });
                     yield rows;
                 }
             }
@@ -388,7 +419,7 @@ class DatabaseClient {
      * @param {TransactionMode} mode - The transaction mode (default: DEFERRED).
      * @returns {Promise<Transaction>} - The transaction handle.
      */
-    async beginTransaction(mode = TransactionMode.TRANSACTION_MODE_DEFERRED) {
+    async beginTransaction(mode = TransactionLockMode.TRANSACTION_LOCK_MODE_DEFERRED) {
         const body = {
             database: this.database,
             mode: mode
@@ -412,16 +443,31 @@ class DatabaseClient {
         const requests = [];
 
         // 1. Begin
-        requests.push({ begin: { database: this.database, mode: TransactionMode.TRANSACTION_MODE_DEFERRED } });
+        requests.push({ begin: { database: this.database, mode: TransactionLockMode.TRANSACTION_LOCK_MODE_DEFERRED } });
 
         for (const q of queries) {
-            const { sql, positional, named, hints } = resolveArgs(q.sql || q, q.params, q.hints);
-            requests.push({
-                query: {
-                    sql,
-                    parameters: toParams(positional, named, hints)
-                }
-            });
+            if (typeof q !== 'object' || !q.type || !q.sql) {
+                throw new Error("Queries for executeTransaction must be objects containing 'sql' and 'type' ('query' or 'exec') properties.");
+            }
+
+            const { sql, positional, named, hints } = resolveArgs(q.sql, q.params, q.hints);
+            if (q.type === 'query') {
+                requests.push({
+                    query: {
+                        sql,
+                        parameters: toParams(positional, named, hints)
+                    }
+                });
+            } else if (q.type === 'exec') {
+                requests.push({
+                    exec: {
+                        sql,
+                        parameters: toParams(positional, named, hints)
+                    }
+                });
+            } else {
+                throw new Error("Invalid query type in executeTransaction. Supported types: 'query', 'exec'.");
+            }
         }
 
         requests.push({ commit: {} });
@@ -433,25 +479,44 @@ class DatabaseClient {
         const results = [];
         if (json.responses) {
             for (const r of json.responses) {
-                if (r.queryResult) {
-                    // Map Query Result
-                    const qr = r.queryResult;
-                    if (qr.select) {
-                        const affinities = normalizeColumnAffinities(qr.select.columnAffinities || []);
-                        const declaredTypes = normalizeDeclaredTypes(qr.select.columnDeclaredTypes || []);
+                if (r.queryResult || r.execResult || r.select || r.dml) {
+                    const data = r.queryResult || r.select || r;
+                    const er = r.execResult || r;
+                    const dml = er.dml || data.dml || (er.execResult || {}).dml || {};
+
+                    if (data.columns && data.columns.length > 0) {
+                        const affinities = normalizeColumnAffinities(data.columnAffinities || []);
+                        const declaredTypes = normalizeDeclaredTypes(data.columnDeclaredTypes || []);
                         results.push({
-                            type: 'SELECT',
-                            rows: (qr.select.rows || []).map(row => hydrateRow(row, affinities, declaredTypes, this.config.typeParsers))
+                            columns: data.columns,
+                            columnAffinities: affinities,
+                            columnDeclaredTypes: declaredTypes,
+                            columnRawTypes: data.columnRawTypes || [],
+                            rows: (data.rows || []).map(r => {
+                                const row = (r && typeof r === 'object' && !Array.isArray(r) && r.values) ? r.values : r;
+                                return hydrateRow(row, affinities, declaredTypes, this.config.typeParsers)
+                            }),
+                            stats: r.stats || data.stats
                         });
-                    } else if (qr.dml) {
+                    } else if (dml.rowsAffected !== undefined || dml.lastInsertId !== undefined) {
                         results.push({
-                            type: 'DML',
-                            rowsAffected: Number(qr.dml.rowsAffected),
-                            lastInsertId: Number(qr.dml.lastInsertId)
+                            dml: {
+                                rowsAffected: Number(dml.rowsAffected || 0),
+                                lastInsertId: Number(dml.lastInsertId || 0)
+                            },
+                            stats: r.stats || er.stats
                         });
+                    } else {
+                        // Empty query result buffer
+                        results.push({ columns: [], columnAffinities: [], columnDeclaredTypes: [], columnRawTypes: [], rows: [] });
                     }
+                } else if (r.begin || r.commit || r.rollback || r.savepoint) {
+                    // Skip purely structural responses in results list
                 } else if (r.error) {
                     throw new Error(r.error.message);
+                } else {
+                    // Fallback for empty/skipped responses
+                    results.push({ type: 'UNKNOWN' });
                 }
             }
         }
@@ -466,7 +531,7 @@ class DatabaseClient {
      * @param {TransactionMode} mode - Transaction mode.
      * @returns {Promise<any>} - Result of the function.
      */
-    async transaction(fn, mode = TransactionMode.TRANSACTION_MODE_DEFERRED) {
+    async transaction(fn, mode = TransactionLockMode.TRANSACTION_LOCK_MODE_DEFERRED) {
         const tx = await this.beginTransaction(mode);
         try {
             const result = await fn(tx);

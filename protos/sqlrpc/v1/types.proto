@@ -1,0 +1,421 @@
+syntax = "proto3";
+
+package sqlrpc.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/struct.proto";
+import "sqlrpc/v1/enums.proto";
+
+option go_package = "sqlite-server/internal/protos/sqlrpc/v1;sqlrpcv1";
+
+// =============================================================================
+// IDENTITY & USER MANAGEMENT TYPES
+// =============================================================================
+/**
+ * User represents a platform identity with role-based access controls.
+ */
+message User {
+  // Primary key for the user identity.
+  int64 id = 1;
+
+  // Unique identifier for the user.
+  string username = 2;
+
+  // RBAC permission tier assigned to the user.
+  Role role = 3;
+}
+
+// =============================================================================
+// TELEMETRY & INTROSPECTION TYPES
+// =============================================================================
+/**
+ * DatabaseInfo describes the current state and metadata for a managed tenant
+ * database.
+ */
+message DatabaseInfo {
+  // Logical tenant identifier.
+  string name = 1;
+
+  // Absolute path to the underlying SQLite file.
+  string path = 2;
+
+  // True if the database is registered in the platform's control plane.
+  bool is_managed = 3;
+
+  // List of databases currently attached to this connection.
+  repeated Attachment current_attachments = 4;
+
+  // If true, the database is mounted in strictly read-only mode.
+  bool read_only = 5;
+
+  // List of managed extension identifiers currently loaded.
+  repeated string loaded_extensions = 6;
+}
+
+/**
+ * ExecutionStats provides performance telemetry for a completed operation.
+ */
+message ExecutionStats {
+  // Total execution time in milliseconds.
+  double duration_ms = 1;
+
+  // Number of rows read during query execution.
+  int64 rows_read = 2;
+
+  // Number of rows modified during mutation execution (Exec).
+  int64 rows_written = 3;
+}
+
+/**
+ * ExtensionInfo describes a discoverable SQLite extension available in the
+ * platform.
+ */
+message ExtensionInfo {
+  // Human-readable name of the extension.
+  string name = 1;
+
+  // semantic version string.
+  string version = 2;
+
+  // Folder name in the platform's extensions directory.
+  string folder_name = 3;
+
+  // True if currently loaded into the connection.
+  bool is_loaded = 4;
+
+  // Physical path to the .so/.dylib/.dll file.
+  string file_path = 5;
+
+  // Brief description of the extension functionality.
+  string description = 6;
+
+  // URL pointing to the extension's documentation.
+  string documentation_url = 7;
+}
+
+// =============================================================================
+// DATABASE PROVISIONING & CONFIGURATION TYPES
+// =============================================================================
+/**
+ * DatabaseConfig defines the lifecycle and structural settings for a database
+ * tenant.
+ */
+message DatabaseConfig {
+  // Logical tenant identifier.
+  string name = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Target path for the database file.
+  string db_path = 2 [ (buf.validate.field).string.min_len = 1 ];
+
+  // If true, provisions the database via sqlcipher (encryption).
+  bool is_encrypted = 3;
+
+  // Master key for encrypted databases.
+  string key = 4;
+
+  // Locks the entire tenant to read-only semantics if true.
+  bool read_only = 5;
+
+  // Pre-approved extension folder names to load upon connection.
+  repeated string extensions = 6;
+
+  // Map of native SQLite PRAGMAs to apply globally.
+  map<string, string> pragmas = 7;
+
+  // Maximum concurrent connections allowed for this tenant.
+  int32 max_open_conns = 8;
+
+  // Maximum idle connections stored in the pool.
+  int32 max_idle_conns = 9;
+
+  // Lifetime limit for individual physical connections.
+  int32 conn_max_lifetime_ms = 10;
+
+  // SQL commands to execute upon every connection initialize.
+  repeated string init_commands = 11
+      [ (buf.validate.field).repeated.items.cel = {
+        id : "init_commands.prevent_attach_detach"
+        message : "ATTACH or DETACH commands are not allowed in init_commands. "
+                  "Use attached_databases field instead."
+        expression : "!this.matches('(?i)^\\\\s*ATTACH') && "
+                     "!this.matches('(?i)^\\\\s*DETACH')"
+      } ];
+
+  // Persistent database attachments.
+  repeated Attachment attachments = 12;
+}
+
+/**
+ * UpdateDatabaseConfig allows for non-destructive updates to a tenant's
+ * configuration on the fly.
+ */
+message UpdateDatabaseConfig {
+  // Toggle read-only mode for the tenant.
+  optional bool read_only = 1;
+
+  // Partial list of extensions to load/unload.
+  optional ExtensionList extensions = 2;
+
+  // Partial map of PRAGMAs to modify.
+  optional PragmaMap pragmas = 3;
+
+  // New limit for concurrent connections.
+  optional int32 max_open_conns = 4;
+
+  // New limit for idle connections in the pool.
+  optional int32 max_idle_conns = 5;
+
+  // New lifetime limit for physical connections.
+  optional int32 conn_max_lifetime_ms = 6;
+
+  // New list of initialization SQL commands.
+  optional InitCommandList init_commands = 7;
+
+  // New collection of database attachments.
+  optional AttachmentList attachments = 8;
+}
+
+/**
+ * Attachment defines a dynamic mounting of a secondary database into a
+ * connection.
+ */
+message Attachment {
+  // Name of the tenant database to attach.
+  string target_database_name = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+
+  // Schema alias to prefix queries (e.g. ATTACH AS <alias>).
+  string alias = 2
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+/**
+ * AttachmentList provides a wrapper for a collection of database attachments.
+ */
+message AttachmentList {
+  // Collection of attachment configurations.
+  repeated Attachment values = 1;
+}
+
+/**
+ * ExtensionList provides a wrapper for a collection of extension identifiers.
+ */
+message ExtensionList {
+  // Collection of extension folder names.
+  repeated string values = 1;
+}
+
+/**
+ * PragmaMap provides a wrapper for a collection of SQLite PRAGMA settings.
+ */
+message PragmaMap {
+  // Collection of key-value pairs representing PRAGMA settings.
+  map<string, string> values = 1;
+}
+
+/**
+ * InitCommandList provides a wrapper for a collection of SQL initialization
+ * commands.
+ */
+message InitCommandList {
+  // Collection of SQL statements to execute on initialization.
+  repeated string values = 1 [ (buf.validate.field).repeated.items.cel = {
+    id : "init_commands_list.prevent_attach_detach"
+    message : "ATTACH or DETACH commands are not allowed in init_commands. Use "
+              "attached_databases field instead."
+    expression : "!this.matches('(?i)^\\\\s*ATTACH') && "
+                 "!this.matches('(?i)^\\\\s*DETACH')"
+  } ];
+}
+
+// =============================================================================
+// TYPED API CORE TYPES
+// =============================================================================
+/**
+ * SqlValue represents a strictly-typed SQLite cell value.
+ * This ensures data integrity by preventing implicit conversion to strings.
+ */
+message SqlValue {
+  oneof value {
+    // 64-bit signed integer value.
+    int64 integer_value = 1;
+
+    // 64-bit IEEE 754 floating point value.
+    double real_value = 2;
+
+    // UTF-8 encoded sequence of characters.
+    string text_value = 3;
+
+    // Arbitrary sequence of binary data.
+    bytes blob_value = 4;
+
+    // Indicates a NULL/empty cell value in SQLite.
+    bool null_value = 5;
+  }
+}
+
+/**
+ * SqlRow represents a single record yielded by a Typed API query.
+ */
+message SqlRow {
+  // Ordered collection of typed cells in the row.
+  repeated SqlValue values = 1;
+}
+
+/**
+ * TypedParameters provides strictly-typed binds for prepared statements.
+ */
+message TypedParameters {
+  // Positional parameters bound by index (?).
+  repeated SqlValue positional = 1
+      [ (buf.validate.field).repeated.max_items = 1000 ];
+
+  // Named parameters bound by key (:name, @name, $name).
+  map<string, SqlValue> named = 2 [
+    (buf.validate.field).map.keys.string.min_len = 1,
+    (buf.validate.field).map.max_pairs = 1000
+  ];
+}
+
+/**
+ * Parameters provides hybrid binds supporting standard google.protobuf.Value
+ * with optional affinity hints for the SQLite engine.
+ */
+message Parameters {
+  // Positional parameters bound by index (?).
+  repeated google.protobuf.Value positional = 1;
+
+  // Named parameters bound by key (:name, @name, $name).
+  map<string, google.protobuf.Value> named = 2;
+
+  // Explicit type overrides for dynamic typing scenarios.
+  map<string, ColumnAffinity> hints = 5 [
+    (buf.validate.field).map.keys.string.min_len = 1,
+    (buf.validate.field).map.max_pairs = 1000,
+    (buf.validate.field).map.values.enum.defined_only = true
+  ];
+}
+
+// =============================================================================
+// SCHEMA & INTROSPECTION TYPES
+// =============================================================================
+/**
+ * QueryPlanNode represents a single step in a query execution plan.
+ */
+message QueryPlanNode {
+  // Unique identifier for the plan node.
+  int32 id = 1;
+
+  // Parent node identifier (enables tree reconstruction).
+  int32 parent_id = 2;
+
+  // Textual description of the query execution step.
+  string detail = 3;
+}
+
+/**
+ * TableSchema delineates the full physical and logical structure of a table.
+ */
+message TableSchema {
+  // Name of the table entity.
+  string name = 1;
+
+  // Original SQL CREATE statement used to define the table.
+  string sql = 2;
+
+  // Collection of column structural definitions.
+  repeated ColumnSchema columns = 3;
+
+  // Collection of associated index definitions.
+  repeated IndexSchema indexes = 4;
+
+  // Referential integrity constraints.
+  repeated ForeignKeySchema foreign_keys = 5;
+
+  // Trigger definitions associated with the table.
+  repeated TriggerSchema triggers = 6;
+}
+
+/**
+ * ColumnSchema describes the constraints and metadata for a single column.
+ */
+message ColumnSchema {
+  // Logical name of the column.
+  string name = 1;
+
+  // Explicit data type declaration.
+  string type = 2;
+
+  // True if the column prohibits NULL values.
+  bool not_null = 3;
+
+  // Default value expression for the column.
+  string default_value = 4;
+
+  // True if the column participates in the primary key.
+  bool primary_key = 5;
+}
+
+/**
+ * IndexSchema describes an index defined on a table.
+ */
+message IndexSchema {
+  // Unique name of the index entity.
+  string name = 1;
+
+  // True if the index enforces uniqueness.
+  bool unique = 2;
+
+  // Ordered list of columns included in the index.
+  repeated string columns = 3;
+
+  // SQL definition for the index.
+  string sql = 4;
+}
+
+/**
+ * ForeignKeySchema describes a referential integrity constraint.
+ */
+message ForeignKeySchema {
+  // Internal constraint identifier.
+  int32 id = 1;
+
+  // Name of the target table.
+  string table = 2;
+
+  // Source column in the current table.
+  string from_column = 3;
+
+  // Referenced column in the target table.
+  string to_column = 4;
+
+  // Referential action to perform on parent update.
+  string on_update = 5;
+
+  // Referential action to perform on parent deletion.
+  string on_delete = 6;
+}
+
+/**
+ * TriggerSchema describes a database trigger definition.
+ */
+message TriggerSchema {
+  // Unique name of the trigger.
+  string name = 1;
+
+  // SQL definition for the trigger.
+  string sql = 2;
+}
+
+/**
+ * DatabaseSchema represents the entire structured catalog for a database
+ * tenant.
+ */
+message DatabaseSchema {
+  // Catalog of tables and their associated structures.
+  repeated TableSchema tables = 1;
+}

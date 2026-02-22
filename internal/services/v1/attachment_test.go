@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ func setupAttachmentTest(t *testing.T) (*DbServer, *auth.MetaStore, *DbManager) 
 
 	// Create a main database
 	mainDbPath := filepath.Join(tmpDir, "main.db")
-	mainConfig := &dbv1.DatabaseConfig{
+	mainConfig := &sqlrpcv1.DatabaseConfig{
 		Name:   "primary",
 		DbPath: mainDbPath,
 	}
@@ -46,7 +46,7 @@ func TestAttachedDatabases(t *testing.T) {
 
 	// Create a second database to be attached
 	attachDbPath := filepath.Join(tmpDir, "attached.db")
-	attachConfig := &dbv1.DatabaseConfig{
+	attachConfig := &sqlrpcv1.DatabaseConfig{
 		Name:   "attached_db",
 		DbPath: attachDbPath,
 	}
@@ -63,12 +63,12 @@ func TestAttachedDatabases(t *testing.T) {
 	require.NoError(t, err)
 	adbRaw.Close()
 
-	ctx = adminContext(dbv1.Role_ROLE_READ_ONLY) // ReadOnly should be enough
+	ctx = adminContext(sqlrpcv1.Role_ROLE_READ_ONLY) // ReadOnly should be enough
 
 	t.Run("AttachDatabase RPC", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.AttachDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.AttachDatabaseRequest{
 			ParentDatabase: "primary",
-			Attachment: &dbv1.Attachment{
+			Attachment: &sqlrpcv1.Attachment{
 				TargetDatabaseName: "attached_db",
 				Alias:              "ext",
 			},
@@ -89,7 +89,7 @@ func TestAttachedDatabases(t *testing.T) {
 	})
 
 	t.Run("DetachDatabase RPC", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.DetachDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.DetachDatabaseRequest{
 			ParentDatabase: "primary",
 			Alias:          "ext",
 		})
@@ -109,9 +109,9 @@ func TestAttachedDatabases(t *testing.T) {
 
 	t.Run("ReadOnly Enforcement", func(t *testing.T) {
 		// Re-attach
-		_, err := dbServer.AttachDatabase(ctx, connect.NewRequest(&dbv1.AttachDatabaseRequest{
+		_, err := dbServer.AttachDatabase(ctx, connect.NewRequest(&sqlrpcv1.AttachDatabaseRequest{
 			ParentDatabase: "primary",
-			Attachment: &dbv1.Attachment{
+			Attachment: &sqlrpcv1.Attachment{
 				TargetDatabaseName: "attached_db",
 				Alias:              "ext_ro",
 			},
@@ -149,27 +149,27 @@ func TestAttachedDatabases(t *testing.T) {
 
 	t.Run("DbServer AttachDatabase Failures", func(t *testing.T) {
 		// Parent not found
-		req := connect.NewRequest(&dbv1.AttachDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.AttachDatabaseRequest{
 			ParentDatabase: "nonexistent",
-			Attachment:     &dbv1.Attachment{TargetDatabaseName: "attached_db", Alias: "fail"},
+			Attachment:     &sqlrpcv1.Attachment{TargetDatabaseName: "attached_db", Alias: "fail"},
 		})
 		_, err := dbServer.AttachDatabase(ctx, req)
 		assert.Error(t, err)
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 
 		// Target not found
-		req = connect.NewRequest(&dbv1.AttachDatabaseRequest{
+		req = connect.NewRequest(&sqlrpcv1.AttachDatabaseRequest{
 			ParentDatabase: "primary",
-			Attachment:     &dbv1.Attachment{TargetDatabaseName: "ghost", Alias: "fail"},
+			Attachment:     &sqlrpcv1.Attachment{TargetDatabaseName: "ghost", Alias: "fail"},
 		})
 		_, err = dbServer.AttachDatabase(ctx, req)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "target database 'ghost' not found")
 
 		// Duplicate alias
-		req = connect.NewRequest(&dbv1.AttachDatabaseRequest{
+		req = connect.NewRequest(&sqlrpcv1.AttachDatabaseRequest{
 			ParentDatabase: "primary",
-			Attachment:     &dbv1.Attachment{TargetDatabaseName: "primary", Alias: "ext_ro"},
+			Attachment:     &sqlrpcv1.Attachment{TargetDatabaseName: "primary", Alias: "ext_ro"},
 		})
 		_, err = dbServer.AttachDatabase(ctx, req)
 		assert.Error(t, err)
@@ -185,9 +185,9 @@ func TestAttachedDatabases(t *testing.T) {
 			"corrupt", "any", 0, "{invalid-json}")
 		require.NoError(t, err)
 
-		req := connect.NewRequest(&dbv1.AttachDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.AttachDatabaseRequest{
 			ParentDatabase: "corrupt",
-			Attachment:     &dbv1.Attachment{TargetDatabaseName: "t", Alias: "a"},
+			Attachment:     &sqlrpcv1.Attachment{TargetDatabaseName: "t", Alias: "a"},
 		})
 		_, err = dbServer.AttachDatabase(ctx, req)
 		assert.Error(t, err)
@@ -196,7 +196,7 @@ func TestAttachedDatabases(t *testing.T) {
 
 	t.Run("DbServer DetachDatabase Failures", func(t *testing.T) {
 		// Parent not found
-		req := connect.NewRequest(&dbv1.DetachDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.DetachDatabaseRequest{
 			ParentDatabase: "nonexistent",
 			Alias:          "ext_ro",
 		})
@@ -205,7 +205,7 @@ func TestAttachedDatabases(t *testing.T) {
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 
 		// Alias not found
-		req = connect.NewRequest(&dbv1.DetachDatabaseRequest{
+		req = connect.NewRequest(&sqlrpcv1.DetachDatabaseRequest{
 			ParentDatabase: "primary",
 			Alias:          "ghost",
 		})
@@ -216,17 +216,17 @@ func TestAttachedDatabases(t *testing.T) {
 
 	t.Run("DbManager Failures", func(t *testing.T) {
 		// Attach parent not found
-		err := mgr.AttachDatabase("ghost", &dbv1.Attachment{TargetDatabaseName: "attached_db", Alias: "err"})
+		err := mgr.AttachDatabase("ghost", &sqlrpcv1.Attachment{TargetDatabaseName: "attached_db", Alias: "err"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 
 		// Attach target not found
-		err = mgr.AttachDatabase("primary", &dbv1.Attachment{TargetDatabaseName: "ghost", Alias: "err"})
+		err = mgr.AttachDatabase("primary", &sqlrpcv1.Attachment{TargetDatabaseName: "ghost", Alias: "err"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "target database 'ghost' not found")
 
 		// Attach duplicate alias (with different target)
-		err = mgr.AttachDatabase("primary", &dbv1.Attachment{TargetDatabaseName: "primary", Alias: "ext_ro"})
+		err = mgr.AttachDatabase("primary", &sqlrpcv1.Attachment{TargetDatabaseName: "primary", Alias: "ext_ro"})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already exists")
 
@@ -264,9 +264,9 @@ func TestAttachedDatabases(t *testing.T) {
 
 		// 1. GetDatabaseConfig error (covered elsewhere, but let's be sure)
 		store.Close()
-		req := connect.NewRequest(&dbv1.AttachDatabaseRequest{
+		req := connect.NewRequest(&sqlrpcv1.AttachDatabaseRequest{
 			ParentDatabase: "primary",
-			Attachment:     &dbv1.Attachment{TargetDatabaseName: "attached_db", Alias: "fail"},
+			Attachment:     &sqlrpcv1.Attachment{TargetDatabaseName: "attached_db", Alias: "fail"},
 		})
 		_, err := dbServer.AttachDatabase(ctx, req)
 		assert.Error(t, err)

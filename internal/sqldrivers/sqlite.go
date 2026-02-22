@@ -13,7 +13,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 
 	"sqlite-server/internal/extensions"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 var (
@@ -31,11 +31,11 @@ type AttachmentInfo struct {
 	ReadOnly bool
 }
 
-func NewSqliteDb(config *dbv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, error) {
+func NewSqliteDb(config *sqlrpcv1.DatabaseConfig, readOnlySecured bool) (*sql.DB, error) {
 	return NewSqliteDbWithAttachments(config, readOnlySecured, nil)
 }
 
-func NewSqliteDbWithAttachments(config *dbv1.DatabaseConfig, readOnlySecured bool, attachments []AttachmentInfo) (*sql.DB, error) {
+func NewSqliteDbWithAttachments(config *sqlrpcv1.DatabaseConfig, readOnlySecured bool, attachments []AttachmentInfo) (*sql.DB, error) {
 	// Resolve absolute path to avoid issues with relative paths in URI mode (file:...) via CGO
 	// Skip for in-memory databases and pre-formatted URIs.
 	if config.DbPath != ":memory:" && !strings.HasPrefix(config.DbPath, "file:") {

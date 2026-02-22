@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 )
@@ -66,7 +66,7 @@ func LoggingInterceptor() connect.UnaryInterceptorFunc {
 				status = "ERROR"
 			}
 
-			// Log: [OK] /db.v1.DatabaseService/Query (12ms)
+			// Log: [OK] /sqlrpc.v1.DatabaseService/Query (12ms)
 			log.Printf("[%s] %s (%v)", status, req.Spec().Procedure, duration)
 
 			return resp, err
@@ -79,7 +79,7 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 		// 1. Allow Login and ServerInfo to proceed without auth
 		procedure := req.Spec().Procedure
-		if procedure == "/db.v1.AdminService/Login" || procedure == "/db.v1.AdminService/GetServerInfo" {
+		if procedure == "/sqlrpc.v1.AdminService/Login" || procedure == "/sqlrpc.v1.AdminService/GetServerInfo" {
 			return next(ctx, req)
 		}
 
@@ -145,36 +145,36 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 		}
 
 		// AdminService Check
-		if strings.HasPrefix(req.Spec().Procedure, "/db.v1.AdminService/") {
-			if user.Role != dbv1.Role_ROLE_ADMIN && user.Role != dbv1.Role_ROLE_DATABASE_MANAGER {
+		if strings.HasPrefix(req.Spec().Procedure, "/sqlrpc.v1.AdminService/") {
+			if user.Role != sqlrpcv1.Role_ROLE_ADMIN && user.Role != sqlrpcv1.Role_ROLE_DATABASE_MANAGER {
 				// Allow non-admins to access self-management and informational methods
 				procedure := req.Spec().Procedure
 				allowedForEveryone := map[string]bool{
-					"/db.v1.AdminService/ListDatabases":  true,
-					"/db.v1.AdminService/CreateApiKey":   true,
-					"/db.v1.AdminService/ListApiKeys":    true,
-					"/db.v1.AdminService/RevokeApiKey":   true,
-					"/db.v1.AdminService/UpdatePassword": true,
-					"/db.v1.AdminService/Logout":         true,
+					"/sqlrpc.v1.AdminService/ListDatabases":  true,
+					"/sqlrpc.v1.AdminService/CreateAPIKey":   true,
+					"/sqlrpc.v1.AdminService/ListAPIKeys":    true,
+					"/sqlrpc.v1.AdminService/DeleteAPIKey":   true,
+					"/sqlrpc.v1.AdminService/UpdatePassword": true,
+					"/sqlrpc.v1.AdminService/Logout":         true,
 				}
 				if !allowedForEveryone[procedure] {
 					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
 				}
-			} else if user.Role == dbv1.Role_ROLE_DATABASE_MANAGER {
+			} else if user.Role == sqlrpcv1.Role_ROLE_DATABASE_MANAGER {
 				// Database Manager can only access database related methods
 				procedure := req.Spec().Procedure
 				dbRelated := map[string]bool{
-					"/db.v1.AdminService/ListDatabases":   true,
-					"/db.v1.AdminService/CreateDatabase":  true,
-					"/db.v1.AdminService/DeleteDatabase":  true,
-					"/db.v1.AdminService/UpdateDatabase":  true,
-					"/db.v1.AdminService/MountDatabase":   true,
-					"/db.v1.AdminService/UnMountDatabase": true,
-					"/db.v1.AdminService/CreateApiKey":    true,
-					"/db.v1.AdminService/ListApiKeys":     true,
-					"/db.v1.AdminService/RevokeApiKey":    true,
-					"/db.v1.AdminService/UpdatePassword":  true,
-					"/db.v1.AdminService/Logout":          true,
+					"/sqlrpc.v1.AdminService/ListDatabases":   true,
+					"/sqlrpc.v1.AdminService/CreateDatabase":  true,
+					"/sqlrpc.v1.AdminService/DeleteDatabase":  true,
+					"/sqlrpc.v1.AdminService/UpdateDatabase":  true,
+					"/sqlrpc.v1.AdminService/MountDatabase":   true,
+					"/sqlrpc.v1.AdminService/UnMountDatabase": true,
+					"/sqlrpc.v1.AdminService/CreateAPIKey":    true,
+					"/sqlrpc.v1.AdminService/ListAPIKeys":     true,
+					"/sqlrpc.v1.AdminService/DeleteAPIKey":    true,
+					"/sqlrpc.v1.AdminService/UpdatePassword":  true,
+					"/sqlrpc.v1.AdminService/Logout":          true,
 				}
 				if !dbRelated[procedure] {
 					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin access required"))
@@ -189,36 +189,36 @@ func (authInterceptor *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connec
 		isRestrictedSQL := false
 		switch req.Spec().Procedure {
 		// Explicit Write Methods
-		case "/db.v1.DatabaseService/Vacuum",
-			"/db.v1.DatabaseService/Checkpoint":
+		case "/sqlrpc.v1.DatabaseService/Vacuum",
+			"/sqlrpc.v1.DatabaseService/Checkpoint":
 			isWrite = true
-		case "/db.v1.DatabaseService/AttachDatabase",
-			"/db.v1.DatabaseService/DetachDatabase":
+		case "/sqlrpc.v1.DatabaseService/AttachDatabase",
+			"/sqlrpc.v1.DatabaseService/DetachDatabase":
 			isAttachmentRPC = true
 
 		// Dynamic Methods (Parse SQL)
-		case "/db.v1.DatabaseService/Query", "/db.v1.DatabaseService/QueryStream":
-			if msg, ok := req.Any().(*dbv1.QueryRequest); ok {
+		case "/sqlrpc.v1.DatabaseService/Query", "/sqlrpc.v1.DatabaseService/QueryStream":
+			if msg, ok := req.Any().(*sqlrpcv1.QueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
 				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
-		case "/db.v1.DatabaseService/TypedQuery", "/db.v1.DatabaseService/TypedQueryStream":
-			if msg, ok := req.Any().(*dbv1.TypedQueryRequest); ok {
+		case "/sqlrpc.v1.DatabaseService/TypedQuery", "/sqlrpc.v1.DatabaseService/TypedQueryStream":
+			if msg, ok := req.Any().(*sqlrpcv1.TypedQueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
 				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
-		case "/db.v1.DatabaseService/TransactionQuery", "/db.v1.DatabaseService/TransactionQueryStream":
-			if msg, ok := req.Any().(*dbv1.TransactionQueryRequest); ok {
+		case "/sqlrpc.v1.DatabaseService/TransactionQuery", "/sqlrpc.v1.DatabaseService/TransactionQueryStream", "/sqlrpc.v1.DatabaseService/TransactionExec":
+			if msg, ok := req.Any().(*sqlrpcv1.TransactionQueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
 				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
-		case "/db.v1.DatabaseService/TypedTransactionQuery", "/db.v1.DatabaseService/TypedTransactionQueryStream":
-			if msg, ok := req.Any().(*dbv1.TypedTransactionQueryRequest); ok {
+		case "/sqlrpc.v1.DatabaseService/TypedTransactionQuery", "/sqlrpc.v1.DatabaseService/TypedTransactionQueryStream", "/sqlrpc.v1.DatabaseService/TypedTransactionExec":
+			if msg, ok := req.Any().(*sqlrpcv1.TypedTransactionQueryRequest); ok {
 				isWrite = IsWriteQuery(msg.Sql)
 				isRestrictedSQL = IsRestrictedQuery(msg.Sql)
 			}
-		case "/db.v1.DatabaseService/ExecuteTransaction":
-			if msg, ok := req.Any().(*dbv1.ExecuteTransactionRequest); ok {
+		case "/sqlrpc.v1.DatabaseService/ExecuteTransaction":
+			if msg, ok := req.Any().(*sqlrpcv1.ExecuteTransactionRequest); ok {
 				// Iterate all requests to see if ANY is a write or administrative
 				for _, r := range msg.Requests {
 					var sql string
@@ -275,17 +275,17 @@ func (w *authStreamWrapper) Receive(msg any) error {
 	isWrite := false
 	isRestrictedSQL := false
 	switch req := msg.(type) {
-	case *dbv1.TransactionRequest:
+	case *sqlrpcv1.TransactionRequest:
 		// Check inner command
 		var sql string
 		switch cmd := req.Command.(type) {
-		case *dbv1.TransactionRequest_Query:
+		case *sqlrpcv1.TransactionRequest_Query:
 			sql = cmd.Query.Sql
-		case *dbv1.TransactionRequest_QueryStream:
+		case *sqlrpcv1.TransactionRequest_QueryStream:
 			sql = cmd.QueryStream.Sql
-		case *dbv1.TransactionRequest_TypedQuery:
+		case *sqlrpcv1.TransactionRequest_TypedQuery:
 			sql = cmd.TypedQuery.Sql
-		case *dbv1.TransactionRequest_TypedQueryStream:
+		case *sqlrpcv1.TransactionRequest_TypedQueryStream:
 			sql = cmd.TypedQueryStream.Sql
 		}
 		if sql != "" {
@@ -311,7 +311,7 @@ func (authInterceptor *AuthInterceptor) WrapStreamingHandler(next connect.Stream
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
 		// 1. Allow metadata info to proceed without auth
 		procedure := conn.Spec().Procedure
-		if procedure == "/db.v1.AdminService/GetServerInfo" {
+		if procedure == "/sqlrpc.v1.AdminService/GetServerInfo" {
 			return next(ctx, conn)
 		}
 
@@ -394,7 +394,7 @@ func (i *NoAuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc 
 		// Inject Admin User
 		admin := &auth.UserClaims{
 			Username: "anonymous-admin",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx = auth.NewContext(ctx, admin)
 		return next(ctx, req)
@@ -410,7 +410,7 @@ func (i *NoAuthInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFu
 		// Inject Admin User
 		admin := &auth.UserClaims{
 			Username: "anonymous-admin",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx = auth.NewContext(ctx, admin)
 		return next(ctx, conn)

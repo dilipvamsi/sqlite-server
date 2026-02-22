@@ -3,7 +3,7 @@ package servicesv1
 import (
 	"context"
 	"fmt"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"testing"
 	"time"
 
@@ -22,7 +22,7 @@ func TestExplain_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Simple SELECT", func(t *testing.T) {
-		res, err := client.Explain(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		res, err := client.Explain(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM users WHERE id = 1",
 		}))
@@ -33,11 +33,11 @@ func TestExplain_Coverage(t *testing.T) {
 	})
 
 	t.Run("Complex Query", func(t *testing.T) {
-		res, err := client.Explain(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		res, err := client.Explain(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "SELECT u.id, u.name FROM users u WHERE u.id > ?",
-			Parameters: &dbv1.Parameters{
-				Positional: &structpb.ListValue{Values: []*structpb.Value{structpb.NewNumberValue(0)}},
+			Parameters: &sqlrpcv1.Parameters{
+				Positional: []*structpb.Value{structpb.NewNumberValue(0)},
 			},
 		}))
 		require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestExplain_Coverage(t *testing.T) {
 	})
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		_, err := client.Explain(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		_, err := client.Explain(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "missing_db",
 			Sql:      "SELECT 1",
 		}))
@@ -54,7 +54,7 @@ func TestExplain_Coverage(t *testing.T) {
 	})
 
 	t.Run("Invalid SQL", func(t *testing.T) {
-		_, err := client.Explain(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		_, err := client.Explain(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM non_existent_table",
 		}))
@@ -62,7 +62,7 @@ func TestExplain_Coverage(t *testing.T) {
 	})
 
 	t.Run("Proto Validation Error", func(t *testing.T) {
-		_, err := client.Explain(ctx, connect.NewRequest(&dbv1.QueryRequest{
+		_, err := client.Explain(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "", // Empty SQL
 		}))
@@ -75,7 +75,7 @@ func TestTypedExplain_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Simple SELECT", func(t *testing.T) {
-		res, err := client.TypedExplain(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		res, err := client.TypedExplain(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM users WHERE id = 1",
 		}))
@@ -85,12 +85,12 @@ func TestTypedExplain_Coverage(t *testing.T) {
 	})
 
 	t.Run("With Typed Parameters", func(t *testing.T) {
-		res, err := client.TypedExplain(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		res, err := client.TypedExplain(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM users WHERE id > ?",
-			Parameters: &dbv1.TypedParameters{
-				Positional: []*dbv1.SqlValue{
-					{Value: &dbv1.SqlValue_IntegerValue{IntegerValue: 0}},
+			Parameters: &sqlrpcv1.TypedParameters{
+				Positional: []*sqlrpcv1.SqlValue{
+					{Value: &sqlrpcv1.SqlValue_IntegerValue{IntegerValue: 0}},
 				},
 			},
 		}))
@@ -99,7 +99,7 @@ func TestTypedExplain_Coverage(t *testing.T) {
 	})
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		_, err := client.TypedExplain(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		_, err := client.TypedExplain(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "missing_db",
 			Sql:      "SELECT 1",
 		}))
@@ -107,7 +107,7 @@ func TestTypedExplain_Coverage(t *testing.T) {
 		assert.Contains(t, err.Error(), "not found")
 	})
 	t.Run("Invalid SQL", func(t *testing.T) {
-		_, err := client.TypedExplain(ctx, connect.NewRequest(&dbv1.TypedQueryRequest{
+		_, err := client.TypedExplain(ctx, connect.NewRequest(&sqlrpcv1.TypedQueryRequest{
 			Database: "test",
 			Sql:      "SELECT * FROM non_existent_table",
 		}))
@@ -125,7 +125,7 @@ func TestListTables_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Success", func(t *testing.T) {
-		res, err := client.ListTables(ctx, connect.NewRequest(&dbv1.ListTablesRequest{
+		res, err := client.ListTables(ctx, connect.NewRequest(&sqlrpcv1.ListTablesRequest{
 			Database: "test",
 		}))
 		require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestListTables_Coverage(t *testing.T) {
 	})
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		_, err := client.ListTables(ctx, connect.NewRequest(&dbv1.ListTablesRequest{
+		_, err := client.ListTables(ctx, connect.NewRequest(&sqlrpcv1.ListTablesRequest{
 			Database: "missing_db",
 		}))
 		assert.Error(t, err)
@@ -143,7 +143,7 @@ func TestListTables_Coverage(t *testing.T) {
 	t.Run("Context Cancelled", func(t *testing.T) {
 		// Create a separate client/server to avoid race with other tests
 		_, srv := setupTestServer(t)
-		srv.MountDatabase(&dbv1.DatabaseConfig{Name: "list_err", DbPath: ":memory:"})
+		srv.MountDatabase(&sqlrpcv1.DatabaseConfig{Name: "list_err", DbPath: ":memory:"})
 
 		// Prime connection
 		_, _ = srv.dbManager.GetConnection(ctx, "list_err", ModeRO)
@@ -152,7 +152,7 @@ func TestListTables_Coverage(t *testing.T) {
 		cCtx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		_, err := srv.ListTables(cCtx, connect.NewRequest(&dbv1.ListTablesRequest{
+		_, err := srv.ListTables(cCtx, connect.NewRequest(&sqlrpcv1.ListTablesRequest{
 			Database: "list_err",
 		}))
 		assert.Error(t, err)
@@ -169,7 +169,7 @@ func TestGetTableSchema_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Success", func(t *testing.T) {
-		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "users",
 		}))
@@ -192,7 +192,7 @@ func TestGetTableSchema_Coverage(t *testing.T) {
 	})
 
 	t.Run("Table Not Found", func(t *testing.T) {
-		_, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		_, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "non_existent_table",
 		}))
@@ -201,7 +201,7 @@ func TestGetTableSchema_Coverage(t *testing.T) {
 	})
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		_, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		_, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "missing_db",
 			TableName: "users",
 		}))
@@ -219,7 +219,7 @@ func TestGetDatabaseSchema_Coverage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Success", func(t *testing.T) {
-		res, err := client.GetDatabaseSchema(ctx, connect.NewRequest(&dbv1.GetDatabaseSchemaRequest{
+		res, err := client.GetDatabaseSchema(ctx, connect.NewRequest(&sqlrpcv1.GetDatabaseSchemaRequest{
 			Database: "test",
 		}))
 		require.NoError(t, err)
@@ -239,7 +239,7 @@ func TestGetDatabaseSchema_Coverage(t *testing.T) {
 	})
 
 	t.Run("DB Not Found", func(t *testing.T) {
-		_, err := client.GetDatabaseSchema(ctx, connect.NewRequest(&dbv1.GetDatabaseSchemaRequest{
+		_, err := client.GetDatabaseSchema(ctx, connect.NewRequest(&sqlrpcv1.GetDatabaseSchemaRequest{
 			Database: "missing_db",
 		}))
 		assert.Error(t, err)
@@ -288,7 +288,7 @@ func TestGetTableSchema_ComplexSchema(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Table with Index", func(t *testing.T) {
-		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "products",
 		}))
@@ -307,7 +307,7 @@ func TestGetTableSchema_ComplexSchema(t *testing.T) {
 	})
 
 	t.Run("Table with Foreign Key", func(t *testing.T) {
-		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "products",
 		}))
@@ -322,7 +322,7 @@ func TestGetTableSchema_ComplexSchema(t *testing.T) {
 	})
 
 	t.Run("Table with Trigger", func(t *testing.T) {
-		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "products",
 		}))
@@ -341,7 +341,7 @@ func TestGetTableSchema_ComplexSchema(t *testing.T) {
 	})
 
 	t.Run("Full Database Schema with Complex Tables", func(t *testing.T) {
-		res, err := client.GetDatabaseSchema(ctx, connect.NewRequest(&dbv1.GetDatabaseSchemaRequest{
+		res, err := client.GetDatabaseSchema(ctx, connect.NewRequest(&sqlrpcv1.GetDatabaseSchemaRequest{
 			Database: "test",
 		}))
 		require.NoError(t, err)
@@ -364,7 +364,7 @@ func TestListTables_ContextCancel(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Setup DB with many tables
-	config := &dbv1.DatabaseConfig{Name: "list_cancel", DbPath: ":memory:"}
+	config := &sqlrpcv1.DatabaseConfig{Name: "list_cancel", DbPath: ":memory:"}
 	err := dbServer.MountDatabase(config)
 	require.NoError(t, err)
 
@@ -386,7 +386,7 @@ func TestListTables_ContextCancel(t *testing.T) {
 		cancel()
 	}()
 
-	req := connect.NewRequest(&dbv1.ListTablesRequest{Database: "list_cancel"})
+	req := connect.NewRequest(&sqlrpcv1.ListTablesRequest{Database: "list_cancel"})
 	_, err = dbServer.ListTables(ctx, req)
 
 	if err == nil {
@@ -401,7 +401,7 @@ func TestGetDatabaseSchema_QueryError(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup DB
-	dbServer.MountDatabase(&dbv1.DatabaseConfig{Name: "schema_fail", DbPath: ":memory:"})
+	dbServer.MountDatabase(&sqlrpcv1.DatabaseConfig{Name: "schema_fail", DbPath: ":memory:"})
 
 	// Prime cache
 	_, err := dbServer.dbManager.GetConnection(ctx, "schema_fail", ModeRO)
@@ -411,7 +411,7 @@ func TestGetDatabaseSchema_QueryError(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	cancel()
 
-	req := connect.NewRequest(&dbv1.GetDatabaseSchemaRequest{Database: "schema_fail"})
+	req := connect.NewRequest(&sqlrpcv1.GetDatabaseSchemaRequest{Database: "schema_fail"})
 	_, err = dbServer.GetDatabaseSchema(ctx, req)
 	require.Error(t, err)
 }
@@ -436,7 +436,7 @@ func TestGetTableSchema_MoreEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test No PK
-		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "nopk",
 		}))
@@ -447,7 +447,7 @@ func TestGetTableSchema_MoreEdgeCases(t *testing.T) {
 		}
 
 		// Test Autoincrement (not explicitly in proto but check it doesn't break)
-		res, err = client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err = client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "auto",
 		}))
@@ -466,7 +466,7 @@ func TestGetTableSchema_MoreEdgeCases(t *testing.T) {
 		`)
 		require.NoError(t, err)
 
-		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "constraints",
 		}))
@@ -493,7 +493,7 @@ func TestGetTableSchema_MoreEdgeCases(t *testing.T) {
 		`)
 		require.NoError(t, err)
 
-		res, err := client.GetTableSchema(ctx, connect.NewRequest(&dbv1.GetTableSchemaRequest{
+		res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
 			Database:  "test",
 			TableName: "unique_test",
 		}))
@@ -509,5 +509,71 @@ func TestGetTableSchema_MoreEdgeCases(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "Should find unique index for UNIQUE constraint")
+	})
+}
+
+func TestGetTableSchema_ExpressionIndex(t *testing.T) {
+	client, server := setupTestServer(t)
+	ctx := context.Background()
+
+	db, _ := server.dbManager.GetConnection(ctx, "test", ModeRW)
+	_, err := db.Exec(`
+		CREATE TABLE users_expr (id INTEGER PRIMARY KEY, name TEXT);
+		CREATE INDEX idx_expr ON users_expr(UPPER(name));
+	`)
+	require.NoError(t, err)
+
+	res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
+		Database:  "test",
+		TableName: "users_expr",
+	}))
+	require.NoError(t, err)
+	assert.Equal(t, "users_expr", res.Msg.Name)
+	assert.NotEmpty(t, res.Msg.Indexes)
+	// Expression index columns might be empty or contains specific detail depending on SQLite version
+	// but the function should not crash and should return the index metadata.
+}
+
+func TestGetTableSchema_ConstraintEdgeCases(t *testing.T) {
+	client, server := setupTestServer(t)
+	ctx := context.Background()
+
+	db, _ := server.dbManager.GetConnection(ctx, "test", ModeRW)
+	_, err := db.Exec(`
+		CREATE TABLE multipk (
+id1 INTEGER,
+id2 INTEGER,
+PRIMARY KEY(id1, id2)
+);
+		CREATE TABLE stringpk (
+uuid TEXT PRIMARY KEY,
+data BLOB
+);
+	`)
+	require.NoError(t, err)
+
+	t.Run("Multi-column PK", func(t *testing.T) {
+res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
+			Database:  "test",
+			TableName: "multipk",
+		}))
+		require.NoError(t, err)
+		pkCount := 0
+		for _, col := range res.Msg.Columns {
+			if col.PrimaryKey {
+				pkCount++
+			}
+		}
+		assert.Equal(t, 2, pkCount)
+	})
+
+	t.Run("String PK", func(t *testing.T) {
+res, err := client.GetTableSchema(ctx, connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{
+			Database:  "test",
+			TableName: "stringpk",
+		}))
+		require.NoError(t, err)
+		assert.Equal(t, "uuid", res.Msg.Columns[0].Name)
+		assert.True(t, res.Msg.Columns[0].PrimaryKey)
 	})
 }

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ func TestVersionTrimming(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	cfg := &Config{Port: 50051}
+	cfg := &Config{Port: 50173}
 	srv := New(cfg)
 	if srv.cfg != cfg {
 		t.Errorf("Expected cfg to be set")
@@ -192,7 +192,7 @@ func TestSetupMetadata_Complex(t *testing.T) {
 	}
 
 	// 1. Initial setup
-	initial := []*dbv1.DatabaseConfig{
+	initial := []*sqlrpcv1.DatabaseConfig{
 		{Name: "test1", DbPath: "t1.db"},
 	}
 	store, configs, err := s.setupMetadata(cfg, initial)
@@ -217,7 +217,7 @@ func TestSetupMetadata_Complex(t *testing.T) {
 		InitialPassword: "pass",
 		MountsOverwrite: true,
 	}
-	initialOverwrite := []*dbv1.DatabaseConfig{
+	initialOverwrite := []*sqlrpcv1.DatabaseConfig{
 		{Name: "test1", DbPath: "t1_updated.db"},
 	}
 	store3, configs3, err := s.setupMetadata(cfgOverwrite, initialOverwrite)
@@ -233,7 +233,7 @@ func TestSetupMetadata_Complex(t *testing.T) {
 func TestValidateMountConnectivity(t *testing.T) {
 	s := &Server{}
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	cfg := &dbv1.DatabaseConfig{
+	cfg := &sqlrpcv1.DatabaseConfig{
 		Name:   "test",
 		DbPath: dbPath,
 	}
@@ -246,7 +246,7 @@ func TestValidateMountConnectivity(t *testing.T) {
 func TestValidateMountConnectivity_Failure(t *testing.T) {
 	s := &Server{}
 	// Invalid path should cause failure
-	cfg := &dbv1.DatabaseConfig{
+	cfg := &sqlrpcv1.DatabaseConfig{
 		Name:   "fail",
 		DbPath: "/non/existent/path/to/db.sqlite",
 	}
@@ -300,7 +300,7 @@ func TestSetupMetadata_ErrorPaths(t *testing.T) {
 
 	// 2. Force Unmarshal error in "Sync initial mounts" loop (line 207 warning)
 	_ = store.UpsertDatabaseConfig(ctx, "corrupt_sync", "path_sync", false, "{invalid")
-	initialConfigs := []*dbv1.DatabaseConfig{
+	initialConfigs := []*sqlrpcv1.DatabaseConfig{
 		{Name: "corrupt_sync", DbPath: "path_sync"},
 	}
 
@@ -317,7 +317,7 @@ func TestSetupMetadata_ErrorPaths(t *testing.T) {
 	}
 
 	// 3. Trigger Mount failure (newly testable after refactor)
-	badConfigs := []*dbv1.DatabaseConfig{
+	badConfigs := []*sqlrpcv1.DatabaseConfig{
 		{Name: "bad", DbPath: "/non/existent/path"},
 	}
 	_, _, err = s.setupMetadata(cfg, badConfigs)

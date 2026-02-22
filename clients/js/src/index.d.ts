@@ -4,44 +4,44 @@ import * as grpc from "@grpc/grpc-js";
 // --- Enums ---
 
 export enum SqliteCode {
-  SQLITE_CODE_OK = 0,
-  SQLITE_CODE_ERROR = 1,
-  SQLITE_CODE_INTERNAL = 2,
-  SQLITE_CODE_PERM = 3,
-  SQLITE_CODE_ABORT = 4,
-  SQLITE_CODE_BUSY = 5,
-  SQLITE_CODE_LOCKED = 6,
-  SQLITE_CODE_NOMEM = 7,
-  SQLITE_CODE_READONLY = 8,
-  SQLITE_CODE_INTERRUPT = 9,
-  SQLITE_CODE_IOERR = 10,
-  SQLITE_CODE_CORRUPT = 11,
-  SQLITE_CODE_NOTFOUND = 12,
-  SQLITE_CODE_FULL = 13,
-  SQLITE_CODE_CANTOPEN = 14,
-  SQLITE_CODE_PROTOCOL = 15,
-  SQLITE_CODE_EMPTY = 16,
-  SQLITE_CODE_SCHEMA = 17,
-  SQLITE_CODE_TOOBIG = 18,
-  SQLITE_CODE_CONSTRAINT = 19,
-  SQLITE_CODE_MISMATCH = 20,
-  SQLITE_CODE_MISUSE = 21,
-  SQLITE_CODE_NOLFS = 22,
-  SQLITE_CODE_AUTH = 23,
-  SQLITE_CODE_FORMAT = 24,
-  SQLITE_CODE_RANGE = 25,
-  SQLITE_CODE_NOTADB = 26,
-  SQLITE_CODE_NOTICE = 27,
-  SQLITE_CODE_WARNING = 28,
-  SQLITE_CODE_ROW = 100,
-  SQLITE_CODE_DONE = 101,
+  SQLITE_OK = 0,
+  SQLITE_ERROR = 1,
+  SQLITE_INTERNAL = 2,
+  SQLITE_PERM = 3,
+  SQLITE_ABORT = 4,
+  SQLITE_BUSY = 5,
+  SQLITE_LOCKED = 6,
+  SQLITE_NOMEM = 7,
+  SQLITE_READONLY = 8,
+  SQLITE_INTERRUPT = 9,
+  SQLITE_IOERR = 10,
+  SQLITE_CORRUPT = 11,
+  SQLITE_NOTFOUND = 12,
+  SQLITE_FULL = 13,
+  SQLITE_CANTOPEN = 14,
+  SQLITE_PROTOCOL = 15,
+  SQLITE_EMPTY = 16,
+  SQLITE_SCHEMA = 17,
+  SQLITE_TOOBIG = 18,
+  SQLITE_CONSTRAINT = 19,
+  SQLITE_MISMATCH = 20,
+  SQLITE_MISUSE = 21,
+  SQLITE_NOLFS = 22,
+  SQLITE_AUTH = 23,
+  SQLITE_FORMAT = 24,
+  SQLITE_RANGE = 25,
+  SQLITE_NOTADB = 26,
+  SQLITE_NOTICE = 27,
+  SQLITE_WARNING = 28,
+  SQLITE_ROW = 100,
+  SQLITE_DONE = 101,
 }
 
-export enum TransactionMode {
-  TRANSACTION_MODE_UNSPECIFIED = 0,
-  TRANSACTION_MODE_DEFERRED = 1,
-  TRANSACTION_MODE_IMMEDIATE = 2,
-  TRANSACTION_MODE_EXCLUSIVE = 3,
+export enum TransactionLockMode {
+  TRANSACTION_LOCK_MODE_UNSPECIFIED = 0,
+  TRANSACTION_LOCK_MODE_DEFERRED = 1,
+  TRANSACTION_LOCK_MODE_IMMEDIATE = 2,
+  TRANSACTION_LOCK_MODE_EXCLUSIVE = 3,
 }
 
 export enum TransactionType {
@@ -112,6 +112,7 @@ export enum CheckpointMode {
   CHECKPOINT_MODE_TRUNCATE = 4,
 }
 
+
 // --- Interfaces ---
 
 export interface SQLStatement {
@@ -120,12 +121,7 @@ export interface SQLStatement {
   name?: string;
 }
 
-export interface QueryHints {
-  /** Key is the 0-based index of the parameter */
-  positional?: Record<number, ColumnAffinity>;
-  /** Key is the parameter name (e.g. ":id") */
-  named?: Record<string, ColumnAffinity>;
-}
+export type QueryHints = Record<string | number, ColumnAffinity>;
 
 export interface ExecutionStats {
   duration_ms: number;
@@ -145,12 +141,18 @@ export interface SelectResult {
 
 export interface DmlResult {
   type: "DML";
-  rowsAffected: number;
-  lastInsertId: number;
+  rowsAffected: number | bigint;
+  lastInsertId: number | bigint;
   stats?: ExecutionStats;
 }
 
 export type BufferedResult = SelectResult | DmlResult;
+
+export interface ExecResult {
+  rowsAffected: number | bigint;
+  lastInsertId: number | bigint;
+  stats?: ExecutionStats;
+}
 
 export interface ExplainNode {
   id: number;
@@ -256,6 +258,17 @@ export class TransactionHandle {
     batchSize?: number,
   ): Promise<BatchStreamResult>;
 
+  /**
+   * Executes a DML statement (INSERT, UPDATE, DELETE) within a transaction.
+   * Leverages the TypedTransactionExec RPC for transactional write routing.
+   */
+  exec(statement: SQLStatement, hints?: QueryHints): Promise<ExecResult>;
+  exec(
+    sql: string,
+    params?: MixedParams,
+    hints?: QueryHints,
+  ): Promise<ExecResult>;
+
   /** Manages a SQLite Savepoint (Nested Transaction). */
   savepoint(
     name: string,
@@ -353,6 +366,17 @@ export class UnaryTransactionHandle {
     batchSize?: number,
   ): Promise<BatchStreamResult>;
 
+  /**
+   * Executes a DML statement (INSERT, UPDATE, DELETE) within a transaction.
+   * Leverages the TypedTransactionExec RPC for transactional write routing.
+   */
+  exec(statement: SQLStatement, hints?: QueryHints): Promise<ExecResult>;
+  exec(
+    sql: string,
+    params?: MixedParams,
+    hints?: QueryHints,
+  ): Promise<ExecResult>;
+
   /** Manages a SQLite Savepoint (Nested Transaction). */
   savepoint(
     name: string,
@@ -369,7 +393,7 @@ export class UnaryTransactionHandle {
 export class DatabaseClient {
   /**
    * Creates a new client bound to a specific database.
-   * @param address - gRPC server address (e.g. "localhost:50051")
+   * @param address - gRPC server address (e.g. "localhost:50173")
    * @param databaseName - The logical database name in config.json
    * @param config - Configuration options (including auth and credentials)
    */
@@ -405,6 +429,17 @@ export class DatabaseClient {
   ): Promise<BatchStreamResult>;
 
   /**
+   * Executes a DML statement (INSERT, UPDATE, DELETE) and returns affected row info.
+   * Routes strictly to a Read-Write connection — use for writes only.
+   */
+  exec(statement: SQLStatement, hints?: QueryHints): Promise<ExecResult>;
+  exec(
+    sql: string,
+    params?: MixedParams,
+    hints?: QueryHints,
+  ): Promise<ExecResult>;
+
+  /**
    * Returns the structured EXPLAIN QUERY PLAN for a given query.
    */
   explain(statement: SQLStatement, hints?: QueryHints): Promise<ExplainNode[]>;
@@ -420,14 +455,14 @@ export class DatabaseClient {
    */
   executeTransaction(
     queries: (QueryRequestItem | string | SQLStatement)[],
-    mode?: TransactionMode,
+    mode?: TransactionLockMode,
   ): Promise<BufferedResult[]>;
 
-  beginTransaction(mode?: TransactionMode, type?: TransactionType): Promise<TransactionHandle | UnaryTransactionHandle>;
+  beginTransaction(mode?: TransactionLockMode, type?: TransactionType): Promise<TransactionHandle | UnaryTransactionHandle>;
 
   transaction(
     fn: (tx: TransactionHandle | UnaryTransactionHandle, ...args: any[]) => Promise<any>,
-    mode?: TransactionMode,
+    mode?: TransactionLockMode,
     type?: TransactionType,
     ...args: any[]
   ): Promise<any>;

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 func TestNewMetaStore(t *testing.T) {
@@ -215,7 +215,7 @@ func TestMetaStore_ValidateUser(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, claims)
 		assert.Equal(t, "admin", claims.Username)
-		assert.Equal(t, dbv1.Role_ROLE_ADMIN, claims.Role)
+		assert.Equal(t, sqlrpcv1.Role_ROLE_ADMIN, claims.Role)
 		assert.Greater(t, claims.UserID, int64(0))
 	})
 
@@ -237,7 +237,7 @@ func TestUserContext(t *testing.T) {
 		claims := &UserClaims{
 			UserID:   42,
 			Username: "testuser",
-			Role:     dbv1.Role_ROLE_READ_WRITE,
+			Role:     sqlrpcv1.Role_ROLE_READ_WRITE,
 		}
 
 		ctx := context.Background()
@@ -286,23 +286,23 @@ func TestMetaStore_CreateUser(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("creates user successfully", func(t *testing.T) {
-		userID, err := store.CreateUser(ctx, "testuser", "password123", dbv1.Role_ROLE_READ_WRITE)
+		userID, err := store.CreateUser(ctx, "testuser", "password123", sqlrpcv1.Role_ROLE_READ_WRITE)
 		require.NoError(t, err)
 		assert.Greater(t, userID, int64(0))
 	})
 
 	t.Run("validates role", func(t *testing.T) {
 		// Use UNSPECIFIED role to trigger error, since we can't pass invalid string anymore
-		_, err := store.CreateUser(ctx, "baduser", "password123", dbv1.Role_ROLE_UNSPECIFIED)
+		_, err := store.CreateUser(ctx, "baduser", "password123", sqlrpcv1.Role_ROLE_UNSPECIFIED)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid role")
 	})
 
 	t.Run("prevents duplicate usernames", func(t *testing.T) {
-		_, err := store.CreateUser(ctx, "dupuser", "password123", dbv1.Role_ROLE_READ_ONLY)
+		_, err := store.CreateUser(ctx, "dupuser", "password123", sqlrpcv1.Role_ROLE_READ_ONLY)
 		require.NoError(t, err)
 
-		_, err = store.CreateUser(ctx, "dupuser", "password456", dbv1.Role_ROLE_READ_WRITE)
+		_, err = store.CreateUser(ctx, "dupuser", "password456", sqlrpcv1.Role_ROLE_READ_WRITE)
 		require.Error(t, err)
 	})
 }
@@ -318,7 +318,7 @@ func TestMetaStore_DeleteUser(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("deletes existing user", func(t *testing.T) {
-		_, err := store.CreateUser(ctx, "todelete", "password123", dbv1.Role_ROLE_READ_ONLY)
+		_, err := store.CreateUser(ctx, "todelete", "password123", sqlrpcv1.Role_ROLE_READ_ONLY)
 		require.NoError(t, err)
 
 		err = store.DeleteUser(ctx, "todelete")
@@ -348,7 +348,7 @@ func TestMetaStore_UpdatePassword(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("updates password successfully", func(t *testing.T) {
-		_, err := store.CreateUser(ctx, "pwuser", "oldpassword", dbv1.Role_ROLE_READ_WRITE)
+		_, err := store.CreateUser(ctx, "pwuser", "oldpassword", sqlrpcv1.Role_ROLE_READ_WRITE)
 		require.NoError(t, err)
 
 		err = store.UpdatePassword(ctx, "pwuser", "newpassword")
@@ -383,14 +383,14 @@ func TestMetaStore_GetUserByUsername(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns user when found", func(t *testing.T) {
-		_, err := store.CreateUser(ctx, "getuser", "password123", dbv1.Role_ROLE_ADMIN)
+		_, err := store.CreateUser(ctx, "getuser", "password123", sqlrpcv1.Role_ROLE_ADMIN)
 		require.NoError(t, err)
 
 		user, err := store.GetUserByUsername(ctx, "getuser")
 		require.NoError(t, err)
 		require.NotNil(t, user)
 		assert.Equal(t, "getuser", user.Username)
-		assert.Equal(t, dbv1.Role_ROLE_ADMIN, user.Role)
+		assert.Equal(t, sqlrpcv1.Role_ROLE_ADMIN, user.Role)
 	})
 
 	t.Run("returns nil for non-existent user", func(t *testing.T) {
@@ -415,7 +415,7 @@ func TestMetaStore_CreateApiKey(t *testing.T) {
 	ctx := context.Background()
 
 	// Create user first
-	userID, err := store.CreateUser(ctx, "keyuser", "password123", dbv1.Role_ROLE_READ_WRITE)
+	userID, err := store.CreateUser(ctx, "keyuser", "password123", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	t.Run("creates key successfully", func(t *testing.T) {
@@ -446,7 +446,7 @@ func TestMetaStore_ListApiKeys(t *testing.T) {
 	ctx := context.Background()
 
 	// Create user
-	userID, err := store.CreateUser(ctx, "listuser", "password123", dbv1.Role_ROLE_READ_WRITE)
+	userID, err := store.CreateUser(ctx, "listuser", "password123", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	// Create multiple keys
@@ -462,7 +462,7 @@ func TestMetaStore_ListApiKeys(t *testing.T) {
 	})
 
 	t.Run("returns empty list for user with no keys", func(t *testing.T) {
-		otherUserID, err := store.CreateUser(ctx, "nokeysuser", "password123", dbv1.Role_ROLE_READ_ONLY)
+		otherUserID, err := store.CreateUser(ctx, "nokeysuser", "password123", sqlrpcv1.Role_ROLE_READ_ONLY)
 		require.NoError(t, err)
 
 		keys, err := store.ListApiKeys(ctx, otherUserID)
@@ -482,7 +482,7 @@ func TestMetaStore_RevokeApiKey(t *testing.T) {
 	ctx := context.Background()
 
 	// Create user and key
-	userID, err := store.CreateUser(ctx, "revokeuser", "password123", dbv1.Role_ROLE_READ_WRITE)
+	userID, err := store.CreateUser(ctx, "revokeuser", "password123", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	_, keyID, err := store.CreateApiKey(ctx, userID, "To Revoke", nil)
@@ -506,11 +506,11 @@ func TestMetaStore_RevokeApiKey(t *testing.T) {
 
 	t.Run("prevents revoking key owned by another user", func(t *testing.T) {
 		// 1. Create user A and their key
-		userA, _ := store.CreateUser(ctx, "userA", "pass", dbv1.Role_ROLE_READ_WRITE)
+		userA, _ := store.CreateUser(ctx, "userA", "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 		_, keyIdA, _ := store.CreateApiKey(ctx, userA, "KeyA", nil)
 
 		// 2. Create user B
-		_, _ = store.CreateUser(ctx, "userB", "pass", dbv1.Role_ROLE_READ_WRITE)
+		_, _ = store.CreateUser(ctx, "userB", "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 
 		// 3. User B tries to revoke user A's key
 		err := store.RevokeApiKey(ctx, keyIdA, "userB")
@@ -534,7 +534,7 @@ func TestMetaStore_ValidateApiKeyImpl(t *testing.T) {
 	ctx := context.Background()
 
 	// Create user and key
-	userID, err := store.CreateUser(ctx, "validatekeyuser", "password123", dbv1.Role_ROLE_READ_WRITE)
+	userID, err := store.CreateUser(ctx, "validatekeyuser", "password123", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	rawKey, _, err := store.CreateApiKey(ctx, userID, "Valid Key", nil)
@@ -545,7 +545,7 @@ func TestMetaStore_ValidateApiKeyImpl(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, claims)
 		assert.Equal(t, "validatekeyuser", claims.Username)
-		assert.Equal(t, dbv1.Role_ROLE_READ_WRITE, claims.Role)
+		assert.Equal(t, sqlrpcv1.Role_ROLE_READ_WRITE, claims.Role)
 	})
 
 	t.Run("returns nil for invalid key", func(t *testing.T) {
@@ -626,7 +626,7 @@ func TestMetaStore_ValidateUser_Errors(t *testing.T) {
 
 	// Create user to have valid data
 	ctx := context.Background()
-	_, err = store.CreateUser(ctx, "user", "pass", dbv1.Role_ROLE_READ_WRITE)
+	_, err = store.CreateUser(ctx, "user", "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 	require.NoError(t, err)
 
 	// Close DB to force query error
@@ -750,13 +750,13 @@ func TestParseRole(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    dbRole
-		expected dbv1.Role
+		expected sqlrpcv1.Role
 	}{
-		{"Admin", dbRoleAdmin, dbv1.Role_ROLE_ADMIN},
-		{"ReadWrite", dbRoleReadWrite, dbv1.Role_ROLE_READ_WRITE},
-		{"ReadOnly", dbRoleReadOnly, dbv1.Role_ROLE_READ_ONLY},
-		{"Unspecified", dbRoleUnspecified, dbv1.Role_ROLE_UNSPECIFIED},
-		{"Unknown", "invalid_role", dbv1.Role_ROLE_UNSPECIFIED},
+		{"Admin", dbRoleAdmin, sqlrpcv1.Role_ROLE_ADMIN},
+		{"ReadWrite", dbRoleReadWrite, sqlrpcv1.Role_ROLE_READ_WRITE},
+		{"ReadOnly", dbRoleReadOnly, sqlrpcv1.Role_ROLE_READ_ONLY},
+		{"Unspecified", dbRoleUnspecified, sqlrpcv1.Role_ROLE_UNSPECIFIED},
+		{"Unknown", "invalid_role", sqlrpcv1.Role_ROLE_UNSPECIFIED},
 	}
 
 	for _, tt := range tests {
@@ -769,14 +769,14 @@ func TestParseRole(t *testing.T) {
 func TestFormatRole(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    dbv1.Role
+		input    sqlrpcv1.Role
 		expected dbRole
 	}{
-		{"Admin", dbv1.Role_ROLE_ADMIN, dbRoleAdmin},
-		{"ReadWrite", dbv1.Role_ROLE_READ_WRITE, dbRoleReadWrite},
-		{"ReadOnly", dbv1.Role_ROLE_READ_ONLY, dbRoleReadOnly},
-		{"Unspecified", dbv1.Role_ROLE_UNSPECIFIED, dbRoleUnspecified},
-		{"Unknown", dbv1.Role(999), dbRoleUnspecified},
+		{"Admin", sqlrpcv1.Role_ROLE_ADMIN, dbRoleAdmin},
+		{"ReadWrite", sqlrpcv1.Role_ROLE_READ_WRITE, dbRoleReadWrite},
+		{"ReadOnly", sqlrpcv1.Role_ROLE_READ_ONLY, dbRoleReadOnly},
+		{"Unspecified", sqlrpcv1.Role_ROLE_UNSPECIFIED, dbRoleUnspecified},
+		{"Unknown", sqlrpcv1.Role(999), dbRoleUnspecified},
 	}
 
 	for _, tt := range tests {
@@ -801,8 +801,8 @@ func TestMetaStore_ListUsers(t *testing.T) {
 	assert.Len(t, users, 0)
 
 	// 2. Add some users
-	_, _ = store.CreateUser(ctx, "user1", "pass1", dbv1.Role_ROLE_READ_ONLY)
-	_, _ = store.CreateUser(ctx, "user2", "pass2", dbv1.Role_ROLE_READ_WRITE)
+	_, _ = store.CreateUser(ctx, "user1", "pass1", sqlrpcv1.Role_ROLE_READ_ONLY)
+	_, _ = store.CreateUser(ctx, "user2", "pass2", sqlrpcv1.Role_ROLE_READ_WRITE)
 
 	users, err = store.ListUsers(ctx)
 	require.NoError(t, err)
@@ -819,24 +819,24 @@ func TestMetaStore_UpdateUserRole(t *testing.T) {
 	defer store.Close()
 
 	ctx := context.Background()
-	_, _ = store.CreateUser(ctx, "roleuser", "pass", dbv1.Role_ROLE_READ_ONLY)
+	_, _ = store.CreateUser(ctx, "roleuser", "pass", sqlrpcv1.Role_ROLE_READ_ONLY)
 
 	t.Run("updates role successfully", func(t *testing.T) {
-		err := store.UpdateUserRole(ctx, "roleuser", dbv1.Role_ROLE_ADMIN)
+		err := store.UpdateUserRole(ctx, "roleuser", sqlrpcv1.Role_ROLE_ADMIN)
 		require.NoError(t, err)
 
 		user, _ := store.GetUserByUsername(ctx, "roleuser")
-		assert.Equal(t, dbv1.Role_ROLE_ADMIN, user.Role)
+		assert.Equal(t, sqlrpcv1.Role_ROLE_ADMIN, user.Role)
 	})
 
 	t.Run("validates role", func(t *testing.T) {
-		err := store.UpdateUserRole(ctx, "roleuser", dbv1.Role_ROLE_UNSPECIFIED)
+		err := store.UpdateUserRole(ctx, "roleuser", sqlrpcv1.Role_ROLE_UNSPECIFIED)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid role")
 	})
 
 	t.Run("returns error for non-existent user", func(t *testing.T) {
-		err := store.UpdateUserRole(ctx, "nonexistent", dbv1.Role_ROLE_READ_WRITE)
+		err := store.UpdateUserRole(ctx, "nonexistent", sqlrpcv1.Role_ROLE_READ_WRITE)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "user not found")
 	})
@@ -850,8 +850,8 @@ func TestMetaStore_RevokeAllApiKeysForUser(t *testing.T) {
 	defer store.Close()
 
 	ctx := context.Background()
-	userID1, _ := store.CreateUser(ctx, "user1", "pass", dbv1.Role_ROLE_READ_WRITE)
-	userID2, _ := store.CreateUser(ctx, "user2", "pass", dbv1.Role_ROLE_READ_WRITE)
+	userID1, _ := store.CreateUser(ctx, "user1", "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
+	userID2, _ := store.CreateUser(ctx, "user2", "pass", sqlrpcv1.Role_ROLE_READ_WRITE)
 
 	// Create keys for user 1
 	_, _, _ = store.CreateApiKey(ctx, userID1, "k1", nil)
@@ -888,7 +888,7 @@ func TestMetaStore_Auth_Errors(t *testing.T) {
 	})
 
 	t.Run("UpdateUserRole error", func(t *testing.T) {
-		err := store.UpdateUserRole(ctx, "user", dbv1.Role_ROLE_ADMIN)
+		err := store.UpdateUserRole(ctx, "user", sqlrpcv1.Role_ROLE_ADMIN)
 		require.Error(t, err)
 	})
 

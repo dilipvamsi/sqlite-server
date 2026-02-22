@@ -3,47 +3,45 @@
 // --- Enums ---
 
 export enum SqliteCode {
-    SQLITE_CODE_OK = 0,
-    SQLITE_CODE_ERROR = 1,
-    SQLITE_CODE_INTERNAL = 2,
-    SQLITE_CODE_PERM = 3,
-    SQLITE_CODE_ABORT = 4,
-    SQLITE_CODE_BUSY = 5,
-    SQLITE_CODE_LOCKED = 6,
-    SQLITE_CODE_NOMEM = 7,
-    SQLITE_CODE_READONLY = 8,
-    SQLITE_CODE_INTERRUPT = 9,
-    SQLITE_CODE_IOERR = 10,
-    SQLITE_CODE_CORRUPT = 11,
-    SQLITE_CODE_NOTFOUND = 12,
-    SQLITE_CODE_FULL = 13,
-    SQLITE_CODE_CANTOPEN = 14,
-    SQLITE_CODE_PROTOCOL = 15,
-    SQLITE_CODE_EMPTY = 16,
-    SQLITE_CODE_SCHEMA = 17,
-    SQLITE_CODE_TOOBIG = 18,
-    SQLITE_CODE_CONSTRAINT = 19,
-    SQLITE_CODE_MISMATCH = 20,
-    SQLITE_CODE_MISUSE = 21,
-    SQLITE_CODE_NOLFS = 22,
-    SQLITE_CODE_AUTH = 23,
-    SQLITE_CODE_FORMAT = 24,
-    SQLITE_CODE_RANGE = 25,
-    SQLITE_CODE_NOTADB = 26,
-    SQLITE_CODE_NOTICE = 27,
-    SQLITE_CODE_WARNING = 28,
-    SQLITE_CODE_ROW = 100,
-    SQLITE_CODE_DONE = 101,
+    SQLITE_OK = 0,
+    SQLITE_ERROR = 1,
+    SQLITE_INTERNAL = 2,
+    SQLITE_PERM = 3,
+    SQLITE_ABORT = 4,
+    SQLITE_BUSY = 5,
+    SQLITE_LOCKED = 6,
+    SQLITE_NOMEM = 7,
+    SQLITE_READONLY = 8,
+    SQLITE_INTERRUPT = 9,
+    SQLITE_IOERR = 10,
+    SQLITE_CORRUPT = 11,
+    SQLITE_NOTFOUND = 12,
+    SQLITE_FULL = 13,
+    SQLITE_CANTOPEN = 14,
+    SQLITE_PROTOCOL = 15,
+    SQLITE_EMPTY = 16,
+    SQLITE_SCHEMA = 17,
+    SQLITE_TOOBIG = 18,
+    SQLITE_CONSTRAINT = 19,
+    SQLITE_MISMATCH = 20,
+    SQLITE_MISUSE = 21,
+    SQLITE_NOLFS = 22,
+    SQLITE_AUTH = 23,
+    SQLITE_FORMAT = 24,
+    SQLITE_RANGE = 25,
+    SQLITE_NOTADB = 26,
+    SQLITE_NOTICE = 27,
+    SQLITE_WARNING = 28,
+    SQLITE_ROW = 100,
+    SQLITE_DONE = 101,
 }
 
-export enum TransactionMode {
-    TRANSACTION_MODE_UNSPECIFIED = 0,
-    TRANSACTION_MODE_DEFERRED = 1,
-    TRANSACTION_MODE_IMMEDIATE = 2,
-    TRANSACTION_MODE_EXCLUSIVE = 3,
+export enum TransactionLockMode {
+    TRANSACTION_LOCK_MODE_UNSPECIFIED = 0,
+    TRANSACTION_LOCK_MODE_DEFERRED = 1,
+    TRANSACTION_LOCK_MODE_IMMEDIATE = 2,
+    TRANSACTION_LOCK_MODE_EXCLUSIVE = 3,
 }
-
-
 
 export enum ColumnAffinity {
     COLUMN_AFFINITY_UNSPECIFIED = 0,
@@ -115,11 +113,10 @@ export interface SQLStatement {
     name?: string;
 }
 
-export interface QueryHints {
-    /** Key is the 0-based index of the parameter */
-    positional?: Record<number, ColumnAffinity>;
-    /** Key is the parameter name (e.g. ":id") */
-    named?: Record<string, ColumnAffinity>;
+export interface Parameters {
+    positional?: any[];
+    named?: Record<string, any>;
+    hints?: Record<string, ColumnAffinity>;
 }
 
 export interface ExecutionStats {
@@ -127,9 +124,7 @@ export interface ExecutionStats {
     rows_read: number;
     rows_written: number;
 }
-
-export interface SelectResult {
-    type: "SELECT";
+export interface QueryResult {
     columns: string[];
     columnAffinities: ColumnAffinity[];
     columnDeclaredTypes: DeclaredType[];
@@ -138,14 +133,21 @@ export interface SelectResult {
     stats?: ExecutionStats;
 }
 
-export interface DmlResult {
-    type: "DML";
-    rowsAffected: number;
-    lastInsertId: number;
+export interface ExecResponse {
+    dml?: DmlResult;
     stats?: ExecutionStats;
 }
 
-export type BufferedResult = SelectResult | DmlResult;
+export interface DmlResult {
+    rowsAffected: number;
+    lastInsertId: number;
+}
+
+// Deprecated: Kept for reference if internal callers used them
+// Prefer to align exactly with Proto.
+export type SelectResult = QueryResult;
+
+export type BufferedResult = QueryResult;
 
 export interface ExplainNode {
     id: number;
@@ -307,7 +309,7 @@ export interface ClientConfig {
 export class DatabaseClient {
     /**
      * Creates a new client bound to a specific database.
-     * @param address - URL address (e.g. "http://localhost:50051")
+     * @param address - URL address (e.g. "http://localhost:50173")
      * @param database - The logical database name
      * @param config - Configuration options (including auth)
      */
@@ -316,12 +318,12 @@ export class DatabaseClient {
     /** No-op for fetch client but kept for compatibility. */
     close(): void;
 
-    query(statement: SQLStatement, hints?: QueryHints): Promise<BufferedResult>;
-    query(
-        sql: string,
-        params?: MixedParams,
-        hints?: QueryHints,
-    ): Promise<BufferedResult>;
+    query(sqlOrObj: string | SQLStatement, paramsOrHints?: any[] | Record<string, any> | QueryHints, hintsOrNull?: QueryHints): Promise<QueryResult>;
+
+    /**
+     * Executes a DML statement (INSERT, UPDATE, DELETE) and returns affected row info.
+     */
+    exec(sqlOrObj: string | SQLStatement, paramsOrHints?: any[] | Record<string, any> | QueryHints, hintsOrNull?: QueryHints): Promise<ExecResponse>;
 
     iterate(statement: SQLStatement, hints?: QueryHints): Promise<IterateResult>;
     iterate(

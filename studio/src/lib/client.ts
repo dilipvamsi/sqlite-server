@@ -5,7 +5,7 @@ import type { GenService } from "@bufbuild/protobuf/codegenv1";
 /**
  * Creates a Connect transport that points to the Go backend.
  * Uses PUBLIC_SQLITE_SERVER_URL env var if available, otherwise defaults to "/".
- * In development, we might need to point to localhost:50051 explicitly if not proxied.
+ * In development, we might need to point to localhost:50173 explicitly if not proxied.
  */
 export const transport = createConnectTransport({
     baseUrl: import.meta.env.PUBLIC_SQLITE_SERVER_URL || "/",
@@ -72,7 +72,8 @@ export function getActiveTransaction(): ActiveTransactionInfo | null {
 // Global Logout Utility
 export async function performLogout() {
     console.log("[DEBUG] performLogout called");
-    const { DatabaseService, AdminService } = await import("../gen/db/v1/db_service_pb");
+    const { DatabaseService } = await import("../gen/sqlrpc/v1/db_service_pb");
+    const { AdminService } = await import("../gen/sqlrpc/v1/admin_service_pb");
     const localforage = (await import("localforage")).default;
 
     // 1. Rollback Active Transaction
@@ -177,7 +178,7 @@ export function isAuthDisabled(): boolean {
 
 export async function initServerStatus() {
     console.log("[DEBUG] initServerStatus called");
-    const { AdminService } = await import("../gen/db/v1/db_service_pb");
+    const { AdminService } = await import("../gen/sqlrpc/v1/admin_service_pb");
     const client = getClient(AdminService);
 
     try {

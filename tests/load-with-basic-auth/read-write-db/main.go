@@ -19,13 +19,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 	"sqlite-server/internal/sqldrivers"
 )
 
 const (
-	serverAddr      = "http://localhost:50051"
+	serverAddr      = "http://localhost:50173"
 	numAccounts     = 100
 	numWriteWorkers = 10
 	numReadWorkers  = 90
@@ -72,7 +72,7 @@ func main() {
 		},
 	}
 
-	client := dbv1connect.NewDatabaseServiceClient(httpClient, serverAddr)
+	client := sqlrpcv1connect.NewDatabaseServiceClient(httpClient, serverAddr)
 	var wg sync.WaitGroup
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -108,7 +108,7 @@ func main() {
 	verifyDataIntegrity()
 }
 
-func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.DatabaseServiceClient) {
+func readWorker(ctx context.Context, wg *sync.WaitGroup, client sqlrpcv1connect.DatabaseServiceClient) {
 	defer wg.Done()
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 
@@ -117,10 +117,10 @@ func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Data
 		case <-ctx.Done():
 			return
 		default:
-			req := connect.NewRequest(&dbv1.QueryRequest{
+			req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 				Database: dbName,
 				Sql:      "SELECT balance FROM accounts WHERE id = ?;",
-				Parameters: &dbv1.Parameters{
+				Parameters: &sqlrpcv1.Parameters{
 					Positional: listValue(rand.Intn(numAccounts) + 1),
 				},
 			})
@@ -136,7 +136,7 @@ func readWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Data
 	}
 }
 
-func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.DatabaseServiceClient) {
+func writeWorker(ctx context.Context, wg *sync.WaitGroup, client sqlrpcv1connect.DatabaseServiceClient) {
 	defer wg.Done()
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 
@@ -152,21 +152,21 @@ func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Dat
 			}
 			amount := 10.0
 
-			req := connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-				Requests: []*dbv1.TransactionRequest{
-					{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{
+			req := connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+				Requests: []*sqlrpcv1.TransactionRequest{
+					{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{
 						Database: dbName,
-						Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
+						Mode:     sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE,
 					}}},
-					{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{
+					{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{
 						Sql:        "UPDATE accounts SET balance = balance - ? WHERE id = ?;",
-						Parameters: &dbv1.Parameters{Positional: listValue(amount, fromID)},
+						Parameters: &sqlrpcv1.Parameters{Positional: listValue(amount, fromID)},
 					}}},
-					{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{
+					{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{
 						Sql:        "UPDATE accounts SET balance = balance + ? WHERE id = ?;",
-						Parameters: &dbv1.Parameters{Positional: listValue(amount, toID)},
+						Parameters: &sqlrpcv1.Parameters{Positional: listValue(amount, toID)},
 					}}},
-					{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+					{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 				},
 			})
 			req.Header().Set("Authorization", authHeader)
@@ -196,15 +196,15 @@ func writeWorker(ctx context.Context, wg *sync.WaitGroup, client dbv1connect.Dat
 }
 
 func verifyDataIntegrity() {
-	var config *dbv1.DatabaseConfig
+	var config *sqlrpcv1.DatabaseConfig
 	if *enableCipher {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:        dbName,
 			DbPath:      dbPath,
 			IsEncrypted: true,
 		}
 	} else {
-		config = &dbv1.DatabaseConfig{
+		config = &sqlrpcv1.DatabaseConfig{
 			Name:   dbName,
 			DbPath: dbPath,
 		}
@@ -233,7 +233,7 @@ func verifyDataIntegrity() {
 	}
 }
 
-func listValue(vals ...any) *structpb.ListValue {
+func listValue(vals ...any) []*structpb.Value {
 	l, _ := structpb.NewList(vals)
-	return l
+	return l.Values
 }

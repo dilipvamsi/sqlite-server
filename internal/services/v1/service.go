@@ -47,7 +47,7 @@ import (
 	"time"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 )
 
 // headerRequestID is the standard HTTP header key used for distributed tracing.
@@ -74,7 +74,7 @@ const reaperInterval = 5 * time.Second
 //     It is better to crash at startup than to run in a partially broken state.
 //
 // NewDbServer initializes the database server.
-func NewDbServer(configs []*dbv1.DatabaseConfig, store *auth.MetaStore) *DbServer {
+func NewDbServer(configs []*sqlrpcv1.DatabaseConfig, store *auth.MetaStore) *DbServer {
 	// Initialize DbManager
 	mgr := NewDbManager(configs)
 
@@ -94,13 +94,13 @@ func NewDbServer(configs []*dbv1.DatabaseConfig, store *auth.MetaStore) *DbServe
 }
 
 // MountDatabase adds a new database to the server at runtime.
-func (s *DbServer) MountDatabase(config *dbv1.DatabaseConfig) error {
+func (s *DbServer) MountDatabase(config *sqlrpcv1.DatabaseConfig) error {
 	// Delegate to DbManager
 	return s.dbManager.Mount(config)
 }
 
 // UpdateDatabase updates an existing database configuration.
-func (s *DbServer) UpdateDatabase(config *dbv1.DatabaseConfig) error {
+func (s *DbServer) UpdateDatabase(config *sqlrpcv1.DatabaseConfig) error {
 	return s.dbManager.UpdateDatabase(config)
 }
 

@@ -63,7 +63,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
     import { getClient, getAuthHeaders, performLogout } from "../lib/client";
-    import { DatabaseService } from "../gen/db/v1/db_service_pb";
+    import { DatabaseService } from "../gen/sqlrpc/v1/db_service_pb";
     import { NotebookManager } from "../lib/notebook";
     import { fromJson } from "@bufbuild/protobuf";
     import { ListValueSchema, StructSchema } from "@bufbuild/protobuf/wkt";

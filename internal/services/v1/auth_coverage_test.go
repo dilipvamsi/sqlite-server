@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
@@ -19,96 +19,96 @@ import (
 // --- Mocks ---
 
 type mockDatabaseService struct {
-	dbv1connect.UnimplementedDatabaseServiceHandler
+	sqlrpcv1connect.UnimplementedDatabaseServiceHandler
 }
 
 // --- Database Service Mocks ---
 
-func (m *mockDatabaseService) Vacuum(context.Context, *connect.Request[dbv1.VacuumRequest]) (*connect.Response[dbv1.VacuumResponse], error) {
-	return connect.NewResponse(&dbv1.VacuumResponse{Success: true}), nil
+func (m *mockDatabaseService) Vacuum(context.Context, *connect.Request[sqlrpcv1.VacuumRequest]) (*connect.Response[sqlrpcv1.VacuumResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.VacuumResponse{Success: true}), nil
 }
 
-func (m *mockDatabaseService) Checkpoint(context.Context, *connect.Request[dbv1.CheckpointRequest]) (*connect.Response[dbv1.CheckpointResponse], error) {
-	return connect.NewResponse(&dbv1.CheckpointResponse{Success: true}), nil
+func (m *mockDatabaseService) Checkpoint(context.Context, *connect.Request[sqlrpcv1.CheckpointRequest]) (*connect.Response[sqlrpcv1.CheckpointResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.CheckpointResponse{Success: true}), nil
 }
 
-func (m *mockDatabaseService) IntegrityCheck(context.Context, *connect.Request[dbv1.IntegrityCheckRequest]) (*connect.Response[dbv1.IntegrityCheckResponse], error) {
-	return connect.NewResponse(&dbv1.IntegrityCheckResponse{Success: true}), nil
+func (m *mockDatabaseService) IntegrityCheck(context.Context, *connect.Request[sqlrpcv1.IntegrityCheckRequest]) (*connect.Response[sqlrpcv1.IntegrityCheckResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.IntegrityCheckResponse{Success: true}), nil
 }
 
-func (m *mockDatabaseService) Query(context.Context, *connect.Request[dbv1.QueryRequest]) (*connect.Response[dbv1.QueryResult], error) {
-	return connect.NewResponse(&dbv1.QueryResult{}), nil
+func (m *mockDatabaseService) Query(context.Context, *connect.Request[sqlrpcv1.QueryRequest]) (*connect.Response[sqlrpcv1.QueryResult], error) {
+	return connect.NewResponse(&sqlrpcv1.QueryResult{}), nil
 }
 
-func (m *mockDatabaseService) QueryStream(ctx context.Context, req *connect.Request[dbv1.QueryRequest], stream *connect.ServerStream[dbv1.QueryResponse]) error {
+func (m *mockDatabaseService) QueryStream(ctx context.Context, req *connect.Request[sqlrpcv1.QueryRequest], stream *connect.ServerStream[sqlrpcv1.QueryResponse]) error {
 	return nil
 }
 
-func (m *mockDatabaseService) TypedQuery(context.Context, *connect.Request[dbv1.TypedQueryRequest]) (*connect.Response[dbv1.TypedQueryResult], error) {
-	return connect.NewResponse(&dbv1.TypedQueryResult{}), nil
+func (m *mockDatabaseService) TypedQuery(context.Context, *connect.Request[sqlrpcv1.TypedQueryRequest]) (*connect.Response[sqlrpcv1.TypedQueryResult], error) {
+	return connect.NewResponse(&sqlrpcv1.TypedQueryResult{}), nil
 }
 
-func (m *mockDatabaseService) TypedQueryStream(ctx context.Context, req *connect.Request[dbv1.TypedQueryRequest], stream *connect.ServerStream[dbv1.TypedQueryResponse]) error {
+func (m *mockDatabaseService) TypedQueryStream(ctx context.Context, req *connect.Request[sqlrpcv1.TypedQueryRequest], stream *connect.ServerStream[sqlrpcv1.TypedQueryResponse]) error {
 	return nil
 }
 
-func (m *mockDatabaseService) ExecuteTransaction(context.Context, *connect.Request[dbv1.ExecuteTransactionRequest]) (*connect.Response[dbv1.ExecuteTransactionResponse], error) {
-	return connect.NewResponse(&dbv1.ExecuteTransactionResponse{}), nil
+func (m *mockDatabaseService) ExecuteTransaction(context.Context, *connect.Request[sqlrpcv1.ExecuteTransactionRequest]) (*connect.Response[sqlrpcv1.ExecuteTransactionResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.ExecuteTransactionResponse{}), nil
 }
 
-func (m *mockDatabaseService) BeginTransaction(context.Context, *connect.Request[dbv1.BeginTransactionRequest]) (*connect.Response[dbv1.BeginTransactionResponse], error) {
-	return connect.NewResponse(&dbv1.BeginTransactionResponse{TransactionId: "tx-1"}), nil
+func (m *mockDatabaseService) BeginTransaction(context.Context, *connect.Request[sqlrpcv1.BeginTransactionRequest]) (*connect.Response[sqlrpcv1.BeginTransactionResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.BeginTransactionResponse{TransactionId: "tx-1"}), nil
 }
 
-func (m *mockDatabaseService) CommitTransaction(context.Context, *connect.Request[dbv1.TransactionControlRequest]) (*connect.Response[dbv1.TransactionControlResponse], error) {
-	return connect.NewResponse(&dbv1.TransactionControlResponse{Success: true}), nil
+func (m *mockDatabaseService) CommitTransaction(context.Context, *connect.Request[sqlrpcv1.TransactionControlRequest]) (*connect.Response[sqlrpcv1.TransactionControlResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.TransactionControlResponse{Success: true}), nil
 }
 
-func (m *mockDatabaseService) RollbackTransaction(context.Context, *connect.Request[dbv1.TransactionControlRequest]) (*connect.Response[dbv1.TransactionControlResponse], error) {
-	return connect.NewResponse(&dbv1.TransactionControlResponse{Success: true}), nil
+func (m *mockDatabaseService) RollbackTransaction(context.Context, *connect.Request[sqlrpcv1.TransactionControlRequest]) (*connect.Response[sqlrpcv1.TransactionControlResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.TransactionControlResponse{Success: true}), nil
 }
 
-func (m *mockDatabaseService) TransactionQuery(context.Context, *connect.Request[dbv1.TransactionQueryRequest]) (*connect.Response[dbv1.QueryResult], error) {
-	return connect.NewResponse(&dbv1.QueryResult{}), nil
+func (m *mockDatabaseService) TransactionQuery(context.Context, *connect.Request[sqlrpcv1.TransactionQueryRequest]) (*connect.Response[sqlrpcv1.QueryResult], error) {
+	return connect.NewResponse(&sqlrpcv1.QueryResult{}), nil
 }
 
-func (m *mockDatabaseService) TransactionQueryStream(ctx context.Context, req *connect.Request[dbv1.TransactionQueryRequest], stream *connect.ServerStream[dbv1.QueryResponse]) error {
+func (m *mockDatabaseService) TransactionQueryStream(ctx context.Context, req *connect.Request[sqlrpcv1.TransactionQueryRequest], stream *connect.ServerStream[sqlrpcv1.QueryResponse]) error {
 	return nil
 }
 
-func (m *mockDatabaseService) TransactionSavepoint(context.Context, *connect.Request[dbv1.TransactionSavepointRequest]) (*connect.Response[dbv1.SavepointResponse], error) {
-	return connect.NewResponse(&dbv1.SavepointResponse{Success: true}), nil
+func (m *mockDatabaseService) TransactionSavepoint(context.Context, *connect.Request[sqlrpcv1.TransactionSavepointRequest]) (*connect.Response[sqlrpcv1.SavepointResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.SavepointResponse{Success: true}), nil
 }
 
-func (m *mockDatabaseService) TypedTransactionQuery(context.Context, *connect.Request[dbv1.TypedTransactionQueryRequest]) (*connect.Response[dbv1.TypedQueryResult], error) {
-	return connect.NewResponse(&dbv1.TypedQueryResult{}), nil
+func (m *mockDatabaseService) TypedTransactionQuery(context.Context, *connect.Request[sqlrpcv1.TypedTransactionQueryRequest]) (*connect.Response[sqlrpcv1.TypedQueryResult], error) {
+	return connect.NewResponse(&sqlrpcv1.TypedQueryResult{}), nil
 }
 
-func (m *mockDatabaseService) TypedTransactionQueryStream(ctx context.Context, req *connect.Request[dbv1.TypedTransactionQueryRequest], stream *connect.ServerStream[dbv1.TypedQueryResponse]) error {
+func (m *mockDatabaseService) TypedTransactionQueryStream(ctx context.Context, req *connect.Request[sqlrpcv1.TypedTransactionQueryRequest], stream *connect.ServerStream[sqlrpcv1.TypedQueryResponse]) error {
 	return nil
 }
 
-func (m *mockDatabaseService) Explain(context.Context, *connect.Request[dbv1.QueryRequest]) (*connect.Response[dbv1.ExplainResponse], error) {
-	return connect.NewResponse(&dbv1.ExplainResponse{}), nil
+func (m *mockDatabaseService) Explain(context.Context, *connect.Request[sqlrpcv1.QueryRequest]) (*connect.Response[sqlrpcv1.ExplainResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.ExplainResponse{}), nil
 }
 
-func (m *mockDatabaseService) TypedExplain(context.Context, *connect.Request[dbv1.TypedQueryRequest]) (*connect.Response[dbv1.ExplainResponse], error) {
-	return connect.NewResponse(&dbv1.ExplainResponse{}), nil
+func (m *mockDatabaseService) TypedExplain(context.Context, *connect.Request[sqlrpcv1.TypedQueryRequest]) (*connect.Response[sqlrpcv1.ExplainResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.ExplainResponse{}), nil
 }
 
-func (m *mockDatabaseService) ListTables(context.Context, *connect.Request[dbv1.ListTablesRequest]) (*connect.Response[dbv1.ListTablesResponse], error) {
-	return connect.NewResponse(&dbv1.ListTablesResponse{}), nil
+func (m *mockDatabaseService) ListTables(context.Context, *connect.Request[sqlrpcv1.ListTablesRequest]) (*connect.Response[sqlrpcv1.ListTablesResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.ListTablesResponse{}), nil
 }
 
-func (m *mockDatabaseService) GetTableSchema(context.Context, *connect.Request[dbv1.GetTableSchemaRequest]) (*connect.Response[dbv1.TableSchema], error) {
-	return connect.NewResponse(&dbv1.TableSchema{}), nil
+func (m *mockDatabaseService) GetTableSchema(context.Context, *connect.Request[sqlrpcv1.GetTableSchemaRequest]) (*connect.Response[sqlrpcv1.TableSchema], error) {
+	return connect.NewResponse(&sqlrpcv1.TableSchema{}), nil
 }
 
-func (m *mockDatabaseService) GetDatabaseSchema(context.Context, *connect.Request[dbv1.GetDatabaseSchemaRequest]) (*connect.Response[dbv1.DatabaseSchema], error) {
-	return connect.NewResponse(&dbv1.DatabaseSchema{}), nil
+func (m *mockDatabaseService) GetDatabaseSchema(context.Context, *connect.Request[sqlrpcv1.GetDatabaseSchemaRequest]) (*connect.Response[sqlrpcv1.DatabaseSchema], error) {
+	return connect.NewResponse(&sqlrpcv1.DatabaseSchema{}), nil
 }
 
-func (m *mockDatabaseService) Transaction(ctx context.Context, stream *connect.BidiStream[dbv1.TransactionRequest, dbv1.TransactionResponse]) error {
+func (m *mockDatabaseService) Transaction(ctx context.Context, stream *connect.BidiStream[sqlrpcv1.TransactionRequest, sqlrpcv1.TransactionResponse]) error {
 	// Receive one message to trigger the interceptor check
 	_, err := stream.Receive()
 	return err
@@ -117,59 +117,59 @@ func (m *mockDatabaseService) Transaction(ctx context.Context, stream *connect.B
 // --- Admin Service Mocks ---
 
 type mockAdminService struct {
-	dbv1connect.UnimplementedAdminServiceHandler
+	sqlrpcv1connect.UnimplementedAdminServiceHandler
 }
 
-func (m *mockAdminService) CreateUser(context.Context, *connect.Request[dbv1.CreateUserRequest]) (*connect.Response[dbv1.CreateUserResponse], error) {
-	return connect.NewResponse(&dbv1.CreateUserResponse{}), nil
+func (m *mockAdminService) CreateUser(context.Context, *connect.Request[sqlrpcv1.CreateUserRequest]) (*connect.Response[sqlrpcv1.CreateUserResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.CreateUserResponse{}), nil
 }
 
-func (m *mockAdminService) DeleteUser(context.Context, *connect.Request[dbv1.DeleteUserRequest]) (*connect.Response[dbv1.DeleteUserResponse], error) {
-	return connect.NewResponse(&dbv1.DeleteUserResponse{Success: true}), nil
+func (m *mockAdminService) DeleteUser(context.Context, *connect.Request[sqlrpcv1.DeleteUserRequest]) (*connect.Response[sqlrpcv1.DeleteUserResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.DeleteUserResponse{Success: true}), nil
 }
 
-func (m *mockAdminService) UpdatePassword(context.Context, *connect.Request[dbv1.UpdatePasswordRequest]) (*connect.Response[dbv1.UpdatePasswordResponse], error) {
-	return connect.NewResponse(&dbv1.UpdatePasswordResponse{Success: true}), nil
+func (m *mockAdminService) UpdatePassword(context.Context, *connect.Request[sqlrpcv1.UpdatePasswordRequest]) (*connect.Response[sqlrpcv1.UpdatePasswordResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.UpdatePasswordResponse{Success: true}), nil
 }
 
-func (m *mockAdminService) CreateApiKey(context.Context, *connect.Request[dbv1.CreateApiKeyRequest]) (*connect.Response[dbv1.CreateApiKeyResponse], error) {
-	return connect.NewResponse(&dbv1.CreateApiKeyResponse{ApiKey: "secret"}), nil
+func (m *mockAdminService) CreateAPIKey(context.Context, *connect.Request[sqlrpcv1.CreateAPIKeyRequest]) (*connect.Response[sqlrpcv1.CreateAPIKeyResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.CreateAPIKeyResponse{ApiKey: "secret"}), nil
 }
 
-func (m *mockAdminService) ListApiKeys(context.Context, *connect.Request[dbv1.ListApiKeysRequest]) (*connect.Response[dbv1.ListApiKeysResponse], error) {
-	return connect.NewResponse(&dbv1.ListApiKeysResponse{}), nil
+func (m *mockAdminService) ListAPIKeys(context.Context, *connect.Request[sqlrpcv1.ListAPIKeysRequest]) (*connect.Response[sqlrpcv1.ListAPIKeysResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.ListAPIKeysResponse{}), nil
 }
 
-func (m *mockAdminService) RevokeApiKey(context.Context, *connect.Request[dbv1.RevokeApiKeyRequest]) (*connect.Response[dbv1.RevokeApiKeyResponse], error) {
-	return connect.NewResponse(&dbv1.RevokeApiKeyResponse{Success: true}), nil
+func (m *mockAdminService) DeleteAPIKey(context.Context, *connect.Request[sqlrpcv1.DeleteAPIKeyRequest]) (*connect.Response[sqlrpcv1.DeleteAPIKeyResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.DeleteAPIKeyResponse{Success: true}), nil
 }
 
-func (m *mockAdminService) ListDatabases(context.Context, *connect.Request[dbv1.ListDatabasesRequest]) (*connect.Response[dbv1.ListDatabasesResponse], error) {
-	return connect.NewResponse(&dbv1.ListDatabasesResponse{}), nil
+func (m *mockAdminService) ListDatabases(context.Context, *connect.Request[sqlrpcv1.ListDatabasesRequest]) (*connect.Response[sqlrpcv1.ListDatabasesResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.ListDatabasesResponse{}), nil
 }
 
-func (m *mockAdminService) Login(context.Context, *connect.Request[dbv1.LoginRequest]) (*connect.Response[dbv1.LoginResponse], error) {
-	return connect.NewResponse(&dbv1.LoginResponse{ApiKey: "session"}), nil
+func (m *mockAdminService) Login(context.Context, *connect.Request[sqlrpcv1.LoginRequest]) (*connect.Response[sqlrpcv1.LoginResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.LoginResponse{ApiKey: "session"}), nil
 }
 
-func (m *mockAdminService) Logout(context.Context, *connect.Request[dbv1.LogoutRequest]) (*connect.Response[dbv1.LogoutResponse], error) {
-	return connect.NewResponse(&dbv1.LogoutResponse{Success: true}), nil
+func (m *mockAdminService) Logout(context.Context, *connect.Request[sqlrpcv1.LogoutRequest]) (*connect.Response[sqlrpcv1.LogoutResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.LogoutResponse{Success: true}), nil
 }
 
-func (m *mockAdminService) CreateDatabase(context.Context, *connect.Request[dbv1.CreateDatabaseRequest]) (*connect.Response[dbv1.CreateDatabaseResponse], error) {
-	return connect.NewResponse(&dbv1.CreateDatabaseResponse{Success: true}), nil
+func (m *mockAdminService) CreateDatabase(context.Context, *connect.Request[sqlrpcv1.CreateDatabaseRequest]) (*connect.Response[sqlrpcv1.CreateDatabaseResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.CreateDatabaseResponse{Success: true}), nil
 }
 
-func (m *mockAdminService) MountDatabase(context.Context, *connect.Request[dbv1.DatabaseConfig]) (*connect.Response[dbv1.MountDatabaseResponse], error) {
-	return connect.NewResponse(&dbv1.MountDatabaseResponse{Success: true}), nil
+func (m *mockAdminService) MountDatabase(context.Context, *connect.Request[sqlrpcv1.MountDatabaseRequest]) (*connect.Response[sqlrpcv1.MountDatabaseResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.MountDatabaseResponse{Success: true}), nil
 }
 
-func (m *mockAdminService) UnMountDatabase(context.Context, *connect.Request[dbv1.UnMountDatabaseRequest]) (*connect.Response[dbv1.UnMountDatabaseResponse], error) {
-	return connect.NewResponse(&dbv1.UnMountDatabaseResponse{Success: true}), nil
+func (m *mockAdminService) UnMountDatabase(context.Context, *connect.Request[sqlrpcv1.UnMountDatabaseRequest]) (*connect.Response[sqlrpcv1.UnMountDatabaseResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.UnMountDatabaseResponse{Success: true}), nil
 }
 
-func (m *mockAdminService) DeleteDatabase(context.Context, *connect.Request[dbv1.DeleteDatabaseRequest]) (*connect.Response[dbv1.DeleteDatabaseResponse], error) {
-	return connect.NewResponse(&dbv1.DeleteDatabaseResponse{Success: true}), nil
+func (m *mockAdminService) DeleteDatabase(context.Context, *connect.Request[sqlrpcv1.DeleteDatabaseRequest]) (*connect.Response[sqlrpcv1.DeleteDatabaseResponse], error) {
+	return connect.NewResponse(&sqlrpcv1.DeleteDatabaseResponse{Success: true}), nil
 }
 
 // --- Setup ---
@@ -187,11 +187,11 @@ func setupRBACStore(t *testing.T) (*auth.MetaStore, map[string]string) {
 
 	users := []struct {
 		name string
-		role dbv1.Role
+		role sqlrpcv1.Role
 	}{
-		{"admin", dbv1.Role_ROLE_ADMIN},
-		{"writer", dbv1.Role_ROLE_READ_WRITE},
-		{"reader", dbv1.Role_ROLE_READ_ONLY},
+		{"admin", sqlrpcv1.Role_ROLE_ADMIN},
+		{"writer", sqlrpcv1.Role_ROLE_READ_WRITE},
+		{"reader", sqlrpcv1.Role_ROLE_READ_ONLY},
 	}
 
 	for _, u := range users {
@@ -241,11 +241,11 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 	mux := http.NewServeMux()
 
 	// Database Service
-	path, handler := dbv1connect.NewDatabaseServiceHandler(&mockDatabaseService{}, connect.WithInterceptors(interceptor))
+	path, handler := sqlrpcv1connect.NewDatabaseServiceHandler(&mockDatabaseService{}, connect.WithInterceptors(interceptor))
 	mux.Handle(path, handler)
 
 	// Admin Service
-	pathAdmin, handlerAdmin := dbv1connect.NewAdminServiceHandler(&mockAdminService{}, connect.WithInterceptors(interceptor))
+	pathAdmin, handlerAdmin := sqlrpcv1connect.NewAdminServiceHandler(&mockAdminService{}, connect.WithInterceptors(interceptor))
 	mux.Handle(pathAdmin, handlerAdmin)
 
 	// Setup Server with HTTP/2 support (required for streaming)
@@ -260,16 +260,16 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 	}
 
 	// Helper to create authenticated clients
-	adminClientFor := func(user string) dbv1connect.AdminServiceClient {
-		return dbv1connect.NewAdminServiceClient(
+	adminClientFor := func(user string) sqlrpcv1connect.AdminServiceClient {
+		return sqlrpcv1connect.NewAdminServiceClient(
 			server.Client(),
 			server.URL,
 			connect.WithInterceptors(clientAuthInterceptor("Bearer "+keys[user])),
 		)
 	}
 
-	dbClientFor := func(user string) dbv1connect.DatabaseServiceClient {
-		return dbv1connect.NewDatabaseServiceClient(
+	dbClientFor := func(user string) sqlrpcv1connect.DatabaseServiceClient {
+		return sqlrpcv1connect.NewDatabaseServiceClient(
 			server.Client(),
 			server.URL,
 			connect.WithInterceptors(clientAuthInterceptor("Bearer "+keys[user])),
@@ -280,7 +280,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 
 	// 1. Admin Service
 	t.Run("AdminService", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CreateUserRequest{Username: "foo"})
+		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{Username: "foo"})
 
 		// Admin -> OK
 		_, err := adminClientFor("admin").CreateUser(context.Background(), req)
@@ -299,7 +299,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 
 	// 2. Explicit Write (Vacuum)
 	t.Run("ExplicitWrite_Vacuum", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.VacuumRequest{Database: "test"})
+		req := connect.NewRequest(&sqlrpcv1.VacuumRequest{Database: "test"})
 
 		// Writer -> OK
 		_, err := dbClientFor("writer").Vacuum(context.Background(), req)
@@ -313,7 +313,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 
 	// 3. Dynamic Query (Write vs Read)
 	t.Run("Query_Insert", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.QueryRequest{Sql: "INSERT INTO foo VALUES(1)"})
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{Sql: "INSERT INTO foo VALUES(1)"})
 
 		// Writer -> OK
 		_, err := dbClientFor("writer").Query(context.Background(), req)
@@ -326,7 +326,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 	})
 
 	t.Run("Query_Select", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.QueryRequest{Sql: "SELECT * FROM foo"})
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{Sql: "SELECT * FROM foo"})
 
 		// Writer -> OK
 		_, err := dbClientFor("writer").Query(context.Background(), req)
@@ -343,9 +343,9 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 		stream := dbClientFor("reader").Transaction(context.Background())
 
 		// Send Write Command
-		err := stream.Send(&dbv1.TransactionRequest{
-			Command: &dbv1.TransactionRequest_Query{
-				Query: &dbv1.TransactionalQueryRequest{Sql: "INSERT INTO foo VALUES(1)"},
+		err := stream.Send(&sqlrpcv1.TransactionRequest{
+			Command: &sqlrpcv1.TransactionRequest_Query{
+				Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "INSERT INTO foo VALUES(1)"},
 			},
 		})
 		require.NoError(t, err)
@@ -363,9 +363,9 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 		stream := dbClientFor("reader").Transaction(context.Background())
 
 		// Send Read Command
-		err := stream.Send(&dbv1.TransactionRequest{
-			Command: &dbv1.TransactionRequest_Query{
-				Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT count(*) FROM foo"},
+		err := stream.Send(&sqlrpcv1.TransactionRequest{
+			Command: &sqlrpcv1.TransactionRequest_Query{
+				Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT count(*) FROM foo"},
 			},
 		})
 		require.NoError(t, err)
@@ -381,22 +381,22 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 	// 5. Introspection (Read Only)
 	introspecTests := []struct {
 		name string
-		call func(client dbv1connect.DatabaseServiceClient) error
+		call func(client sqlrpcv1connect.DatabaseServiceClient) error
 	}{
-		{"ListTables", func(c dbv1connect.DatabaseServiceClient) error {
-			_, err := c.ListTables(context.Background(), connect.NewRequest(&dbv1.ListTablesRequest{}))
+		{"ListTables", func(c sqlrpcv1connect.DatabaseServiceClient) error {
+			_, err := c.ListTables(context.Background(), connect.NewRequest(&sqlrpcv1.ListTablesRequest{}))
 			return err
 		}},
-		{"GetTableSchema", func(c dbv1connect.DatabaseServiceClient) error {
-			_, err := c.GetTableSchema(context.Background(), connect.NewRequest(&dbv1.GetTableSchemaRequest{}))
+		{"GetTableSchema", func(c sqlrpcv1connect.DatabaseServiceClient) error {
+			_, err := c.GetTableSchema(context.Background(), connect.NewRequest(&sqlrpcv1.GetTableSchemaRequest{}))
 			return err
 		}},
-		{"GetDatabaseSchema", func(c dbv1connect.DatabaseServiceClient) error {
-			_, err := c.GetDatabaseSchema(context.Background(), connect.NewRequest(&dbv1.GetDatabaseSchemaRequest{}))
+		{"GetDatabaseSchema", func(c sqlrpcv1connect.DatabaseServiceClient) error {
+			_, err := c.GetDatabaseSchema(context.Background(), connect.NewRequest(&sqlrpcv1.GetDatabaseSchemaRequest{}))
 			return err
 		}},
-		{"Explain", func(c dbv1connect.DatabaseServiceClient) error {
-			_, err := c.Explain(context.Background(), connect.NewRequest(&dbv1.QueryRequest{Sql: "SELECT 1"}))
+		{"Explain", func(c sqlrpcv1connect.DatabaseServiceClient) error {
+			_, err := c.Explain(context.Background(), connect.NewRequest(&sqlrpcv1.QueryRequest{Sql: "SELECT 1"}))
 			return err
 		}},
 	}
@@ -412,7 +412,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 
 	// 6. Maintenance (Mixed)
 	t.Run("Checkpoint", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.CheckpointRequest{})
+		req := connect.NewRequest(&sqlrpcv1.CheckpointRequest{})
 		// Writer -> OK
 		_, err := dbClientFor("writer").Checkpoint(context.Background(), req)
 		assert.NoError(t, err)
@@ -423,7 +423,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 	})
 
 	t.Run("IntegrityCheck", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.IntegrityCheckRequest{})
+		req := connect.NewRequest(&sqlrpcv1.IntegrityCheckRequest{})
 		// Reader -> OK (It's a read op)
 		_, err := dbClientFor("reader").IntegrityCheck(context.Background(), req)
 		assert.NoError(t, err)
@@ -431,7 +431,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 
 	// 7. Unary Transaction (Read vs Write)
 	t.Run("TransactionQuery_Write", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.TransactionQueryRequest{Sql: "UPDATE foo SET a=1"})
+		req := connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{Sql: "UPDATE foo SET a=1"})
 		// Writer -> OK
 		_, err := dbClientFor("writer").TransactionQuery(context.Background(), req)
 		assert.NoError(t, err)
@@ -442,7 +442,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 	})
 
 	t.Run("TransactionQuery_Read", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.TransactionQueryRequest{Sql: "SELECT 1"})
+		req := connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{Sql: "SELECT 1"})
 		// Reader -> OK
 		_, err := dbClientFor("reader").TransactionQuery(context.Background(), req)
 		assert.NoError(t, err)
@@ -451,22 +451,22 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 	// 8. Admin Service (Full)
 	adminTests := []struct {
 		name string
-		call func(client dbv1connect.AdminServiceClient) error
+		call func(client sqlrpcv1connect.AdminServiceClient) error
 	}{
-		{"ListDatabases", func(c dbv1connect.AdminServiceClient) error {
-			_, err := c.ListDatabases(context.Background(), connect.NewRequest(&dbv1.ListDatabasesRequest{}))
+		{"ListDatabases", func(c sqlrpcv1connect.AdminServiceClient) error {
+			_, err := c.ListDatabases(context.Background(), connect.NewRequest(&sqlrpcv1.ListDatabasesRequest{}))
 			return err
 		}},
-		{"CreateDatabase", func(c dbv1connect.AdminServiceClient) error {
-			_, err := c.CreateDatabase(context.Background(), connect.NewRequest(&dbv1.CreateDatabaseRequest{Name: "newdb"}))
+		{"CreateDatabase", func(c sqlrpcv1connect.AdminServiceClient) error {
+			_, err := c.CreateDatabase(context.Background(), connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: "newdb"}))
 			return err
 		}},
-		{"DeleteDatabase", func(c dbv1connect.AdminServiceClient) error {
-			_, err := c.DeleteDatabase(context.Background(), connect.NewRequest(&dbv1.DeleteDatabaseRequest{Name: "olddb"}))
+		{"DeleteDatabase", func(c sqlrpcv1connect.AdminServiceClient) error {
+			_, err := c.DeleteDatabase(context.Background(), connect.NewRequest(&sqlrpcv1.DeleteDatabaseRequest{Name: "olddb"}))
 			return err
 		}},
-		{"ListApiKeys", func(c dbv1connect.AdminServiceClient) error {
-			_, err := c.ListApiKeys(context.Background(), connect.NewRequest(&dbv1.ListApiKeysRequest{Username: "admin"}))
+		{"ListAPIKeys", func(c sqlrpcv1connect.AdminServiceClient) error {
+			_, err := c.ListAPIKeys(context.Background(), connect.NewRequest(&sqlrpcv1.ListAPIKeysRequest{Username: "admin"}))
 			return err
 		}},
 	}
@@ -477,7 +477,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 			assert.NoError(t, at.call(adminClientFor("admin")))
 
 			// Some methods are now allowed for everyone in the interceptor (auth happens in handler)
-			if at.name == "ListDatabases" || at.name == "ListApiKeys" {
+			if at.name == "ListDatabases" || at.name == "ListAPIKeys" {
 				assert.NoError(t, at.call(adminClientFor("writer")))
 				assert.NoError(t, at.call(adminClientFor("reader")))
 				return

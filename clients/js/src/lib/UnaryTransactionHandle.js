@@ -1,4 +1,4 @@
-const db_service_pb = require("../protos/db/v1/db_service_pb");
+const db_service_pb = require("../protos/sqlrpc/v1/db_service_pb");
 const {
     resolveArgs,
     getAuthMetadata,
@@ -18,7 +18,7 @@ class UnaryTransactionHandle {
     /**
      * @param {Object} client - The gRPC DatabaseServiceClient.
      * @param {string} databaseName - The name of the database.
-     * @param {number} mode - One of TransactionMode enum (DEFERRED, IMMEDIATE, EXCLUSIVE).
+     * @param {number} mode - One of TransactionLockMode enum (DEFERRED, IMMEDIATE, EXCLUSIVE).
      * @param {Object} config - Client configuration.
      */
     constructor(client, databaseName, mode, config) {
@@ -151,13 +151,13 @@ class UnaryTransactionHandle {
      */
     async query(sqlOrObj, paramsOrHints, hintsOrNull) {
         this._checkActive();
-        const { sql, positional, named } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
 
         // Use TypedTransactionQueryRequest for better wire efficiency
         const req = new db_service_pb.TypedTransactionQueryRequest();
         req.setTransactionId(this.transactionId);
         req.setSql(sql);
-        req.setParameters(toTypedProtoParams(positional, named));
+        req.setParameters(toTypedProtoParams(positional, named, hints));
 
         return new Promise((resolve, reject) => {
             const metadata = getAuthMetadata(this.config.auth);
@@ -166,6 +166,38 @@ class UnaryTransactionHandle {
 
                 // Use typed result mapper
                 resolve(mapTypedQueryResult(result, this.config.typeParsers));
+            });
+        });
+    }
+
+    /**
+     * Executes a DML statement (INSERT, UPDATE, DELETE) within a transaction.
+     * Leverages the TypedTransactionExec RPC for transactional write routing.
+     *
+     * @param {string|Object} sqlOrObj - SQL string or SQLStatement object.
+     * @param {Object|Array} [paramsOrHints]
+     * @param {Object} [hintsOrNull]
+     * @returns {Promise<{rowsAffected: number, lastInsertId: number}>}
+     */
+    async exec(sqlOrObj, paramsOrHints, hintsOrNull) {
+        this._checkActive();
+        const { sql, positional, named, hints } = resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull);
+
+        const req = new db_service_pb.TypedTransactionQueryRequest();
+        req.setTransactionId(this.transactionId);
+        req.setSql(sql);
+        req.setParameters(toTypedProtoParams(positional, named, hints));
+
+        return new Promise((resolve, reject) => {
+            const metadata = getAuthMetadata(this.config.auth);
+            this.client.typedTransactionExec(req, metadata, (err, response) => {
+                if (err) return reject(err);
+                const dml = response.getDml();
+                const result = {
+                    rowsAffected: dml ? (this.config.typeParsers.bigint !== false ? BigInt(dml.getRowsAffected()) : dml.getRowsAffected()) : 0,
+                    lastInsertId: dml ? (this.config.typeParsers.bigint !== false ? BigInt(dml.getLastInsertId()) : dml.getLastInsertId()) : 0,
+                };
+                resolve(result);
             });
         });
     }

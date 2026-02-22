@@ -5,7 +5,10 @@
 
 
 const grpc = require("@grpc/grpc-js");
-const db_service_pb = require("../protos/db/v1/db_service_pb");
+const types_pb = require("../protos/sqlrpc/v1/types_pb");
+const enums_pb = require("../protos/sqlrpc/v1/enums_pb");
+const { ColumnAffinity } = require("./constants");
+
 
 /**
  * Generates gRPC Metadata for authentication.
@@ -43,8 +46,7 @@ function getAuthMetadata(authConfig) {
  * This function performs "Type Promotion" by using the server-provided metadata
  * (columnTypes) to restore types lost during Protobuf/JSON serialization.
  *
- * @param {import('../protos/db/v1/db_service_pb').ListValue} listValue - The row data.
- * @param {import('../protos/db/v1/db_service_pb').ListValue} listValue - The row data.
+ * @param {import('../protos/sqlrpc/v1/types_pb').SqlRow} row - The row data.
  * @param {number[]} affinities - Storage class affinities.
  * @param {number[]} declaredTypes - Semantic declared types.
  * @param {string} [dateHandling='date'] - 'date' | 'string' | 'number'
@@ -113,39 +115,11 @@ function resolveArgs(sqlOrObj, paramsOrHints, hintsOrNull) {
     );
   }
 
-  // --- HINT NORMALIZATION ---
-  // This ensures toProtoParams always receives { positional: {}, named: {} }
-  const normalizedHints = {
-    positional: {},
-    named: {},
-  };
-
-  if (rawHints.positional || rawHints.named) {
-    // Already structured correctly
-    normalizedHints.positional = rawHints.positional || {};
-    normalizedHints.named = rawHints.named || {};
-  } else if (Object.keys(rawHints).length > 0) {
-    /**
-     * AMBIGUITY HANDLING:
-     * If the user passed a flat object like { 0: 5 }, we infer where it belongs.
-     */
-    if (positional.length > 0 && Object.keys(named).length === 0) {
-      // If we only have positional params, the flat hints belong to positional
-      normalizedHints.positional = rawHints;
-    } else if (Object.keys(named).length > 0 && positional.length === 0) {
-      // If we only have named params, the flat hints belong to named
-      normalizedHints.named = rawHints;
-    } else {
-      // In mixed mode, we cannot guess; user MUST use { positional: {}, named: {} }
-      // We'll leave them empty to avoid mis-binding
-    }
-  }
-
   return {
     sql,
     positional,
     named,
-    hints: normalizedHints,
+    hints: rawHints,
   };
 }
 
@@ -172,26 +146,31 @@ module.exports = {
  * Converts a JavaScript value to a SqlValue proto message.
  *
  * @param {any} val - The JavaScript value to convert.
- * @returns {db_service_pb.SqlValue} The SqlValue proto message.
+ * @param {number} [hint] - Optional ColumnAffinity hint.
+ * @returns {types_pb.SqlValue} The SqlValue proto message.
  */
-function jsToSqlValue(val) {
-  const sv = new db_service_pb.SqlValue();
+function jsToSqlValue(val, hint) {
+  const sv = new types_pb.SqlValue();
 
   if (val === null || val === undefined) {
     sv.setNullValue(true);
   } else if (typeof val === 'bigint') {
-    // BigInt -> integer_value (pass as string to preserve precision for int64)
     sv.setIntegerValue(val.toString());
   } else if (typeof val === 'number') {
-    if (Number.isInteger(val) && Number.isSafeInteger(val)) {
-      sv.setIntegerValue(val);
-    } else {
+    // If we have a hint that forces REAL or if it's not a safe integer, use real_value
+    if (hint === ColumnAffinity.COLUMN_AFFINITY_REAL || !(Number.isInteger(val) && Number.isSafeInteger(val))) {
       sv.setRealValue(val);
+    } else {
+      sv.setIntegerValue(val);
     }
   } else if (typeof val === 'string') {
-    sv.setTextValue(val);
+    // Handle string-to-blob-base64 if hint is BLOB
+    if (hint === ColumnAffinity.COLUMN_AFFINITY_BLOB) {
+      sv.setBlobValue(Buffer.from(val, 'utf8'));
+    } else {
+      sv.setTextValue(val);
+    }
   } else if (Buffer.isBuffer(val)) {
-    // Send raw bytes directly
     sv.setBlobValue(val);
   } else if (val instanceof Uint8Array) {
     sv.setBlobValue(val);
@@ -200,10 +179,8 @@ function jsToSqlValue(val) {
   } else if (val instanceof Date) {
     sv.setTextValue(val.toISOString());
   } else if (typeof val === 'object') {
-    // JSON objects -> text
     sv.setTextValue(JSON.stringify(val));
   } else {
-    // Fallback: convert to string
     sv.setTextValue(String(val));
   }
 
@@ -215,23 +192,43 @@ function jsToSqlValue(val) {
  *
  * @param {Array<any>} [positional=[]] - Positional parameters.
  * @param {Object.<string, any>} [named={}] - Named parameters.
- * @returns {db_service_pb.TypedParameters} The TypedParameters proto message.
+ * @param {object} [hints={}] - Optional hints.
+ * @returns {types_pb.TypedParameters} The TypedParameters proto message.
  */
-function toTypedProtoParams(positional = [], named = {}) {
-  const params = new db_service_pb.TypedParameters();
+function toTypedProtoParams(positional = [], named = {}, hints = {}) {
+  const params = new types_pb.TypedParameters();
 
-  // Convert positional parameters
   if (Array.isArray(positional) && positional.length > 0) {
-    for (const val of positional) {
-      params.addPositional(jsToSqlValue(val));
-    }
+    positional.forEach((val, i) => {
+      // Unified hints: keys can be numbers (for positional) or strings (for named)
+      let hint = hints[i];
+
+      // Auto-hint for non-strings
+      if (hint === undefined) {
+        if (typeof val === 'bigint') {
+          hint = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+        } else if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
+          hint = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+        }
+      }
+
+      params.addPositional(jsToSqlValue(val, hint));
+    });
   }
 
-  // Convert named parameters
   if (named && Object.keys(named).length > 0) {
     const namedMap = params.getNamedMap();
     for (const [key, val] of Object.entries(named)) {
-      namedMap.set(key, jsToSqlValue(val));
+      let hint = hints[key];
+      // Auto-hint for named
+      if (hint === undefined) {
+        if (typeof val === 'bigint') {
+          hint = ColumnAffinity.COLUMN_AFFINITY_INTEGER;
+        } else if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
+          hint = ColumnAffinity.COLUMN_AFFINITY_BLOB;
+        }
+      }
+      namedMap.set(key, jsToSqlValue(val, hint));
     }
   }
 
@@ -247,7 +244,7 @@ function toTypedProtoParams(positional = [], named = {}) {
  * @returns {any} The JavaScript value.
  */
 function sqlValueToJs(sv, declaredType, typeParsers = {}) {
-  const ValueCase = db_service_pb.SqlValue.ValueCase;
+  const ValueCase = types_pb.SqlValue.ValueCase;
   const valueCase = sv.getValueCase();
 
   const parseBigInt = typeParsers.bigint !== false;
@@ -261,8 +258,7 @@ function sqlValueToJs(sv, declaredType, typeParsers = {}) {
 
     case ValueCase.INTEGER_VALUE: {
       const intVal = sv.getIntegerValue();
-      // Check if we should promote to BigInt based on declared type
-      if (declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_BIGINT) {
+      if (declaredType === enums_pb.DeclaredType.DECLARED_TYPE_BIGINT) {
         if (parseBigInt) {
           return BigInt(intVal);
         } else {
@@ -278,8 +274,7 @@ function sqlValueToJs(sv, declaredType, typeParsers = {}) {
     case ValueCase.TEXT_VALUE: {
       const str = sv.getTextValue();
 
-      // JSON hydration
-      if (parseJson && declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_JSON) {
+      if (parseJson && declaredType === enums_pb.DeclaredType.DECLARED_TYPE_JSON) {
         try {
           return JSON.parse(str);
         } catch {
@@ -287,9 +282,8 @@ function sqlValueToJs(sv, declaredType, typeParsers = {}) {
         }
       }
 
-      // Date hydration
-      if (declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_DATE ||
-        declaredType === db_service_pb.DeclaredType.DECLARED_TYPE_DATETIME) {
+      if (declaredType === enums_pb.DeclaredType.DECLARED_TYPE_DATE ||
+        declaredType === enums_pb.DeclaredType.DECLARED_TYPE_DATETIME) {
         if (dateHandling === 'string') {
           return str;
         }
@@ -391,7 +385,15 @@ async function* createTypedBatchIterator(batchIterator, columnDeclaredTypes, bat
  * }}
  */
 function mapTypedQueryResult(result, typeParsers = {}) {
-  const resultType = result.getResultCase();
+  // sqlrpc/v1 TypedQueryResult is flat — columns/rows/stats are top-level.
+  // SELECT results have columns + rows; DML results sent via typedQuery
+  // come back with 0 columns (use exec() for DML instead).
+  const columns = result.getColumnsList();
+  const columnAffinities = result.getColumnAffinitiesList();
+  const columnDeclaredTypes = result.getColumnDeclaredTypesList();
+  const columnRawTypes = result.getColumnRawTypesList();
+  const rows = result.getRowsList();
+
   const statsPb = result.hasStats() ? result.getStats() : null;
   const stats = statsPb
     ? {
@@ -401,33 +403,23 @@ function mapTypedQueryResult(result, typeParsers = {}) {
     }
     : null;
 
-  if (resultType === db_service_pb.TypedQueryResult.ResultCase.SELECT) {
-    const select = result.getSelect();
-    const columnDeclaredTypes = select.getColumnDeclaredTypesList();
-    const columnAffinities = select.getColumnAffinitiesList();
-    const columnRawTypes = select.getColumnRawTypesList();
-
+  if (columns.length > 0) {
     return {
       type: "SELECT",
-      columns: select.getColumnsList(),
+      columns,
       columnAffinities,
       columnDeclaredTypes,
       columnRawTypes,
-      rows: select.getRowsList().map((r) => fromTypedProtoRow(r, columnDeclaredTypes, typeParsers)),
-      stats,
-    };
-  } else if (resultType === db_service_pb.TypedQueryResult.ResultCase.DML) {
-    const dml = result.getDml();
-    return {
-      type: "DML",
-      rowsAffected: Number(dml.getRowsAffected()),
-      lastInsertId: Number(dml.getLastInsertId()),
+      rows: rows.map((r) => fromTypedProtoRow(r, columnDeclaredTypes, typeParsers)),
       stats,
     };
   }
 
+  // DML sent via typedQuery (legacy path — prefer exec() for writes)
   return {
-    type: "UNKNOWN",
+    type: "DML",
+    rowsAffected: typeParsers.bigint !== false ? BigInt(0) : 0,
+    lastInsertId: typeParsers.bigint !== false ? BigInt(0) : 0,
     stats,
   };
 }

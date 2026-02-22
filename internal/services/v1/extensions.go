@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	"sqlite-server/internal/extensions"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ListExtensions returns available SQLite extensions.
-func (s *DbServer) ListExtensions(ctx context.Context, req *connect.Request[dbv1.ListExtensionsRequest]) (*connect.Response[dbv1.ListExtensionsResponse], error) {
+func (s *DbServer) ListExtensions(ctx context.Context, req *connect.Request[sqlrpcv1.ListExtensionsRequest]) (*connect.Response[sqlrpcv1.ListExtensionsResponse], error) {
 	// 1. Get available extensions from disk
 	available, err := extensions.GetAvailableExtensions()
 	if err != nil {
@@ -28,7 +28,7 @@ func (s *DbServer) ListExtensions(ctx context.Context, req *connect.Request[dbv1
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to get database config: %w", err))
 		}
 		if config != nil {
-			var dbCfg dbv1.DatabaseConfig
+			var dbCfg sqlrpcv1.DatabaseConfig
 			if err := protojson.Unmarshal([]byte(config.Settings), &dbCfg); err == nil {
 				loadedExtensions = make(map[string]bool)
 				for _, folderName := range dbCfg.Extensions {
@@ -38,14 +38,14 @@ func (s *DbServer) ListExtensions(ctx context.Context, req *connect.Request[dbv1
 		}
 	}
 
-	resp := &dbv1.ListExtensionsResponse{}
+	resp := &sqlrpcv1.ListExtensionsResponse{}
 	for _, ext := range available {
 		isLoaded := false
 		if loadedExtensions != nil {
 			isLoaded = loadedExtensions[ext.FolderName]
 		}
 
-		resp.Extensions = append(resp.Extensions, &dbv1.ExtensionInfo{
+		resp.Extensions = append(resp.Extensions, &sqlrpcv1.ExtensionInfo{
 			Name:             ext.Name,
 			Version:          ext.Version,
 			FolderName:       ext.FolderName,
@@ -60,7 +60,7 @@ func (s *DbServer) ListExtensions(ctx context.Context, req *connect.Request[dbv1
 }
 
 // LoadExtension loads an extension into a database.
-func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[dbv1.LoadExtensionRequest]) (*connect.Response[dbv1.LoadExtensionResponse], error) {
+func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[sqlrpcv1.LoadExtensionRequest]) (*connect.Response[sqlrpcv1.LoadExtensionResponse], error) {
 	dbName := req.Msg.Database
 	folderName := req.Msg.FolderName
 
@@ -97,7 +97,7 @@ func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[dbv1.
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("database '%s' not found", dbName))
 	}
 
-	currentConfig := &dbv1.DatabaseConfig{}
+	currentConfig := &sqlrpcv1.DatabaseConfig{}
 	if err := protojson.Unmarshal([]byte(existingAuthConfig.Settings), currentConfig); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse config: %w", err))
 	}
@@ -105,7 +105,7 @@ func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[dbv1.
 	// Check if already loaded
 	for _, storedFolderName := range currentConfig.Extensions {
 		if storedFolderName == targetExt.FolderName {
-			return connect.NewResponse(&dbv1.LoadExtensionResponse{
+			return connect.NewResponse(&sqlrpcv1.LoadExtensionResponse{
 				Success: true,
 				Message: "Extension already loaded",
 			}), nil
@@ -128,7 +128,7 @@ func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[dbv1.
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&dbv1.LoadExtensionResponse{
+	return connect.NewResponse(&sqlrpcv1.LoadExtensionResponse{
 		Success: true,
 		Message: fmt.Sprintf("Extension '%s' loaded successfully", targetExt.Name),
 	}), nil

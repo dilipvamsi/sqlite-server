@@ -31,7 +31,7 @@ describe("DatabaseClient Integration Tests (Basic Auth)", () => {
     const DB_NAME = "loadtest";
 
     runFunctionalTests(async () => {
-        return new DatabaseClient("localhost:50051", DB_NAME, {
+        return new DatabaseClient("localhost:50173", DB_NAME, {
             auth: {
                 type: 'basic',
                 username,

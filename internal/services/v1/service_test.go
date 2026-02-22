@@ -20,25 +20,25 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
-	"sqlite-server/internal/protos/db/v1/dbv1connect"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
 )
 
 // --- Helper Setup ---
 
-func setupTestServer(t *testing.T) (dbv1connect.DatabaseServiceClient, *DbServer) {
+func setupTestServer(t *testing.T) (sqlrpcv1connect.DatabaseServiceClient, *DbServer) {
 	// Setup File-Based DB to avoid memory/URI issues in test suite
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test_setup.db")
 	// No need for 'file:' prefix or params, NewSqliteDb will handle path and defaults.
 
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:         "test",
 		DbPath:       dbPath,
 		MaxOpenConns: 1,
 	}
 
-	server := NewDbServer([]*dbv1.DatabaseConfig{config}, nil)
+	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, nil)
 
 	// Seed Data via Manager
 	// We use ModeRW to seed data.
@@ -54,7 +54,7 @@ func setupTestServer(t *testing.T) (dbv1connect.DatabaseServiceClient, *DbServer
 
 	mux := http.NewServeMux()
 	// Add Mock Auth Interceptor to inject admin user for tests
-	path, handler := dbv1connect.NewDatabaseServiceHandler(server, connect.WithInterceptors(
+	path, handler := sqlrpcv1connect.NewDatabaseServiceHandler(server, connect.WithInterceptors(
 		LoggingInterceptor(),
 		&testAuthInterceptor{},
 	))
@@ -81,7 +81,7 @@ func setupTestServer(t *testing.T) (dbv1connect.DatabaseServiceClient, *DbServer
 		},
 	}
 
-	client := dbv1connect.NewDatabaseServiceClient(httpClient, ts.URL, connect.WithGRPC())
+	client := sqlrpcv1connect.NewDatabaseServiceClient(httpClient, ts.URL, connect.WithGRPC())
 	return client, server
 }
 
@@ -92,50 +92,50 @@ func TestUnaryQuery(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Select Success", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.QueryRequest{
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "SELECT id, name, avatar FROM users WHERE id = ?",
-			Parameters: &dbv1.Parameters{
-				Positional: &structpb.ListValue{Values: []*structpb.Value{structpb.NewNumberValue(1)}},
+			Parameters: &sqlrpcv1.Parameters{
+				Positional: []*structpb.Value{structpb.NewNumberValue(1)},
 			},
 		})
 		res, err := client.Query(ctx, req)
 		require.NoError(t, err)
 
-		rows := res.Msg.GetSelect().Rows
+		rows := res.Msg.Rows
 		assert.Len(t, rows, 1)
 		// Check Name
 		assert.Equal(t, "Alice", rows[0].Values[1].GetStringValue())
 		// Check Blob (Base64)
 		assert.Equal(t, "3q2+7w==", rows[0].Values[2].GetStringValue())
 		// Check Type Hint Resolution
-		assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, res.Msg.GetSelect().ColumnAffinities[0])
+		assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, res.Msg.ColumnAffinities[0])
 	})
 
 	t.Run("DML Success", func(t *testing.T) {
-		req := connect.NewRequest(&dbv1.QueryRequest{
+		req := connect.NewRequest(&sqlrpcv1.QueryRequest{
 			Database: "test",
 			Sql:      "INSERT INTO users (name) VALUES ('Charlie')",
 		})
-		res, err := client.Query(ctx, req)
+		res, err := client.Exec(ctx, req)
 		require.NoError(t, err)
-		assert.Equal(t, int64(1), res.Msg.GetDml().RowsAffected)
-		assert.Equal(t, int64(3), res.Msg.GetDml().LastInsertId)
+		assert.Equal(t, int64(1), res.Msg.Dml.RowsAffected)
+		assert.Equal(t, int64(3), res.Msg.Dml.LastInsertId)
 	})
 
 	t.Run("Error DB Not Found", func(t *testing.T) {
-		_, err := client.Query(ctx, connect.NewRequest(&dbv1.QueryRequest{Database: "missing", Sql: "SELECT 1"}))
+		_, err := client.Query(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{Database: "missing", Sql: "SELECT 1"}))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("Error Invalid SQL", func(t *testing.T) {
-		_, err := client.Query(ctx, connect.NewRequest(&dbv1.QueryRequest{Database: "test", Sql: "SELECT * FROM missing_table"}))
+		_, err := client.Query(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{Database: "test", Sql: "SELECT * FROM missing_table"}))
 		assert.Error(t, err)
 	})
 
 	t.Run("Block Manual Transaction", func(t *testing.T) {
-		_, err := client.Query(ctx, connect.NewRequest(&dbv1.QueryRequest{Database: "test", Sql: "BEGIN; SELECT 1"}))
+		_, err := client.Query(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{Database: "test", Sql: "BEGIN; SELECT 1"}))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "manual transaction control")
 	})
@@ -145,7 +145,7 @@ func TestQueryStream(t *testing.T) {
 	client, _ := setupTestServer(t)
 	ctx := context.Background()
 
-	stream, err := client.QueryStream(ctx, connect.NewRequest(&dbv1.QueryRequest{
+	stream, err := client.QueryStream(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{
 		Database: "test",
 		Sql:      "SELECT id FROM users",
 	}))
@@ -171,9 +171,9 @@ func TestUnaryTransaction(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Begin
-	beginRes, err := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{
+	beginRes, err := client.BeginTransaction(ctx, connect.NewRequest(&sqlrpcv1.BeginTransactionRequest{
 		Database: "test",
-		Mode:     dbv1.TransactionMode_TRANSACTION_MODE_IMMEDIATE,
+		Mode:     sqlrpcv1.TransactionLockMode_TRANSACTION_LOCK_MODE_IMMEDIATE,
 		Timeout:  durationpb.New(1 * time.Second),
 	}))
 	require.NoError(t, err)
@@ -181,33 +181,33 @@ func TestUnaryTransaction(t *testing.T) {
 	assert.NotEmpty(t, txID)
 
 	// 2. Query inside Tx
-	_, err = client.TransactionQuery(ctx, connect.NewRequest(&dbv1.TransactionQueryRequest{
+	_, err = client.TransactionQuery(ctx, connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{
 		TransactionId: txID,
 		Sql:           "UPDATE users SET age = 99 WHERE id = 1",
 	}))
 	require.NoError(t, err)
 
 	// 3. Savepoint
-	spRes, err := client.TransactionSavepoint(ctx, connect.NewRequest(&dbv1.TransactionSavepointRequest{
+	spRes, err := client.TransactionSavepoint(ctx, connect.NewRequest(&sqlrpcv1.TransactionSavepointRequest{
 		TransactionId: txID,
-		Savepoint:     &dbv1.SavepointRequest{Name: "sp1", Action: dbv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
+		Savepoint:     &sqlrpcv1.SavepointRequest{Name: "sp1", Action: sqlrpcv1.SavepointAction_SAVEPOINT_ACTION_CREATE},
 	}))
 	require.NoError(t, err)
 	assert.True(t, spRes.Msg.Success)
 
 	// 4. Commit
-	commitRes, err := client.CommitTransaction(ctx, connect.NewRequest(&dbv1.TransactionControlRequest{TransactionId: txID}))
+	commitRes, err := client.CommitTransaction(ctx, connect.NewRequest(&sqlrpcv1.TransactionControlRequest{TransactionId: txID}))
 	require.NoError(t, err)
 	assert.True(t, commitRes.Msg.Success)
 
 	// 5. Verify Persistence
-	verifyRes, _ := client.Query(ctx, connect.NewRequest(&dbv1.QueryRequest{Database: "test", Sql: "SELECT age FROM users WHERE id = 1"}))
+	verifyRes, _ := client.Query(ctx, connect.NewRequest(&sqlrpcv1.QueryRequest{Database: "test", Sql: "SELECT age FROM users WHERE id = 1"}))
 
 	// Value Check: structpb uses float64 for numbers
-	assert.Equal(t, float64(99), verifyRes.Msg.GetSelect().Rows[0].Values[0].GetNumberValue())
+	assert.Equal(t, float64(99), verifyRes.Msg.Rows[0].Values[0].GetNumberValue())
 
 	// Metadata Check: Ensure the column is correctly identified as INTEGER
-	assert.Equal(t, dbv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, verifyRes.Msg.GetSelect().ColumnAffinities[0])
+	assert.Equal(t, sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER, verifyRes.Msg.ColumnAffinities[0])
 }
 
 func TestTransactionTimeouts(t *testing.T) {
@@ -215,7 +215,7 @@ func TestTransactionTimeouts(t *testing.T) {
 	ctx := context.Background()
 
 	// Start with short timeout
-	res, _ := client.BeginTransaction(ctx, connect.NewRequest(&dbv1.BeginTransactionRequest{
+	res, _ := client.BeginTransaction(ctx, connect.NewRequest(&sqlrpcv1.BeginTransactionRequest{
 		Database: "test", Timeout: durationpb.New(10 * time.Millisecond),
 	}))
 	txID := res.Msg.TransactionId
@@ -224,7 +224,7 @@ func TestTransactionTimeouts(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Try to query
-	_, err := client.TransactionQuery(ctx, connect.NewRequest(&dbv1.TransactionQueryRequest{
+	_, err := client.TransactionQuery(ctx, connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{
 		TransactionId: txID,
 		Sql:           "SELECT 1",
 	}))
@@ -237,8 +237,8 @@ func TestBiDiTransaction(t *testing.T) {
 	stream := client.Transaction(ctx)
 
 	// 1. Send Begin
-	err := stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Begin{
-		Begin: &dbv1.BeginRequest{Database: "test"},
+	err := stream.Send(&sqlrpcv1.TransactionRequest{Command: &sqlrpcv1.TransactionRequest_Begin{
+		Begin: &sqlrpcv1.BeginRequest{Database: "test"},
 	}})
 	require.NoError(t, err)
 
@@ -248,8 +248,8 @@ func TestBiDiTransaction(t *testing.T) {
 	assert.True(t, res.GetBegin().Success)
 
 	// 2. Send Query
-	err = stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Query{
-		Query: &dbv1.TransactionalQueryRequest{Sql: "SELECT 1"},
+	err = stream.Send(&sqlrpcv1.TransactionRequest{Command: &sqlrpcv1.TransactionRequest_Query{
+		Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "SELECT 1"},
 	}})
 	require.NoError(t, err)
 
@@ -259,7 +259,7 @@ func TestBiDiTransaction(t *testing.T) {
 	assert.NotNil(t, res.GetQueryResult())
 
 	// 3. Send Rollback
-	err = stream.Send(&dbv1.TransactionRequest{Command: &dbv1.TransactionRequest_Rollback{
+	err = stream.Send(&sqlrpcv1.TransactionRequest{Command: &sqlrpcv1.TransactionRequest_Rollback{
 		Rollback: &emptypb.Empty{},
 	}})
 	require.NoError(t, err)
@@ -279,11 +279,11 @@ func TestExecuteTransactionAtomic(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Success Path", func(t *testing.T) {
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "INSERT INTO users (name) VALUES ('Atomic')"}}},
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "INSERT INTO users (name) VALUES ('Atomic')"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
@@ -291,23 +291,23 @@ func TestExecuteTransactionAtomic(t *testing.T) {
 	})
 
 	t.Run("Rollback on Error", func(t *testing.T) {
-		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&dbv1.ExecuteTransactionRequest{
-			Requests: []*dbv1.TransactionRequest{
-				{Command: &dbv1.TransactionRequest_Begin{Begin: &dbv1.BeginRequest{Database: "test"}}},
-				{Command: &dbv1.TransactionRequest_Query{Query: &dbv1.TransactionalQueryRequest{Sql: "BAD SQL"}}}, // Fails here
-				{Command: &dbv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
+		res, err := client.ExecuteTransaction(ctx, connect.NewRequest(&sqlrpcv1.ExecuteTransactionRequest{
+			Requests: []*sqlrpcv1.TransactionRequest{
+				{Command: &sqlrpcv1.TransactionRequest_Begin{Begin: &sqlrpcv1.BeginRequest{Database: "test"}}},
+				{Command: &sqlrpcv1.TransactionRequest_Query{Query: &sqlrpcv1.TransactionalQueryRequest{Sql: "BAD SQL"}}}, // Fails here
+				{Command: &sqlrpcv1.TransactionRequest_Commit{Commit: &emptypb.Empty{}}},
 			},
 		}))
 		require.NoError(t, err)
 		// It returns the list of responses up to the error
-		assert.Equal(t, dbv1.SqliteCode_SQLITE_CODE_ERROR, res.Msg.Responses[1].GetError().SqliteErrorCode)
+		assert.Equal(t, sqlrpcv1.SqliteCode_SQLITE_ERROR, res.Msg.Responses[1].GetError().SqliteErrorCode)
 	})
 }
 
 // TestNewDbServer_Constructor covers NewDbServer and loading logic
 func TestNewDbServer_Constructor(t *testing.T) {
 	// 1. Valid Config
-	configs := []*dbv1.DatabaseConfig{
+	configs := []*sqlrpcv1.DatabaseConfig{
 		{Name: "mem1", DbPath: ":memory:", MaxOpenConns: 1},
 	}
 	server := NewDbServer(configs, nil)
@@ -332,7 +332,7 @@ func (i *testAuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFun
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "admin",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx = auth.NewContext(ctx, claims)
 		return next(ctx, req)
@@ -348,7 +348,7 @@ func (i *testAuthInterceptor) WrapStreamingHandler(next connect.StreamingHandler
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "admin",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx = auth.NewContext(ctx, claims)
 		return next(ctx, conn)

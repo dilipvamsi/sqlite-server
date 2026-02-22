@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,11 +17,11 @@ import (
 
 func TestDbManager_EvictStale(t *testing.T) {
 	// 1. Setup Manager with one DB
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   "test_evict",
 		DbPath: ":memory:",
 	}
-	mgr := NewDbManager([]*dbv1.DatabaseConfig{config})
+	mgr := NewDbManager([]*sqlrpcv1.DatabaseConfig{config})
 	defer mgr.Stop()
 
 	// 2. Open Connection (Populate Cache)
@@ -57,8 +57,8 @@ func TestDbManager_EvictStale(t *testing.T) {
 
 func TestUnmount(t *testing.T) {
 	// 1. Setup
-	config := &dbv1.DatabaseConfig{Name: "test_unmount", DbPath: ":memory:"}
-	mgr := NewDbManager([]*dbv1.DatabaseConfig{config})
+	config := &sqlrpcv1.DatabaseConfig{Name: "test_unmount", DbPath: ":memory:"}
+	mgr := NewDbManager([]*sqlrpcv1.DatabaseConfig{config})
 	defer mgr.Stop()
 
 	// 2. Unmount existing
@@ -84,8 +84,8 @@ func TestGetConnection_Errors(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 	// Use a valid config so we hit the context check, not the config check
-	config := &dbv1.DatabaseConfig{Name: "test_cancel", DbPath: ":memory:"}
-	mgrWithConfig := NewDbManager([]*dbv1.DatabaseConfig{config})
+	config := &sqlrpcv1.DatabaseConfig{Name: "test_cancel", DbPath: ":memory:"}
+	mgrWithConfig := NewDbManager([]*sqlrpcv1.DatabaseConfig{config})
 	defer mgrWithConfig.Stop()
 
 	_, err = mgrWithConfig.GetConnection(ctx, "test_cancel", ModeRW)
@@ -95,11 +95,11 @@ func TestGetConnection_Errors(t *testing.T) {
 
 func TestDbManager_EvictStale_RO(t *testing.T) {
 	// 1. Setup Manager with RO config
-	config := &dbv1.DatabaseConfig{
+	config := &sqlrpcv1.DatabaseConfig{
 		Name:   "test_evict_ro",
 		DbPath: ":memory:",
 	}
-	mgr := NewDbManager([]*dbv1.DatabaseConfig{config})
+	mgr := NewDbManager([]*sqlrpcv1.DatabaseConfig{config})
 	defer mgr.Stop()
 
 	// 2. Open RO Connection
@@ -124,8 +124,8 @@ func TestDbManager_EvictStale_RO(t *testing.T) {
 }
 
 func TestGetConnection_Race(t *testing.T) {
-	config := &dbv1.DatabaseConfig{Name: "race", DbPath: ":memory:"}
-	mgr := NewDbManager([]*dbv1.DatabaseConfig{config})
+	config := &sqlrpcv1.DatabaseConfig{Name: "race", DbPath: ":memory:"}
+	mgr := NewDbManager([]*sqlrpcv1.DatabaseConfig{config})
 	defer mgr.Stop()
 
 	var wg sync.WaitGroup
@@ -146,8 +146,8 @@ func TestGetConnection_PingFailure(t *testing.T) {
 	err := os.Mkdir(dirPath, 0755)
 	require.NoError(t, err)
 
-	config := &dbv1.DatabaseConfig{Name: "ping_fail", DbPath: dirPath}
-	mgr := NewDbManager([]*dbv1.DatabaseConfig{config})
+	config := &sqlrpcv1.DatabaseConfig{Name: "ping_fail", DbPath: dirPath}
+	mgr := NewDbManager([]*sqlrpcv1.DatabaseConfig{config})
 	defer mgr.Stop()
 
 	_, err = mgr.GetConnection(context.Background(), "ping_fail", ModeRW)

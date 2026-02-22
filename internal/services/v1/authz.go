@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"connectrpc.com/connect"
 )
@@ -23,7 +23,7 @@ func AuthorizeRead(ctx context.Context) error {
 
 	// All valid roles (Admin, ReadWrite, ReadOnly) can read.
 	// We just check if role is unspecified.
-	if claims.Role == dbv1.Role_ROLE_UNSPECIFIED {
+	if claims.Role == sqlrpcv1.Role_ROLE_UNSPECIFIED {
 		return connect.NewError(connect.CodePermissionDenied, nil)
 	}
 
@@ -39,9 +39,9 @@ func AuthorizeWrite(ctx context.Context) error {
 	}
 
 	// Admin, DatabaseManager and ReadWrite can write.
-	if claims.Role != dbv1.Role_ROLE_ADMIN &&
-		claims.Role != dbv1.Role_ROLE_DATABASE_MANAGER &&
-		claims.Role != dbv1.Role_ROLE_READ_WRITE {
+	if claims.Role != sqlrpcv1.Role_ROLE_ADMIN &&
+		claims.Role != sqlrpcv1.Role_ROLE_DATABASE_MANAGER &&
+		claims.Role != sqlrpcv1.Role_ROLE_READ_WRITE {
 		return connect.NewError(connect.CodePermissionDenied, nil)
 	}
 
@@ -56,7 +56,7 @@ func AuthorizeAdmin(ctx context.Context) error {
 		return connect.NewError(connect.CodeUnauthenticated, nil)
 	}
 
-	if claims.Role != dbv1.Role_ROLE_ADMIN {
+	if claims.Role != sqlrpcv1.Role_ROLE_ADMIN {
 		return connect.NewError(connect.CodePermissionDenied, nil)
 	}
 
@@ -70,7 +70,7 @@ func AuthorizeDatabaseManager(ctx context.Context) error {
 		return connect.NewError(connect.CodeUnauthenticated, nil)
 	}
 
-	if claims.Role != dbv1.Role_ROLE_ADMIN && claims.Role != dbv1.Role_ROLE_DATABASE_MANAGER {
+	if claims.Role != sqlrpcv1.Role_ROLE_ADMIN && claims.Role != sqlrpcv1.Role_ROLE_DATABASE_MANAGER {
 		return connect.NewError(connect.CodePermissionDenied, nil)
 	}
 
@@ -84,7 +84,7 @@ func AuthorizeUser(ctx context.Context, targetUsername string) error {
 		return connect.NewError(connect.CodeUnauthenticated, nil)
 	}
 
-	if claims.Role != dbv1.Role_ROLE_ADMIN && claims.Username != targetUsername {
+	if claims.Role != sqlrpcv1.Role_ROLE_ADMIN && claims.Username != targetUsername {
 		return connect.NewError(connect.CodePermissionDenied, errors.New("permission denied"))
 	}
 

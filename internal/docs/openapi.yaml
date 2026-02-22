@@ -8,7 +8,7 @@ info:
     Most endpoints require authentication via Bearer token (API Key) or Basic Auth.
     
     **To authenticate:**
-    1. Use the /db.v1.AdminService/Login endpoint with username/password
+    1. Use the /sqlrpc.v1.AdminService/Login endpoint with username/password
     2. Copy the apiKey from the response
     3. Click "Authorize" above and enter your API key
     
@@ -20,13 +20,12 @@ security:
   - bearerAuth: []
   - basicAuth: []
 paths:
-  /db.v1.AdminService/CreateApiKey:
+  /sqlrpc.v1.AdminService/CreateApiKey:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Generates a long-lived API key for a specific user.\r  The key is only returned once in the response."
-      description: "*\r\n Generates a long-lived API key for a specific user.\r\n The key is only returned once in the response."
-      operationId: db.v1.AdminService.CreateApiKey
+        - sqlrpc.v1.AdminService
+      summary: CreateApiKey
+      operationId: sqlrpc.v1.AdminService.CreateApiKey
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -41,7 +40,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.CreateApiKeyRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.CreateApiKeyRequest'
         required: true
       responses:
         default:
@@ -55,14 +54,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.CreateApiKeyResponse'
-  /db.v1.AdminService/CreateDatabase:
+                $ref: '#/components/schemas/sqlrpc.v1.CreateApiKeyResponse'
+  /sqlrpc.v1.AdminService/CreateDatabase:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Creates a new managed database.\r  The database file is created in the server's managed directory."
-      description: "*\r\n Creates a new managed database.\r\n The database file is created in the server's managed directory."
-      operationId: db.v1.AdminService.CreateDatabase
+        - sqlrpc.v1.AdminService
+      summary: '*  Retrieves or modifies tenant data depending on user role permissions *(  RO vs RW)'
+      description: |-
+        *
+         Retrieves or modifies tenant data depending on user role permissions *(
+         RO vs RW)
+      operationId: sqlrpc.v1.AdminService.CreateDatabase
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -77,7 +79,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.CreateDatabaseRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.CreateDatabaseRequest'
         required: true
       responses:
         default:
@@ -91,14 +93,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.CreateDatabaseResponse'
-  /db.v1.AdminService/CreateUser:
+                $ref: '#/components/schemas/sqlrpc.v1.CreateDatabaseResponse'
+  /sqlrpc.v1.AdminService/CreateUser:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Creates a new user with specific role-based access.\r  Requires admin privileges."
-      description: "*\r\n Creates a new user with specific role-based access.\r\n Requires admin privileges."
-      operationId: db.v1.AdminService.CreateUser
+        - sqlrpc.v1.AdminService
+      summary: CreateUser
+      operationId: sqlrpc.v1.AdminService.CreateUser
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -113,7 +114,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.CreateUserRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.CreateUserRequest'
         required: true
       responses:
         default:
@@ -127,14 +128,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.CreateUserResponse'
-  /db.v1.AdminService/DeleteDatabase:
+                $ref: '#/components/schemas/sqlrpc.v1.CreateUserResponse'
+  /sqlrpc.v1.AdminService/DeleteDatabase:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Deletes a database securely.\r  - Managed DBs: Deleted from disk and metadata.\r  - Mounted DBs: Returns error (protects external files)."
-      description: "*\r\n Deletes a database securely.\r\n - Managed DBs: Deleted from disk and metadata.\r\n - Mounted DBs: Returns error (protects external files)."
-      operationId: db.v1.AdminService.DeleteDatabase
+        - sqlrpc.v1.AdminService
+      summary: DeleteDatabase
+      operationId: sqlrpc.v1.AdminService.DeleteDatabase
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -149,7 +149,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.DeleteDatabaseRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.DeleteDatabaseRequest'
         required: true
       responses:
         default:
@@ -163,14 +163,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.DeleteDatabaseResponse'
-  /db.v1.AdminService/DeleteUser:
+                $ref: '#/components/schemas/sqlrpc.v1.DeleteDatabaseResponse'
+  /sqlrpc.v1.AdminService/DeleteUser:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Permanently removes a user from the system.\r  Existing connections for this user may be terminated."
-      description: "*\r\n Permanently removes a user from the system.\r\n Existing connections for this user may be terminated."
-      operationId: db.v1.AdminService.DeleteUser
+        - sqlrpc.v1.AdminService
+      summary: DeleteUser
+      operationId: sqlrpc.v1.AdminService.DeleteUser
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -185,7 +184,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.DeleteUserRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.DeleteUserRequest'
         required: true
       responses:
         default:
@@ -199,14 +198,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.DeleteUserResponse'
-  /db.v1.AdminService/GetServerInfo:
+                $ref: '#/components/schemas/sqlrpc.v1.DeleteUserResponse'
+  /sqlrpc.v1.AdminService/GetServerInfo:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Retrieves server metadata and capability info."
-      description: "*\r\n Retrieves server metadata and capability info."
-      operationId: db.v1.AdminService.GetServerInfo
+        - sqlrpc.v1.AdminService
+      summary: GetServerInfo
+      operationId: sqlrpc.v1.AdminService.GetServerInfo
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -221,7 +219,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.GetServerInfoRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.GetServerInfoRequest'
         required: true
       responses:
         default:
@@ -235,14 +233,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.GetServerInfoResponse'
-  /db.v1.AdminService/ListApiKeys:
+                $ref: '#/components/schemas/sqlrpc.v1.GetServerInfoResponse'
+  /sqlrpc.v1.AdminService/ListApiKeys:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Retrieves all active API keys for a specific user.\r  Returns metadata (name, prefix) but not the full key secrets."
-      description: "*\r\n Retrieves all active API keys for a specific user.\r\n Returns metadata (name, prefix) but not the full key secrets."
-      operationId: db.v1.AdminService.ListApiKeys
+        - sqlrpc.v1.AdminService
+      summary: ListApiKeys
+      operationId: sqlrpc.v1.AdminService.ListApiKeys
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -257,7 +254,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.ListApiKeysRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.ListApiKeysRequest'
         required: true
       responses:
         default:
@@ -271,14 +268,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ListApiKeysResponse'
-  /db.v1.AdminService/ListDatabases:
+                $ref: '#/components/schemas/sqlrpc.v1.ListApiKeysResponse'
+  /sqlrpc.v1.AdminService/ListDatabases:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Lists all available databases."
-      description: "*\r\n Lists all available databases."
-      operationId: db.v1.AdminService.ListDatabases
+        - sqlrpc.v1.AdminService
+      summary: ListDatabases
+      operationId: sqlrpc.v1.AdminService.ListDatabases
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -293,7 +289,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.ListDatabasesRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.ListDatabasesRequest'
         required: true
       responses:
         default:
@@ -307,14 +303,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ListDatabasesResponse'
-  /db.v1.AdminService/ListUsers:
+                $ref: '#/components/schemas/sqlrpc.v1.ListDatabasesResponse'
+  /sqlrpc.v1.AdminService/ListUsers:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Retrieves all active users.\r  Requires admin privileges."
-      description: "*\r\n Retrieves all active users.\r\n Requires admin privileges."
-      operationId: db.v1.AdminService.ListUsers
+        - sqlrpc.v1.AdminService
+      summary: ListUsers
+      operationId: sqlrpc.v1.AdminService.ListUsers
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -329,7 +324,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.ListUsersRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.ListUsersRequest'
         required: true
       responses:
         default:
@@ -343,14 +338,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ListUsersResponse'
-  /db.v1.AdminService/Login:
+                $ref: '#/components/schemas/sqlrpc.v1.ListUsersResponse'
+  /sqlrpc.v1.AdminService/Login:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Authenticates a user and returns a session API key.\r  Requires Basic Auth for the initial request."
-      description: "*\r\n Authenticates a user and returns a session API key.\r\n Requires Basic Auth for the initial request."
-      operationId: db.v1.AdminService.Login
+        - sqlrpc.v1.AdminService
+      summary: Login
+      operationId: sqlrpc.v1.AdminService.Login
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -365,7 +359,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.LoginRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.LoginRequest'
         required: true
       responses:
         default:
@@ -379,14 +373,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.LoginResponse'
-  /db.v1.AdminService/Logout:
+                $ref: '#/components/schemas/sqlrpc.v1.LoginResponse'
+  /sqlrpc.v1.AdminService/Logout:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Invalidates the current session/API key."
-      description: "*\r\n Invalidates the current session/API key."
-      operationId: db.v1.AdminService.Logout
+        - sqlrpc.v1.AdminService
+      summary: Logout
+      operationId: sqlrpc.v1.AdminService.Logout
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -401,7 +394,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.LogoutRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.LogoutRequest'
         required: true
       responses:
         default:
@@ -415,14 +408,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.LogoutResponse'
-  /db.v1.AdminService/MountDatabase:
+                $ref: '#/components/schemas/sqlrpc.v1.LogoutResponse'
+  /sqlrpc.v1.AdminService/MountDatabase:
     post:
       tags:
-        - db.v1.AdminService
+        - sqlrpc.v1.AdminService
       summary: buf:lint:ignore RPC_REQUEST_STANDARD_NAME
       description: buf:lint:ignore RPC_REQUEST_STANDARD_NAME
-      operationId: db.v1.AdminService.MountDatabase
+      operationId: sqlrpc.v1.AdminService.MountDatabase
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -437,7 +430,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.DatabaseConfig'
+              $ref: '#/components/schemas/sqlrpc.v1.DatabaseConfig'
         required: true
       responses:
         default:
@@ -451,14 +444,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.MountDatabaseResponse'
-  /db.v1.AdminService/RevokeApiKey:
+                $ref: '#/components/schemas/sqlrpc.v1.MountDatabaseResponse'
+  /sqlrpc.v1.AdminService/RevokeApiKey:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Revokes (deletes) a specific API key immediately."
-      description: "*\r\n Revokes (deletes) a specific API key immediately."
-      operationId: db.v1.AdminService.RevokeApiKey
+        - sqlrpc.v1.AdminService
+      summary: RevokeApiKey
+      operationId: sqlrpc.v1.AdminService.RevokeApiKey
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -473,7 +465,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.RevokeApiKeyRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.RevokeApiKeyRequest'
         required: true
       responses:
         default:
@@ -487,14 +479,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.RevokeApiKeyResponse'
-  /db.v1.AdminService/UnMountDatabase:
+                $ref: '#/components/schemas/sqlrpc.v1.RevokeApiKeyResponse'
+  /sqlrpc.v1.AdminService/UnMountDatabase:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Unmounts a database, removing it from the active server.\r  The file is NOT deleted."
-      description: "*\r\n Unmounts a database, removing it from the active server.\r\n The file is NOT deleted."
-      operationId: db.v1.AdminService.UnMountDatabase
+        - sqlrpc.v1.AdminService
+      summary: UnMountDatabase
+      operationId: sqlrpc.v1.AdminService.UnMountDatabase
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -509,7 +500,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.UnMountDatabaseRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.UnMountDatabaseRequest'
         required: true
       responses:
         default:
@@ -523,14 +514,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.UnMountDatabaseResponse'
-  /db.v1.AdminService/UpdateDatabase:
+                $ref: '#/components/schemas/sqlrpc.v1.UnMountDatabaseResponse'
+  /sqlrpc.v1.AdminService/UpdateDatabase:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Updates an existing database configuration.\r  Useful for changing settings like init_commands, max_open_conns, etc.\r  This operation forces a reload of the database connections."
-      description: "*\r\n Updates an existing database configuration.\r\n Useful for changing settings like init_commands, max_open_conns, etc.\r\n This operation forces a reload of the database connections."
-      operationId: db.v1.AdminService.UpdateDatabase
+        - sqlrpc.v1.AdminService
+      summary: UpdateDatabase
+      operationId: sqlrpc.v1.AdminService.UpdateDatabase
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -545,7 +535,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.UpdateDatabaseRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.UpdateDatabaseRequest'
         required: true
       responses:
         default:
@@ -559,14 +549,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.UpdateDatabaseResponse'
-  /db.v1.AdminService/UpdatePassword:
+                $ref: '#/components/schemas/sqlrpc.v1.UpdateDatabaseResponse'
+  /sqlrpc.v1.AdminService/UpdatePassword:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Rotates the password for a specific user.\r  The new password takes effect immediately for new connections."
-      description: "*\r\n Rotates the password for a specific user.\r\n The new password takes effect immediately for new connections."
-      operationId: db.v1.AdminService.UpdatePassword
+        - sqlrpc.v1.AdminService
+      summary: UpdatePassword
+      operationId: sqlrpc.v1.AdminService.UpdatePassword
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -581,7 +570,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.UpdatePasswordRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.UpdatePasswordRequest'
         required: true
       responses:
         default:
@@ -595,14 +584,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.UpdatePasswordResponse'
-  /db.v1.AdminService/UpdateUserRole:
+                $ref: '#/components/schemas/sqlrpc.v1.UpdatePasswordResponse'
+  /sqlrpc.v1.AdminService/UpdateUserRole:
     post:
       tags:
-        - db.v1.AdminService
-      summary: "*\r  Updates the role of a specific user.\r  Requires admin privileges."
-      description: "*\r\n Updates the role of a specific user.\r\n Requires admin privileges."
-      operationId: db.v1.AdminService.UpdateUserRole
+        - sqlrpc.v1.AdminService
+      summary: UpdateUserRole
+      operationId: sqlrpc.v1.AdminService.UpdateUserRole
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -617,7 +605,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.UpdateUserRoleRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.UpdateUserRoleRequest'
         required: true
       responses:
         default:
@@ -631,14 +619,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.UpdateUserRoleResponse'
-  /db.v1.DatabaseService/AttachDatabase:
+                $ref: '#/components/schemas/sqlrpc.v1.UpdateUserRoleResponse'
+  /sqlrpc.v1.DatabaseService/AttachDatabase:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Dynamically attaches a database file to an existing managed database.\r  This updates the configuration and reloads the connections."
-      description: "*\r\n Dynamically attaches a database file to an existing managed database.\r\n This updates the configuration and reloads the connections."
-      operationId: db.v1.DatabaseService.AttachDatabase
+        - sqlrpc.v1.DatabaseService
+      summary: AttachDatabase
+      operationId: sqlrpc.v1.DatabaseService.AttachDatabase
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -653,7 +640,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.AttachDatabaseRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.AttachDatabaseRequest'
         required: true
       responses:
         default:
@@ -667,14 +654,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.AttachDatabaseResponse'
-  /db.v1.DatabaseService/BeginTransaction:
+                $ref: '#/components/schemas/sqlrpc.v1.AttachDatabaseResponse'
+  /sqlrpc.v1.DatabaseService/BeginTransaction:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Starts a new transaction context on the server and returns a\r  'transaction_id'. The server holds the connection open in memory until\r  Commit, Rollback, or Timeout."
-      description: "*\r\n Starts a new transaction context on the server and returns a\r\n 'transaction_id'. The server holds the connection open in memory until\r\n Commit, Rollback, or Timeout."
-      operationId: db.v1.DatabaseService.BeginTransaction
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Transaction Control.  Acquires an active connection from the global shared LRU pool based on the  user''s role (RO vs RW).'
+      description: |-
+        *
+         DBaaS Transaction Control.
+         Acquires an active connection from the global shared LRU pool based on the
+         user's role (RO vs RW).
+      operationId: sqlrpc.v1.DatabaseService.BeginTransaction
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -689,7 +680,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.BeginTransactionRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.BeginTransactionRequest'
         required: true
       responses:
         default:
@@ -703,14 +694,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.BeginTransactionResponse'
-  /db.v1.DatabaseService/Checkpoint:
+                $ref: '#/components/schemas/sqlrpc.v1.BeginTransactionResponse'
+  /sqlrpc.v1.DatabaseService/Checkpoint:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Manages WAL checkpoints (transferring WAL content to the main DB file)."
-      description: "*\r\n Manages WAL checkpoints (transferring WAL content to the main DB file)."
-      operationId: db.v1.DatabaseService.Checkpoint
+        - sqlrpc.v1.DatabaseService
+      summary: Checkpoint
+      operationId: sqlrpc.v1.DatabaseService.Checkpoint
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -725,7 +715,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.CheckpointRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.CheckpointRequest'
         required: true
       responses:
         default:
@@ -739,14 +729,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.CheckpointResponse'
-  /db.v1.DatabaseService/CommitTransaction:
+                $ref: '#/components/schemas/sqlrpc.v1.CheckpointResponse'
+  /sqlrpc.v1.DatabaseService/CommitTransaction:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Commits the transaction associated with the ID and releases server\r  resources."
-      description: "*\r\n Commits the transaction associated with the ID and releases server\r\n resources."
-      operationId: db.v1.DatabaseService.CommitTransaction
+        - sqlrpc.v1.DatabaseService
+      summary: CommitTransaction
+      operationId: sqlrpc.v1.DatabaseService.CommitTransaction
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -761,7 +750,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.TransactionControlRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionControlRequest'
         required: true
       responses:
         default:
@@ -775,14 +764,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.TransactionControlResponse'
-  /db.v1.DatabaseService/DetachDatabase:
+                $ref: '#/components/schemas/sqlrpc.v1.TransactionControlResponse'
+  /sqlrpc.v1.DatabaseService/DetachDatabase:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Detaches a database from a managed database.\r  This updates the configuration and reloads the connections."
-      description: "*\r\n Detaches a database from a managed database.\r\n This updates the configuration and reloads the connections."
-      operationId: db.v1.DatabaseService.DetachDatabase
+        - sqlrpc.v1.DatabaseService
+      summary: DetachDatabase
+      operationId: sqlrpc.v1.DatabaseService.DetachDatabase
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -797,7 +785,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.DetachDatabaseRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.DetachDatabaseRequest'
         required: true
       responses:
         default:
@@ -811,14 +799,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.DetachDatabaseResponse'
-  /db.v1.DatabaseService/ExecuteTransaction:
+                $ref: '#/components/schemas/sqlrpc.v1.DetachDatabaseResponse'
+  /sqlrpc.v1.DatabaseService/Exec:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Executes a predefined script of commands atomically.\r  Useful for migrations or testing where interactivity is not required."
-      description: "*\r\n Executes a predefined script of commands atomically.\r\n Useful for migrations or testing where interactivity is not required."
-      operationId: db.v1.DatabaseService.ExecuteTransaction
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Write Endpoint (Unary DML).  Uses the global shared LRU connection pool, strictly routing to a  Read-Write connection. Denied for ROLE_READ_ONLY.'
+      description: |-
+        *
+         DBaaS Write Endpoint (Unary DML).
+         Uses the global shared LRU connection pool, strictly routing to a
+         Read-Write connection. Denied for ROLE_READ_ONLY.
+      operationId: sqlrpc.v1.DatabaseService.Exec
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -833,7 +825,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.ExecuteTransactionRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryRequest'
         required: true
       responses:
         default:
@@ -847,14 +839,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ExecuteTransactionResponse'
-  /db.v1.DatabaseService/Explain:
+                $ref: '#/components/schemas/sqlrpc.v1.ExecResponse'
+  /sqlrpc.v1.DatabaseService/ExecuteTransaction:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Returns structured EXPLAIN QUERY PLAN output as a tree.\r  Helps developers understand index usage and optimization opportunities."
-      description: "*\r\n Returns structured EXPLAIN QUERY PLAN output as a tree.\r\n Helps developers understand index usage and optimization opportunities."
-      operationId: db.v1.DatabaseService.Explain
+        - sqlrpc.v1.DatabaseService
+      summary: ExecuteTransaction
+      operationId: sqlrpc.v1.DatabaseService.ExecuteTransaction
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -869,7 +860,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.QueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.ExecuteTransactionRequest'
         required: true
       responses:
         default:
@@ -883,14 +874,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ExplainResponse'
-  /db.v1.DatabaseService/GetDatabaseSchema:
+                $ref: '#/components/schemas/sqlrpc.v1.ExecuteTransactionResponse'
+  /sqlrpc.v1.DatabaseService/Explain:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Returns the full database schema for exports/migrations.\r  Aggregates all tables with their complete schema information."
-      description: "*\r\n Returns the full database schema for exports/migrations.\r\n Aggregates all tables with their complete schema information."
-      operationId: db.v1.DatabaseService.GetDatabaseSchema
+        - sqlrpc.v1.DatabaseService
+      summary: Explain
+      operationId: sqlrpc.v1.DatabaseService.Explain
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -905,7 +895,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.GetDatabaseSchemaRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryRequest'
         required: true
       responses:
         default:
@@ -919,14 +909,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.DatabaseSchema'
-  /db.v1.DatabaseService/GetTableSchema:
+                $ref: '#/components/schemas/sqlrpc.v1.ExplainResponse'
+  /sqlrpc.v1.DatabaseService/GetDatabaseSchema:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Returns detailed schema for a single table.\r  Includes columns, indexes, foreign keys, and triggers."
-      description: "*\r\n Returns detailed schema for a single table.\r\n Includes columns, indexes, foreign keys, and triggers."
-      operationId: db.v1.DatabaseService.GetTableSchema
+        - sqlrpc.v1.DatabaseService
+      summary: GetDatabaseSchema
+      operationId: sqlrpc.v1.DatabaseService.GetDatabaseSchema
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -941,7 +930,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.GetTableSchemaRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.GetDatabaseSchemaRequest'
         required: true
       responses:
         default:
@@ -955,14 +944,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.TableSchema'
-  /db.v1.DatabaseService/IntegrityCheck:
+                $ref: '#/components/schemas/sqlrpc.v1.DatabaseSchema'
+  /sqlrpc.v1.DatabaseService/GetTableSchema:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Runs an integrity check on the database."
-      description: "*\r\n Runs an integrity check on the database."
-      operationId: db.v1.DatabaseService.IntegrityCheck
+        - sqlrpc.v1.DatabaseService
+      summary: GetTableSchema
+      operationId: sqlrpc.v1.DatabaseService.GetTableSchema
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -977,7 +965,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.IntegrityCheckRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.GetTableSchemaRequest'
         required: true
       responses:
         default:
@@ -991,14 +979,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.IntegrityCheckResponse'
-  /db.v1.DatabaseService/ListExtensions:
+                $ref: '#/components/schemas/sqlrpc.v1.TableSchema'
+  /sqlrpc.v1.DatabaseService/IntegrityCheck:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Returns a list of available SQLite extensions found in the server's\r  extension directory. Extensions are filtered by compatibility with the\r  current OS and architecture."
-      description: "*\r\n Returns a list of available SQLite extensions found in the server's\r\n extension directory. Extensions are filtered by compatibility with the\r\n current OS and architecture."
-      operationId: db.v1.DatabaseService.ListExtensions
+        - sqlrpc.v1.DatabaseService
+      summary: IntegrityCheck
+      operationId: sqlrpc.v1.DatabaseService.IntegrityCheck
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1013,7 +1000,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.ListExtensionsRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.IntegrityCheckRequest'
         required: true
       responses:
         default:
@@ -1027,14 +1014,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ListExtensionsResponse'
-  /db.v1.DatabaseService/ListTables:
+                $ref: '#/components/schemas/sqlrpc.v1.IntegrityCheckResponse'
+  /sqlrpc.v1.DatabaseService/ListExtensions:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Returns a light listing of all tables in the database.\r  Useful for UI dropdowns and quick navigation."
-      description: "*\r\n Returns a light listing of all tables in the database.\r\n Useful for UI dropdowns and quick navigation."
-      operationId: db.v1.DatabaseService.ListTables
+        - sqlrpc.v1.DatabaseService
+      summary: ListExtensions
+      operationId: sqlrpc.v1.DatabaseService.ListExtensions
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1049,7 +1035,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.ListTablesRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.ListExtensionsRequest'
         required: true
       responses:
         default:
@@ -1063,14 +1049,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ListTablesResponse'
-  /db.v1.DatabaseService/LoadExtension:
+                $ref: '#/components/schemas/sqlrpc.v1.ListExtensionsResponse'
+  /sqlrpc.v1.DatabaseService/ListTables:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Loads a compatible SQLite extension into the specified database.\r  This updates the database configuration and reloads connections."
-      description: "*\r\n Loads a compatible SQLite extension into the specified database.\r\n This updates the database configuration and reloads connections."
-      operationId: db.v1.DatabaseService.LoadExtension
+        - sqlrpc.v1.DatabaseService
+      summary: ListTables
+      operationId: sqlrpc.v1.DatabaseService.ListTables
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1085,7 +1070,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.LoadExtensionRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.ListTablesRequest'
         required: true
       responses:
         default:
@@ -1099,14 +1084,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.LoadExtensionResponse'
-  /db.v1.DatabaseService/Query:
+                $ref: '#/components/schemas/sqlrpc.v1.ListTablesResponse'
+  /sqlrpc.v1.DatabaseService/LoadExtension:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Executes a single stateless query and returns the entire result.\r  Best for point-lookups (SELECT ... WHERE id=?).\r \r  WARNING: The server enforces a hard limit on row count (e.g., 1000) for\r  this RPC. For larger datasets, use `QueryStream`."
-      description: "*\r\n Executes a single stateless query and returns the entire result.\r\n Best for point-lookups (SELECT ... WHERE id=?).\r\n\r\n WARNING: The server enforces a hard limit on row count (e.g., 1000) for\r\n this RPC. For larger datasets, use `QueryStream`."
-      operationId: db.v1.DatabaseService.Query
+        - sqlrpc.v1.DatabaseService
+      summary: LoadExtension
+      operationId: sqlrpc.v1.DatabaseService.LoadExtension
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1121,7 +1105,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.QueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.LoadExtensionRequest'
         required: true
       responses:
         default:
@@ -1135,15 +1119,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.QueryResult'
-  /db.v1.DatabaseService/QueryStream: {}
-  /db.v1.DatabaseService/RollbackTransaction:
+                $ref: '#/components/schemas/sqlrpc.v1.LoadExtensionResponse'
+  /sqlrpc.v1.DatabaseService/Query:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Rolls back the transaction associated with the ID and releases server\r  resources."
-      description: "*\r\n Rolls back the transaction associated with the ID and releases server\r\n resources."
-      operationId: db.v1.DatabaseService.RollbackTransaction
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Read Endpoint (Unary).  Uses the global shared LRU connection pool, routing to a Read-Only  connection for ROLE_READ_ONLY users.'
+      description: |-
+        *
+         DBaaS Read Endpoint (Unary).
+         Uses the global shared LRU connection pool, routing to a Read-Only
+         connection for ROLE_READ_ONLY users.
+      operationId: sqlrpc.v1.DatabaseService.Query
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1158,7 +1145,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.TransactionControlRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryRequest'
         required: true
       responses:
         default:
@@ -1172,15 +1159,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.TransactionControlResponse'
-  /db.v1.DatabaseService/Transaction: {}
-  /db.v1.DatabaseService/TransactionQuery:
+                $ref: '#/components/schemas/sqlrpc.v1.QueryResult'
+  /sqlrpc.v1.DatabaseService/QueryStream: {}
+  /sqlrpc.v1.DatabaseService/RollbackTransaction:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Executes a query inside the context of an existing 'transaction_id'.\r  If the ID is invalid or timed out, returns NOT_FOUND."
-      description: "*\r\n Executes a query inside the context of an existing 'transaction_id'.\r\n If the ID is invalid or timed out, returns NOT_FOUND."
-      operationId: db.v1.DatabaseService.TransactionQuery
+        - sqlrpc.v1.DatabaseService
+      summary: RollbackTransaction
+      operationId: sqlrpc.v1.DatabaseService.RollbackTransaction
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1195,7 +1181,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.TransactionQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionControlRequest'
         required: true
       responses:
         default:
@@ -1209,15 +1195,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.QueryResult'
-  /db.v1.DatabaseService/TransactionQueryStream: {}
-  /db.v1.DatabaseService/TransactionSavepoint:
+                $ref: '#/components/schemas/sqlrpc.v1.TransactionControlResponse'
+  /sqlrpc.v1.DatabaseService/Transaction: {}
+  /sqlrpc.v1.DatabaseService/TransactionExec:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Manages a savepoint (nested transaction) within an existing transaction ID.\r  If the ID is invalid or timed out, returns NOT_FOUND."
-      description: "*\r\n Manages a savepoint (nested transaction) within an existing transaction ID.\r\n If the ID is invalid or timed out, returns NOT_FOUND."
-      operationId: db.v1.DatabaseService.TransactionSavepoint
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Write Endpoint within a Transaction.  Fails if the underlying transaction connection is Read-Only.'
+      description: |-
+        *
+         DBaaS Write Endpoint within a Transaction.
+         Fails if the underlying transaction connection is Read-Only.
+      operationId: sqlrpc.v1.DatabaseService.TransactionExec
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1232,7 +1221,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.TransactionSavepointRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionQueryRequest'
         required: true
       responses:
         default:
@@ -1246,14 +1235,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.SavepointResponse'
-  /db.v1.DatabaseService/TypedExplain:
+                $ref: '#/components/schemas/sqlrpc.v1.ExecResponse'
+  /sqlrpc.v1.DatabaseService/TransactionQuery:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Typed variant of Explain using strongly-typed parameters.\r  Returns the same structured EXPLAIN QUERY PLAN output."
-      description: "*\r\n Typed variant of Explain using strongly-typed parameters.\r\n Returns the same structured EXPLAIN QUERY PLAN output."
-      operationId: db.v1.DatabaseService.TypedExplain
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Read Endpoint within a Transaction.  Inherits the active transaction context tied to the shared LRU connection  pool.'
+      description: |-
+        *
+         DBaaS Read Endpoint within a Transaction.
+         Inherits the active transaction context tied to the shared LRU connection
+         pool.
+      operationId: sqlrpc.v1.DatabaseService.TransactionQuery
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1268,7 +1261,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.TypedQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionQueryRequest'
         required: true
       responses:
         default:
@@ -1282,14 +1275,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.ExplainResponse'
-  /db.v1.DatabaseService/TypedQuery:
+                $ref: '#/components/schemas/sqlrpc.v1.QueryResult'
+  /sqlrpc.v1.DatabaseService/TransactionQueryStream: {}
+  /sqlrpc.v1.DatabaseService/TransactionSavepoint:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Executes a single stateless query and returns the entire result with\r  strongly-typed values. Eliminates the need for sparse type hints."
-      description: "*\r\n Executes a single stateless query and returns the entire result with\r\n strongly-typed values. Eliminates the need for sparse type hints."
-      operationId: db.v1.DatabaseService.TypedQuery
+        - sqlrpc.v1.DatabaseService
+      summary: TransactionSavepoint
+      operationId: sqlrpc.v1.DatabaseService.TransactionSavepoint
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1304,7 +1297,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.TypedQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionSavepointRequest'
         required: true
       responses:
         default:
@@ -1318,15 +1311,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.TypedQueryResult'
-  /db.v1.DatabaseService/TypedQueryStream: {}
-  /db.v1.DatabaseService/TypedTransactionQuery:
+                $ref: '#/components/schemas/sqlrpc.v1.SavepointResponse'
+  /sqlrpc.v1.DatabaseService/TypedExec:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Executes a typed query inside the context of an existing 'transaction_id'."
-      description: "*\r\n Executes a typed query inside the context of an existing 'transaction_id'."
-      operationId: db.v1.DatabaseService.TypedTransactionQuery
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Typed Write Endpoint (Unary DML).  Uses the global shared LRU connection pool, strictly routing to a  Read-Write connection.'
+      description: |-
+        *
+         DBaaS Typed Write Endpoint (Unary DML).
+         Uses the global shared LRU connection pool, strictly routing to a
+         Read-Write connection.
+      operationId: sqlrpc.v1.DatabaseService.TypedExec
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1341,7 +1337,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.TypedTransactionQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedQueryRequest'
         required: true
       responses:
         default:
@@ -1355,15 +1351,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.TypedQueryResult'
-  /db.v1.DatabaseService/TypedTransactionQueryStream: {}
-  /db.v1.DatabaseService/Vacuum:
+                $ref: '#/components/schemas/sqlrpc.v1.ExecResponse'
+  /sqlrpc.v1.DatabaseService/TypedExplain:
     post:
       tags:
-        - db.v1.DatabaseService
-      summary: "*\r  Triggers a VACUUM command to rebuild the database file.\r  Can also perform VACUUM INTO to create a backup/copy."
-      description: "*\r\n Triggers a VACUUM command to rebuild the database file.\r\n Can also perform VACUUM INTO to create a backup/copy."
-      operationId: db.v1.DatabaseService.Vacuum
+        - sqlrpc.v1.DatabaseService
+      summary: TypedExplain
+      operationId: sqlrpc.v1.DatabaseService.TypedExplain
       parameters:
         - name: Connect-Protocol-Version
           in: header
@@ -1378,7 +1372,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/db.v1.VacuumRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedQueryRequest'
         required: true
       responses:
         default:
@@ -1392,7 +1386,161 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/db.v1.VacuumResponse'
+                $ref: '#/components/schemas/sqlrpc.v1.ExplainResponse'
+  /sqlrpc.v1.DatabaseService/TypedQuery:
+    post:
+      tags:
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Typed Read Endpoint (Unary).  Automatically routed to a Read-Only replica connection for ROLE_READ_ONLY users.'
+      description: |-
+        *
+         DBaaS Typed Read Endpoint (Unary).
+         Automatically routed to a Read-Only replica connection for ROLE_READ_ONLY
+        users.
+      operationId: sqlrpc.v1.DatabaseService.TypedQuery
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.TypedQueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.TypedQueryResult'
+  /sqlrpc.v1.DatabaseService/TypedQueryStream: {}
+  /sqlrpc.v1.DatabaseService/TypedTransactionExec:
+    post:
+      tags:
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Typed Write Endpoint within a Transaction.  Denied on Read-Only transactions.'
+      description: |-
+        *
+         DBaaS Typed Write Endpoint within a Transaction.
+         Denied on Read-Only transactions.
+      operationId: sqlrpc.v1.DatabaseService.TypedTransactionExec
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.TypedTransactionQueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.ExecResponse'
+  /sqlrpc.v1.DatabaseService/TypedTransactionQuery:
+    post:
+      tags:
+        - sqlrpc.v1.DatabaseService
+      summary: '*  DBaaS Typed Read Endpoint within a Transaction.'
+      description: |-
+        *
+         DBaaS Typed Read Endpoint within a Transaction.
+      operationId: sqlrpc.v1.DatabaseService.TypedTransactionQuery
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.TypedTransactionQueryRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.TypedQueryResult'
+  /sqlrpc.v1.DatabaseService/TypedTransactionQueryStream: {}
+  /sqlrpc.v1.DatabaseService/Vacuum:
+    post:
+      tags:
+        - sqlrpc.v1.DatabaseService
+      summary: Vacuum
+      operationId: sqlrpc.v1.DatabaseService.Vacuum
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.VacuumRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.VacuumResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -1474,24 +1622,26 @@ components:
           description: Deserialized error detail payload. The 'type' field indicates the schema. This field is for easier debugging and should not be relied upon for application logic.
       additionalProperties: true
       description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message, with an additional debug field for ConnectRPC error details.
-    db.v1.AttachDatabaseRequest:
+    sqlrpc.v1.AttachDatabaseRequest:
       type: object
       properties:
         parentDatabase:
           type: string
           title: parent_database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: The name of the primary/parent database.
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
         attachment:
           title: attachment
-          description: The configuration for the database to be attached.
-          $ref: '#/components/schemas/db.v1.Attachment'
+          $ref: '#/components/schemas/sqlrpc.v1.Attachment'
       title: AttachDatabaseRequest
       required:
         - attachment
       additionalProperties: false
-      description: "*\r\n Request to attach a database to a parent database."
-    db.v1.AttachDatabaseResponse:
+      description: |-
+        Payload to attach a secondary database to a parent connection dynamically.
+         Enables multi-database JOIN operations within the constraints of the DBaaS platform.
+    sqlrpc.v1.AttachDatabaseResponse:
       type: object
       properties:
         success:
@@ -1502,44 +1652,52 @@ components:
           title: message
       title: AttachDatabaseResponse
       additionalProperties: false
-    db.v1.Attachment:
+      description: Confirms the successful attachment of the secondary database.
+    sqlrpc.v1.Attachment:
       type: object
       properties:
         targetDatabaseName:
           type: string
           title: target_database_name
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: "The logical name of the database to be attached (must already exist in the\r\n server)."
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
         alias:
           type: string
           title: alias
-          pattern: ^[a-zA-Z0-9_-]{1,64}$
-          description: "The SQL alias used to reference this database in queries (e.g., \"archive\"\r\n in \"SELECT * FROM archive.logs\")."
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
       title: Attachment
       additionalProperties: false
-      description: "*\r\n Represents a link between two databases already served by the system.\r\n Maps to: ATTACH DATABASE '<path_of_target_db>' AS '<alias>'"
-    db.v1.AttachmentList:
+      description: |-
+        Configuration for safely attaching a secondary database to a primary connection.
+         Allows cross-database queries between isolated tenant files using a designated alias.
+    sqlrpc.v1.AttachmentList:
       type: object
       properties:
         values:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.Attachment'
+            $ref: '#/components/schemas/sqlrpc.v1.Attachment'
           title: values
       title: AttachmentList
       additionalProperties: false
-    db.v1.BackupDatabaseRequest:
+      description: A collection of database attachments to bind to the connection.
+    sqlrpc.v1.BackupDatabaseRequest:
       type: object
       properties:
         database:
           type: string
           title: database
           pattern: ^$|^[a-zA-Z0-9_-]{3,64}$
-          description: "Optional: database name to backup (if multiple DBs supported).\r\n Regex allows empty string OR valid database name."
+          description: Tenant target identifier for DBaaS connection routing.
       title: BackupDatabaseRequest
       additionalProperties: false
-      description: "*\r\n Request to initiate a database backup."
-    db.v1.BackupDatabaseResponse:
+      description: |-
+        Payload to initiate a streaming backup of a database.
+         Relies on the SQLite backup API to safely copy data without locking out writers.
+    sqlrpc.v1.BackupDatabaseResponse:
       type: object
       properties:
         chunk:
@@ -1548,27 +1706,28 @@ components:
           maxLength: 4194304
           format: byte
           description: |
-            4MB limit for safety chunks
             bytes.const = []
       title: BackupDatabaseResponse
       additionalProperties: false
-      description: "*\r\n A chunk of binary data from the backup stream."
-    db.v1.BeginRequest:
+      description: |-
+        A chunk of the streaming database backup.
+         Clients stitch these byte chunks together to reconstruct the SQLite database file.
+    sqlrpc.v1.BeginRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: "Database name. Must match the standard naming pattern.\r\n This locks the connection to this specific database for the duration of the\r\n stream."
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         mode:
           title: mode
-          description: "The locking mode. Defaults to DEFERRED if unspecified.\r\n Use IMMEDIATE or EXCLUSIVE for write-heavy transactions to avoid\r\n busy-loops."
-          $ref: '#/components/schemas/db.v1.TransactionMode'
+          $ref: '#/components/schemas/sqlrpc.v1.TransactionLockMode'
       title: BeginRequest
       additionalProperties: false
-      description: "*\r\n Initiates a new transaction context in the stream.\r\n This MUST be the first message sent."
-    db.v1.BeginResponse:
+    sqlrpc.v1.BeginResponse:
       type: object
       properties:
         success:
@@ -1578,44 +1737,44 @@ components:
           type: string
           title: transaction_id
           format: uuid
-          description: "Optional internal transaction identifier (useful for debugging).\r\n Trace Id for the whole transaction"
       title: BeginResponse
       additionalProperties: false
-      description: '* Response indicating a transaction successfully started.'
-    db.v1.BeginTransactionRequest:
+    sqlrpc.v1.BeginTransactionRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: Database name to lock.
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         timeout:
           title: timeout
-          description: "How long the server should keep this transaction alive without activity\r\n before auto-rolling back. (e.g., \"30s\", \"1m\").\r\n If unspecified, defaults to server configuration (usually 30s)."
           $ref: '#/components/schemas/google.protobuf.Duration'
         mode:
           title: mode
-          description: The locking mode to use (DEFERRED, IMMEDIATE, EXCLUSIVE).
-          $ref: '#/components/schemas/db.v1.TransactionMode'
+          $ref: '#/components/schemas/sqlrpc.v1.TransactionLockMode'
       title: BeginTransactionRequest
       additionalProperties: false
-      description: "*\r\n Request to start a new ID-based transaction session."
-    db.v1.BeginTransactionResponse:
+      description: |-
+        Payload to initiate a transaction and acquire an LRU connection.
+         The system evaluates the user's role and acquires either a Read-Only or Read-Write connection
+         from the global shared LRU pool. The connection is locked to this transaction until commit/rollback.
+    sqlrpc.v1.BeginTransactionResponse:
       type: object
       properties:
         transactionId:
           type: string
           title: transaction_id
-          description: "The unique session token the client MUST send in subsequent\r\n 'TransactionQuery' calls."
+          description: DBaaS routed transaction identifier (bound to either RO or RW backend).
         expiresAt:
           title: expires_at
-          description: "When this transaction will expire (Unix MS) if no further commands are\r\n sent. Clients can use this to anticipate timeouts."
           $ref: '#/components/schemas/google.protobuf.Timestamp'
       title: BeginTransactionResponse
       additionalProperties: false
-      description: "*\r\n Response containing the transaction session token."
-    db.v1.CheckpointMode:
+      description: Contains the transaction ID mapping to the acquired connection.
+    sqlrpc.v1.CheckpointMode:
       type: string
       title: CheckpointMode
       enum:
@@ -1624,19 +1783,25 @@ components:
         - CHECKPOINT_MODE_FULL
         - CHECKPOINT_MODE_RESTART
         - CHECKPOINT_MODE_TRUNCATE
-    db.v1.CheckpointRequest:
+    sqlrpc.v1.CheckpointRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         mode:
           title: mode
-          $ref: '#/components/schemas/db.v1.CheckpointMode'
+          $ref: '#/components/schemas/sqlrpc.v1.CheckpointMode'
       title: CheckpointRequest
       additionalProperties: false
-    db.v1.CheckpointResponse:
+      description: |-
+        Request to run a WAL checkpoint to sync the write-ahead log with the main database.
+         Allows passing different CheckpointMode strategies (e.g., PASSIVE, FULL).
+    sqlrpc.v1.CheckpointResponse:
       type: object
       properties:
         success:
@@ -1651,7 +1816,6 @@ components:
             - string
           title: busy_checkpoints
           format: int64
-          description: "Number of checkpoints that were busy/blocked? Or internal SQLite return\r\n values. SQLite returns (busy, log, checkpointed) usually.\r\n PRAGMA wal_checkpoint returns (busy, log, checkpointed)\r\n Actually it returns: a single row with three integer columns:\r\n 1. 0 if successful, 1 if busy. (But this is the return code of the pragma,\r\n usually handled by error)\r\n Wait, PRAGMA wal_checkpoint(MODE) returns (Busy, Log, Checkpointed)? No.\r\n It returns: (0, N, M) where N is number of pages in WAL, M is number of\r\n pages checkpointed.\r\n Let's settle on: usually 0 or 1"
         logCheckpoints:
           type:
             - integer
@@ -1666,7 +1830,10 @@ components:
           format: int64
       title: CheckpointResponse
       additionalProperties: false
-    db.v1.ColumnAffinity:
+      description: |-
+        Result containing checkpoint statistics from the WAL.
+         Exposes the number of modified pages synced to disk.
+    sqlrpc.v1.ColumnAffinity:
       type: string
       title: ColumnAffinity
       enum:
@@ -1676,34 +1843,30 @@ components:
         - COLUMN_AFFINITY_BLOB
         - COLUMN_AFFINITY_REAL
         - COLUMN_AFFINITY_NUMERIC
-      description: "*\r\n ColumnAffinity defines the storage class of the column.\r\n This determines how the raw bytes should be interpreted at a low level."
-    db.v1.ColumnSchema:
+    sqlrpc.v1.ColumnSchema:
       type: object
       properties:
         name:
           type: string
           title: name
-          description: Column name.
         type:
           type: string
           title: type
-          description: Declared type (e.g., "INTEGER", "TEXT", "VARCHAR(255)").
         notNull:
           type: boolean
           title: not_null
-          description: True if column has NOT NULL constraint.
         defaultValue:
           type: string
           title: default_value
-          description: Default value expression (may be empty).
         primaryKey:
           type: boolean
           title: primary_key
-          description: True if column is part of primary key.
       title: ColumnSchema
       additionalProperties: false
-      description: "*\r\n Schema information for a single column.\r\n Derived from PRAGMA table_info()."
-    db.v1.CommitResponse:
+      description: |-
+        Represents the structural schema of a single column within a table.
+         Exposes affinity, nullability, and primary key status.
+    sqlrpc.v1.CommitResponse:
       type: object
       properties:
         success:
@@ -1711,8 +1874,7 @@ components:
           title: success
       title: CommitResponse
       additionalProperties: false
-      description: '* Response indicating a transaction successfully committed.'
-    db.v1.CreateApiKeyRequest:
+    sqlrpc.v1.CreateApiKeyRequest:
       type: object
       properties:
         username:
@@ -1730,68 +1892,72 @@ components:
           $ref: '#/components/schemas/google.protobuf.Timestamp'
       title: CreateApiKeyRequest
       additionalProperties: false
-      description: "*\r\n Request to generate a new API key for a user."
-    db.v1.CreateApiKeyResponse:
+    sqlrpc.v1.CreateApiKeyResponse:
       type: object
       properties:
         apiKey:
           type: string
           title: api_key
-          description: The raw secret key (only shown once)
         keyId:
           type: string
           title: key_id
-          description: UUID v7
       title: CreateApiKeyResponse
       additionalProperties: false
-      description: "*\r\n Response containing the generated API key.\r\n WARNING: The `api_key` field is only shown once here."
-    db.v1.CreateDatabaseRequest:
+    sqlrpc.v1.CreateDatabaseRequest:
       type: object
       properties:
         name:
           type: string
           title: name
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: "Name is the logical identifier for the database.\r\n Must be alphanumeric (plus _-), 3-64 chars."
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: |-
+            Logical tenant identifier representing an isolated database instance.
+             Must be alphanumeric (plus _-), 3-64 chars.
         isEncrypted:
           type: boolean
           title: is_encrypted
-          description: Is Encrypted indicates if the database is encrypted via sqlcipher.
+          description: If true, the platform provisions an encrypted volume via sqlcipher.
         key:
           type: string
           title: key
-          description: "Key for sql cipher.\r\n If is_encrypted is true and key is empty, the default key may be used."
+          description: Master key for the encrypted database. The platform will manage rotation.
         extensions:
           type: array
           items:
             type: string
           title: extensions
-          description: Extensions is a list of paths to shared library extensions to load.
+          description: Pre-approved server-side extensions the tenant is allowed to utilize.
         pragmas:
           type: object
           title: pragmas
           additionalProperties:
             type: string
             title: value
-          description: Pragmas allows passing arbitrary key-value pairs to the DSN.
+          description: Tenant-specific PRAGMA configurations (e.g., synchronous, journal_mode).
         maxOpenConns:
           type: integer
           title: max_open_conns
           format: int32
-          description: MaxOpenConns limits the number of open physical connections.
+          description: Max open connections for the database operations.
         maxIdleConns:
           type: integer
           title: max_idle_conns
           format: int32
-          description: MaxIdleConns limits how many connections wait in the pool.
+          description: Max idle connections cached for this tenant.
         connMaxLifetimeMs:
           type: integer
           title: conn_max_lifetime_ms
           format: int32
-          description: ConnMaxLifetimeMs sets how long a connection can be reused before closing.
+          description: Physical connection lifecycle limit before being forcibly pruned.
       title: CreateDatabaseRequest
       additionalProperties: false
-    db.v1.CreateDatabaseRequest.PragmasEntry:
+      description: |-
+        Payload to provision a new isolated tenant database.
+         Restricted to platform or tenant admins. The platform will automatically spin up
+         the underlying SQLite file, configure WAL mode, and register it for LRU connection pooling.
+    sqlrpc.v1.CreateDatabaseRequest.PragmasEntry:
       type: object
       properties:
         key:
@@ -1802,7 +1968,7 @@ components:
           title: value
       title: PragmasEntry
       additionalProperties: false
-    db.v1.CreateDatabaseResponse:
+    sqlrpc.v1.CreateDatabaseResponse:
       type: object
       properties:
         success:
@@ -1813,7 +1979,10 @@ components:
           title: message
       title: CreateDatabaseResponse
       additionalProperties: false
-    db.v1.CreateUserRequest:
+      description: |-
+        Confirms the successful creation of a new tenant database.
+         Returns the database identifier which must be used for future routing.
+    sqlrpc.v1.CreateUserRequest:
       type: object
       properties:
         username:
@@ -1821,21 +1990,29 @@ components:
           title: username
           maxLength: 64
           minLength: 3
-          pattern: ^[a-zA-Z0-9_.-]+$
+          pattern: ^[a-zA-Z0-9_-]+$
         password:
           type: string
           title: password
           maxLength: 128
           minLength: 8
           pattern: ^[^\s]+$
-          description: "Password MUST meet basic complexity requirements:\r\n 1. Length between 8 and 128 chars.\r\n 2. No whitespace allowed.\r\n 3. Must contain at least one letter and one number.\npassword_complexity // Password must contain at least one letter and one number\n"
+          description: |
+            Password MUST meet basic complexity requirements:
+             1. Length between 8 and 128 chars.
+             2. No whitespace allowed.
+             3. Must contain at least one letter and one number.
+            password_complexity // Password must contain at least one letter and one number
         role:
           title: role
-          $ref: '#/components/schemas/db.v1.Role'
+          $ref: '#/components/schemas/sqlrpc.v1.Role'
       title: CreateUserRequest
       additionalProperties: false
-      description: "*\r\n Request to create a new database user."
-    db.v1.CreateUserResponse:
+      description: |-
+        Payload to provision a new user in the platform with a specific role.
+         Restricted to ROLE_ADMIN or ROLE_DATABASE_MANAGER. The username must be unique
+         inside the DBaaS system, and the password must meet basic complexity requirements.
+    sqlrpc.v1.CreateUserResponse:
       type: object
       properties:
         userId:
@@ -1852,8 +2029,8 @@ components:
           title: username
       title: CreateUserResponse
       additionalProperties: false
-      description: "*\r\n Response containing details of the created user."
-    db.v1.DMLResult:
+      description: Confirms the successful creation of a new user.
+    sqlrpc.v1.DMLResult:
       type: object
       properties:
         rowsAffected:
@@ -1862,86 +2039,80 @@ components:
             - string
           title: rows_affected
           format: int64
-          description: The number of rows modified by the query.
         lastInsertId:
           type:
             - integer
             - string
           title: last_insert_id
           format: int64
-          description: The ROWID of the last inserted row (if applicable).
+        stats:
+          title: stats
+          $ref: '#/components/schemas/sqlrpc.v1.ExecutionStats'
       title: DMLResult
       additionalProperties: false
-      description: "*\r\n Represents the result of a Data Modification Language query (INSERT, UPDATE,\r\n DELETE)."
-    db.v1.DatabaseConfig:
+      description: Result block summarizing data modification operations.
+    sqlrpc.v1.DatabaseConfig:
       type: object
       properties:
         name:
           type: string
           title: name
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: "Name is the logical identifier for the database.\r\n Must be alphanumeric (plus _-), 3-64 chars."
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
         dbPath:
           type: string
           title: db_path
           minLength: 1
-          description: DBPath is the file system path to the SQLite database file.
         isEncrypted:
           type: boolean
           title: is_encrypted
-          description: Is Encrypted indicates if the database is encrypted via sqlcipher.
         key:
           type: string
           title: key
-          description: "Key for sql cipher.\r\n If is_encrypted is true and key is empty, the default key may be used."
         readOnly:
           type: boolean
           title: read_only
-          description: ReadOnly opens the database in read-only mode (mode=ro).
         extensions:
           type: array
           items:
             type: string
           title: extensions
-          description: "Extensions is a list of logical extension names (IDs) to load.\r\n These names should match the 'id' field returned by ListExtensions.\r\n Paths can still be absolute for side-loading external libraries."
         pragmas:
           type: object
           title: pragmas
           additionalProperties:
             type: string
             title: value
-          description: Pragmas allows passing arbitrary key-value pairs to the DSN.
         maxOpenConns:
           type: integer
           title: max_open_conns
           format: int32
-          description: MaxOpenConns limits the number of open physical connections.
         maxIdleConns:
           type: integer
           title: max_idle_conns
           format: int32
-          description: MaxIdleConns limits how many connections wait in the pool.
         connMaxLifetimeMs:
           type: integer
           title: conn_max_lifetime_ms
           format: int32
-          description: ConnMaxLifetimeMs sets how long a connection can be reused before closing.
         initCommands:
           type: array
           items:
             type: string
           title: init_commands
-          description: "InitCommands are SQL statements executed automatically when a new\r\n connection is opened. Useful for setting PRAGMAs or ATTACHing databases\r\n persistently."
         attachments:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.Attachment'
+            $ref: '#/components/schemas/sqlrpc.v1.Attachment'
           title: attachments
-          description: "AttachedDatabases defines other DB files to be attached on connection\r\n start."
       title: DatabaseConfig
       additionalProperties: false
-      description: "*\r\n DatabaseConfig defines the configuration for a single database.\r\n Used for both static configuration (config.json) and dynamic management."
-    db.v1.DatabaseConfig.PragmasEntry:
+      description: |-
+        Configuration options for a tenant database.
+         Allows tuning of native SQLite pragmas such as JournalMode (e.g., WAL) and
+         SynchronousMode (e.g., NORMAL) to balance durability and performance for the specific tenant.
+    sqlrpc.v1.DatabaseConfig.PragmasEntry:
       type: object
       properties:
         key:
@@ -1952,7 +2123,7 @@ components:
           title: value
       title: PragmasEntry
       additionalProperties: false
-    db.v1.DatabaseInfo:
+    sqlrpc.v1.DatabaseInfo:
       type: object
       properties:
         name:
@@ -1967,7 +2138,7 @@ components:
         currentAttachments:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.Attachment'
+            $ref: '#/components/schemas/sqlrpc.v1.Attachment'
           title: current_attachments
           description: List of databases currently attached to this one.
         readOnly:
@@ -1981,19 +2152,22 @@ components:
           description: List of managed extension folder names currently loaded.
       title: DatabaseInfo
       additionalProperties: false
-    db.v1.DatabaseSchema:
+      description: |-
+        *
+         DBaaS Tenant Metadata.
+         Describes an isolated tenant database instance.
+    sqlrpc.v1.DatabaseSchema:
       type: object
       properties:
         tables:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.TableSchema'
+            $ref: '#/components/schemas/sqlrpc.v1.TableSchema'
           title: tables
-          description: All tables in the database with full schema details.
       title: DatabaseSchema
       additionalProperties: false
-      description: "*\r\n Complete schema for an entire database.\r\n Contains all tables with their complete schema information."
-    db.v1.DeclaredType:
+      description: Collection of table schemas representing the full structure of the database.
+    sqlrpc.v1.DeclaredType:
       type: string
       title: DeclaredType
       enum:
@@ -2032,17 +2206,19 @@ components:
         - DECLARED_TYPE_YEAR
         - DECLARED_TYPE_CHAR
         - DECLARED_TYPE_XML
-      description: "*\r\n DeclaredType hints at the semantic meaning of the column.\r\n This allows the client to perform automatic type coercion (e.g. String ->\r\n Date)."
-    db.v1.DeleteDatabaseRequest:
+    sqlrpc.v1.DeleteDatabaseRequest:
       type: object
       properties:
         name:
           type: string
           title: name
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
       title: DeleteDatabaseRequest
       additionalProperties: false
-    db.v1.DeleteDatabaseResponse:
+      description: Payload to completely delete a database and its underlying files.
+    sqlrpc.v1.DeleteDatabaseResponse:
       type: object
       properties:
         success:
@@ -2053,7 +2229,8 @@ components:
           title: message
       title: DeleteDatabaseResponse
       additionalProperties: false
-    db.v1.DeleteUserRequest:
+      description: Confirms the permanent deletion of the database.
+    sqlrpc.v1.DeleteUserRequest:
       type: object
       properties:
         username:
@@ -2063,8 +2240,10 @@ components:
           minLength: 1
       title: DeleteUserRequest
       additionalProperties: false
-      description: "*\r\n Request to delete an existing user."
-    db.v1.DeleteUserResponse:
+      description: |-
+        Payload to permanently remove a user from the platform.
+         Restricted to ROLE_ADMIN. Instantly revokes the user's access.
+    sqlrpc.v1.DeleteUserResponse:
       type: object
       properties:
         success:
@@ -2072,25 +2251,27 @@ components:
           title: success
       title: DeleteUserResponse
       additionalProperties: false
-      description: "*\r\n Response indicating the success of the user deletion."
-    db.v1.DetachDatabaseRequest:
+      description: Confirms the successful permanent deletion of a user.
+    sqlrpc.v1.DetachDatabaseRequest:
       type: object
       properties:
         parentDatabase:
           type: string
           title: parent_database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: The name of the primary/parent database.
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
         alias:
           type: string
           title: alias
           maxLength: 64
           minLength: 1
-          description: The alias name of the attachment to remove.
       title: DetachDatabaseRequest
       additionalProperties: false
-      description: "*\r\n Request to remove an attachment from a parent database."
-    db.v1.DetachDatabaseResponse:
+      description: |-
+        Payload to safely detach a previously attached database.
+         Cleans up the namespace and file handles.
+    sqlrpc.v1.DetachDatabaseResponse:
       type: object
       properties:
         success:
@@ -2101,121 +2282,128 @@ components:
           title: message
       title: DetachDatabaseResponse
       additionalProperties: false
-    db.v1.ErrorResponse:
+      description: Confirms the successful detachment.
+    sqlrpc.v1.ErrorResponse:
       type: object
       properties:
         message:
           type: string
           title: message
-          description: Human-readable error message.
         failedSql:
           type: string
           title: failed_sql
-          description: The SQL that caused the error (if available/safe to return).
         sqliteErrorCode:
           title: sqlite_error_code
-          description: "The precise SQLite error code for programmatic handling.\r\n Reference: https://www.sqlite.org/rescode.html"
-          $ref: '#/components/schemas/db.v1.SqliteCode'
+          $ref: '#/components/schemas/sqlrpc.v1.SqliteCode'
       title: ErrorResponse
       additionalProperties: false
-      description: "*\r\n Standard error response attached to failures.\r\n This is sent as a stream message (Streaming) or Error Detail (Unary)."
-    db.v1.ExecuteTransactionRequest:
+    sqlrpc.v1.ExecResponse:
+      type: object
+      properties:
+        dml:
+          title: dml
+          $ref: '#/components/schemas/sqlrpc.v1.DMLResult'
+        stats:
+          title: stats
+          $ref: '#/components/schemas/sqlrpc.v1.ExecutionStats'
+      title: ExecResponse
+      additionalProperties: false
+      description: |-
+        The unified wrapper containing a query's mutation results and execution statistics.
+         This is the standard response for Unary `Exec` RPCs. It does not contain result set rows,
+         but rather metadata about the data modification (last insert row ID, changes count).
+    sqlrpc.v1.ExecuteTransactionRequest:
       type: object
       properties:
         requests:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.TransactionRequest'
+            $ref: '#/components/schemas/sqlrpc.v1.TransactionRequest'
           title: requests
           maxItems: 100
           minItems: 2
-          description: "ATOMIC SCRIPT CONSTRAINTS:\r\n 1. Must contain between 2 and 100 requests (Begin + at least 1 action +\r\n Commit).\r\n 2. The first command MUST be a 'Begin' command.\r\n 3. The last command MUST be either 'Commit' or 'Rollback' to ensure no\r\n dangling locks.\ntransaction.sequence_end // The script must explicitly end with 'commit' or 'rollback'\ntransaction.sequence_start // The first command in an ExecuteTransaction script must be 'begin'\n"
+          description: |
+            transaction.sequence_end // The script must explicitly end with 'commit' or 'rollback'
+            transaction.sequence_start // The first command in an ExecuteTransaction script must be 'begin'
       title: ExecuteTransactionRequest
       additionalProperties: false
-      description: "*\r\n A container for a sequence of transaction steps to be executed atomically via\r\n Unary RPC. This is meant for simple, linear scripts (like migrations) where\r\n client-side interactivity isn't needed."
-    db.v1.ExecuteTransactionResponse:
+      description: |-
+        Payload to execute a complete batch of statements in a single atomic DBaaS transaction.
+         The platform will acquire a connection, BEGIN the transaction, execute all queries sequentially,
+         and automatically COMMIT (or ROLLBACK on any failure), before returning the connection to the pool.
+    sqlrpc.v1.ExecuteTransactionResponse:
       type: object
       properties:
         responses:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.TransactionResponse'
+            $ref: '#/components/schemas/sqlrpc.v1.TransactionResponse'
           title: responses
-          description: "A list of responses corresponding 1-to-1 with the requests in the input\r\n script. Allows the client to verify which step succeeded or failed."
       title: ExecuteTransactionResponse
       additionalProperties: false
-      description: "*\r\n The response for the unary `ExecuteTransaction` RPC."
-    db.v1.ExecutionStats:
+      description: Result containing the individual responses for all statements compiled in the batch transaction.
+    sqlrpc.v1.ExecutionStats:
       type: object
       properties:
         durationMs:
           type: number
           title: duration_ms
           format: double
-          description: Total execution time in milliseconds.
         rowsRead:
           type:
             - integer
             - string
           title: rows_read
           format: int64
-          description: Number of rows read from the database.
         rowsWritten:
           type:
             - integer
             - string
           title: rows_written
           format: int64
-          description: Number of rows written/modified.
       title: ExecutionStats
       additionalProperties: false
-      description: "*\r\n Performance metrics for a query execution.\r\n Useful for profiling and monitoring."
-    db.v1.ExplainResponse:
+      description: Telemetry data covering rows affected, execution time, and last insert row ID.
+    sqlrpc.v1.ExplainResponse:
       type: object
       properties:
         nodes:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.QueryPlanNode'
+            $ref: '#/components/schemas/sqlrpc.v1.QueryPlanNode'
           title: nodes
-          description: All nodes in the query plan, use parent_id to reconstruct tree structure.
       title: ExplainResponse
       additionalProperties: false
-      description: "*\r\n Response containing the structured EXPLAIN QUERY PLAN output.\r\n The nodes form a tree via the parent_id references."
-    db.v1.ExtensionInfo:
+    sqlrpc.v1.ExtensionInfo:
       type: object
       properties:
         name:
           type: string
           title: name
-          description: Logical name of the extension (e.g., "crypto").
         version:
           type: string
           title: version
-          description: Version string (e.g., "0.28.0").
         folderName:
           type: string
           title: folder_name
-          description: "The name of the extension folder (e.g., \"crypto-0.28.0\").\r\n This is what should be passed to LoadExtension."
         isLoaded:
           type: boolean
           title: is_loaded
-          description: Whether the extension is currently loaded in the requested database.
         filePath:
           type: string
           title: file_path
-          description: The path to the extension file (server-side, relative to extension dir).
         description:
           type: string
           title: description
-          description: A short description of the extension.
         documentationUrl:
           type: string
           title: documentation_url
-          description: A URL for documentation.
       title: ExtensionInfo
       additionalProperties: false
-    db.v1.ExtensionList:
+      description: |-
+        Metadata describing an available SQLite extension.
+         Includes version, load path, and security documentation.
+    sqlrpc.v1.ExtensionList:
       type: object
       properties:
         values:
@@ -2225,52 +2413,51 @@ components:
           title: values
       title: ExtensionList
       additionalProperties: false
-    db.v1.ForeignKeySchema:
+      description: A list of SQLite extensions to load upon connection initialization.
+    sqlrpc.v1.ForeignKeySchema:
       type: object
       properties:
         id:
           type: integer
           title: id
           format: int32
-          description: Foreign key ID (multiple columns share same ID for composite FKs).
         table:
           type: string
           title: table
-          description: Referenced (parent) table name.
         fromColumn:
           type: string
           title: from_column
-          description: Column in this (child) table.
         toColumn:
           type: string
           title: to_column
-          description: Column in the referenced (parent) table.
         onUpdate:
           type: string
           title: on_update
-          description: ON UPDATE action (e.g., "CASCADE", "NO ACTION").
         onDelete:
           type: string
           title: on_delete
-          description: ON DELETE action (e.g., "CASCADE", "SET NULL").
       title: ForeignKeySchema
       additionalProperties: false
-      description: "*\r\n Schema information for a foreign key constraint.\r\n Derived from PRAGMA foreign_key_list()."
-    db.v1.GetDatabaseSchemaRequest:
+      description: |-
+        Represents a foreign key constraint.
+         Details the relationship between columns and the enforcement actions (e.g., CASCADE).
+    sqlrpc.v1.GetDatabaseSchemaRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
       title: GetDatabaseSchemaRequest
       additionalProperties: false
-      description: "*\r\n Request to get the complete database schema."
-    db.v1.GetServerInfoRequest:
+    sqlrpc.v1.GetServerInfoRequest:
       type: object
       title: GetServerInfoRequest
       additionalProperties: false
-    db.v1.GetServerInfoResponse:
+    sqlrpc.v1.GetServerInfoResponse:
       type: object
       properties:
         version:
@@ -2281,13 +2468,16 @@ components:
           title: auth_disabled
       title: GetServerInfoResponse
       additionalProperties: false
-    db.v1.GetTableSchemaRequest:
+    sqlrpc.v1.GetTableSchemaRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         tableName:
           type: string
           title: table_name
@@ -2295,32 +2485,32 @@ components:
           minLength: 1
       title: GetTableSchemaRequest
       additionalProperties: false
-      description: "*\r\n Request to get detailed schema for a single table."
-    db.v1.IndexSchema:
+      description: |-
+        Request to retrieve the structured schema for a specific table.
+         Useful for ORMs and automated tooling to analyze the tenant database.
+    sqlrpc.v1.IndexSchema:
       type: object
       properties:
         name:
           type: string
           title: name
-          description: Index name.
         unique:
           type: boolean
           title: unique
-          description: True if this is a UNIQUE index.
         columns:
           type: array
           items:
             type: string
           title: columns
-          description: Column names in the index (in order).
         sql:
           type: string
           title: sql
-          description: Original CREATE INDEX SQL statement (empty for auto-created indexes).
       title: IndexSchema
       additionalProperties: false
-      description: "*\r\n Schema information for a single index.\r\n Derived from PRAGMA index_list() and index_info()."
-    db.v1.InitCommandList:
+      description: |-
+        Represents the schema of an index.
+         Details the indexed columns and whether the index enforces uniqueness.
+    sqlrpc.v1.InitCommandList:
       type: object
       properties:
         values:
@@ -2330,23 +2520,32 @@ components:
           title: values
       title: InitCommandList
       additionalProperties: false
-    db.v1.IntegrityCheckRequest:
+      description: |-
+        A secure list of PRAGMA commands to execute upon every connection initialization.
+         The DBaaS platform restricts dangerous commands (like ATTACH/DETACH) here to prevent
+         tenant breakout, but allows safe session-level configurations (e.g., `PRAGMA foreign_keys = ON`).
+    sqlrpc.v1.IntegrityCheckRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         maxErrors:
           type:
             - integer
             - "null"
           title: max_errors
           format: int32
-          description: Optional max errors to report. Defaults to 100 if not set.
       title: IntegrityCheckRequest
       additionalProperties: false
-    db.v1.IntegrityCheckResponse:
+      description: |-
+        Request to run PRAGMA integrity_check to validate the database file structure.
+         Detects corruption, malformed indices, or tree problems.
+    sqlrpc.v1.IntegrityCheckResponse:
       type: object
       properties:
         success:
@@ -2362,7 +2561,10 @@ components:
           title: errors
       title: IntegrityCheckResponse
       additionalProperties: false
-    db.v1.ListApiKeysRequest:
+      description: |-
+        Result containing any corruption errors found during the check.
+         If success is false, the database may require immediate restoration.
+    sqlrpc.v1.ListApiKeysRequest:
       type: object
       properties:
         username:
@@ -2372,54 +2574,54 @@ components:
           minLength: 1
       title: ListApiKeysRequest
       additionalProperties: false
-      description: "*\r\n Request to list active API keys for a user."
-    db.v1.ListApiKeysResponse:
+    sqlrpc.v1.ListApiKeysResponse:
       type: object
       properties:
         keys:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ListApiKeysResponse.ApiKeySummary'
+            $ref: '#/components/schemas/sqlrpc.v1.ListApiKeysResponse.ApiKeySummary'
           title: keys
       title: ListApiKeysResponse
       additionalProperties: false
-      description: "*\r\n Response containing a list of API key summaries."
-    db.v1.ListApiKeysResponse.ApiKeySummary:
+    sqlrpc.v1.ListApiKeysResponse.ApiKeySummary:
       type: object
       properties:
         id:
           type: string
           title: id
-          description: UUID v7
         name:
           type: string
           title: name
         prefix:
           type: string
           title: prefix
-          description: First 8 chars
         createdAt:
           title: created_at
           $ref: '#/components/schemas/google.protobuf.Timestamp'
       title: ApiKeySummary
       additionalProperties: false
-    db.v1.ListDatabasesRequest:
+    sqlrpc.v1.ListDatabasesRequest:
       type: object
       title: ListDatabasesRequest
       additionalProperties: false
-      description: "*\r\n Request to list all available databases."
-    db.v1.ListDatabasesResponse:
+      description: |-
+        Request to list all DBaaS tenant databases.
+         Administrators see all databases, while tenant managers only see their assigned ones.
+    sqlrpc.v1.ListDatabasesResponse:
       type: object
       properties:
         databases:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.DatabaseInfo'
+            $ref: '#/components/schemas/sqlrpc.v1.DatabaseInfo'
           title: databases
       title: ListDatabasesResponse
       additionalProperties: false
-      description: "*\r\n Response containing a list of database names."
-    db.v1.ListExtensionsRequest:
+      description: |-
+        Result containing all active databases and their states.
+         Exposes metadata such as file sizes and connection metrics.
+    sqlrpc.v1.ListExtensionsRequest:
       type: object
       properties:
         database:
@@ -2427,31 +2629,39 @@ components:
             - string
             - "null"
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: "Optional: If provided, indicates which database's loaded extensions to\r\n check."
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
       title: ListExtensionsRequest
       additionalProperties: false
-    db.v1.ListExtensionsResponse:
+      description: |-
+        Request to list all available SQLite extensions recognized by the DBaaS platform.
+         May be routed per-database if tenant-specific extensions are enabled.
+    sqlrpc.v1.ListExtensionsResponse:
       type: object
       properties:
         extensions:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ExtensionInfo'
+            $ref: '#/components/schemas/sqlrpc.v1.ExtensionInfo'
           title: extensions
       title: ListExtensionsResponse
       additionalProperties: false
-    db.v1.ListTablesRequest:
+      description: Result containing all loaded extensions and their metadata.
+    sqlrpc.v1.ListTablesRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
       title: ListTablesRequest
       additionalProperties: false
-      description: "*\r\n Request to list all tables in a database."
-    db.v1.ListTablesResponse:
+      description: Request to list all tables within a specific database.
+    sqlrpc.v1.ListTablesResponse:
       type: object
       properties:
         tableNames:
@@ -2461,38 +2671,47 @@ components:
           title: table_names
       title: ListTablesResponse
       additionalProperties: false
-      description: "*\r\n Response containing a list of table names."
-    db.v1.ListUsersRequest:
+      description: Result containing all table names.
+    sqlrpc.v1.ListUsersRequest:
       type: object
       title: ListUsersRequest
       additionalProperties: false
-      description: "*\r\n Request to list all users."
-    db.v1.ListUsersResponse:
+      description: |-
+        Request to list all users within the DBaaS platform.
+         Identifies the callers role to filter visible identities.
+    sqlrpc.v1.ListUsersResponse:
       type: object
       properties:
         users:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.User'
+            $ref: '#/components/schemas/sqlrpc.v1.User'
           title: users
       title: ListUsersResponse
       additionalProperties: false
-      description: "*\r\n Response containing a list of users."
-    db.v1.LoadExtensionRequest:
+      description: |-
+        Result containing all registered users.
+         Provides basic user metadata excluding sensitive credentials.
+    sqlrpc.v1.LoadExtensionRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         folderName:
           type: string
           title: folder_name
           minLength: 1
-          description: The name of the extension folder to load (e.g., "crypto-0.28.0").
       title: LoadExtensionRequest
       additionalProperties: false
-    db.v1.LoadExtensionResponse:
+      description: |-
+        Payload to safely load a whitelisted SQLite extension into the connection.
+         The DBaaS platform strictly prevents loading arbitrary external binaries.
+    sqlrpc.v1.LoadExtensionResponse:
       type: object
       properties:
         success:
@@ -2503,7 +2722,8 @@ components:
           title: message
       title: LoadExtensionResponse
       additionalProperties: false
-    db.v1.LoginRequest:
+      description: Confirms the successful extension load into the global LRU connection.
+    sqlrpc.v1.LoginRequest:
       type: object
       properties:
         username:
@@ -2518,43 +2738,44 @@ components:
           $ref: '#/components/schemas/google.protobuf.Duration'
       title: LoginRequest
       additionalProperties: false
-      description: "*\r\n Request to authenticate and create a session."
-    db.v1.LoginResponse:
+      description: |-
+        Payload for authenticating a user and obtaining an RBAC-bound session token.
+         Clients must provide valid credentials. The resulting token will dictate
+         which global LRU connection (Read-Only or Read-Write) their subsequent requests are routed to.
+    sqlrpc.v1.LoginResponse:
       type: object
       properties:
         apiKey:
           type: string
           title: api_key
-          description: The generated API key for the session.
         expiresAt:
           title: expires_at
-          description: When this key expires.
           $ref: '#/components/schemas/google.protobuf.Timestamp'
         user:
           title: user
-          description: Information about the authenticated user.
-          $ref: '#/components/schemas/db.v1.User'
+          $ref: '#/components/schemas/sqlrpc.v1.User'
         keyId:
           type: string
           title: key_id
-          description: The ID of the session key (used for revocation/logout). UUID v7.
       title: LoginResponse
       additionalProperties: false
-      description: "*\r\n Response containing the session API key and user info."
-    db.v1.LogoutRequest:
+      description: |-
+        Contains the JWT session token with embedded role claims for DBaaS routing.
+         This token must be passed in the `authorization: Bearer <token>` metadata header
+         for all subsequent gRPC requests to ensure proper tenant isolation and connection routing.
+    sqlrpc.v1.LogoutRequest:
       type: object
       properties:
         keyId:
           type: string
           title: key_id
           format: uuid
-          description: "The session key ID to invalidate (UUID v7).\r\n Ideally, this should match the key used for authentication,\r\n but for explicit correctness we require the ID."
         username:
           type: string
           title: username
       title: LogoutRequest
       additionalProperties: false
-    db.v1.LogoutResponse:
+    sqlrpc.v1.LogoutResponse:
       type: object
       properties:
         success:
@@ -2562,7 +2783,7 @@ components:
           title: success
       title: LogoutResponse
       additionalProperties: false
-    db.v1.MountDatabaseResponse:
+    sqlrpc.v1.MountDatabaseResponse:
       type: object
       properties:
         success:
@@ -2573,35 +2794,36 @@ components:
           title: message
       title: MountDatabaseResponse
       additionalProperties: false
-    db.v1.Parameters:
+      description: Confirms the successful mount.
+    sqlrpc.v1.Parameters:
       type: object
       properties:
         positional:
+          type: array
+          items:
+            $ref: '#/components/schemas/google.protobuf.Value'
           title: positional
-          $ref: '#/components/schemas/google.protobuf.ListValue'
         named:
+          type: object
           title: named
-          $ref: '#/components/schemas/google.protobuf.Struct'
-        positionalHints:
+          additionalProperties:
+            title: value
+            $ref: '#/components/schemas/google.protobuf.Value'
+        hints:
           type: object
-          title: positional_hints
+          title: hints
           maxProperties: 1000
           additionalProperties:
             title: value
-            $ref: '#/components/schemas/db.v1.ColumnAffinity'
-          description: 'Key: The 0-based index of the positional parameter.'
-        namedHints:
-          type: object
-          title: named_hints
-          maxProperties: 1000
-          additionalProperties:
-            title: value
-            $ref: '#/components/schemas/db.v1.ColumnAffinity'
-          description: 'Key: The parameter name (e.g., ":id", "@user").'
+            $ref: '#/components/schemas/sqlrpc.v1.ColumnAffinity'
       title: Parameters
       additionalProperties: false
-      description: "*\r\n Encapsulates all parameter logic using a \"Sparse Hinting\" strategy.\r\n This structure avoids overhead by only requiring types for ambiguous values."
-    db.v1.Parameters.NamedHintsEntry:
+      description: |-
+        Payload for securely passing parameterized values into SQL queries.
+         Binds variables to the prepared statement to prevent SQL injection. Supports both
+         positional constraints (`?`) via the `values` array, and named constraints (`:name`) via the `named` map.
+         The `hints` map provides explicit SQLite column affinity overrides if dynamic typing is insufficient.
+    sqlrpc.v1.Parameters.HintsEntry:
       type: object
       properties:
         key:
@@ -2609,22 +2831,21 @@ components:
           title: key
         value:
           title: value
-          $ref: '#/components/schemas/db.v1.ColumnAffinity'
-      title: NamedHintsEntry
+          $ref: '#/components/schemas/sqlrpc.v1.ColumnAffinity'
+      title: HintsEntry
       additionalProperties: false
-    db.v1.Parameters.PositionalHintsEntry:
+    sqlrpc.v1.Parameters.NamedEntry:
       type: object
       properties:
         key:
-          type: integer
+          type: string
           title: key
-          format: int32
         value:
           title: value
-          $ref: '#/components/schemas/db.v1.ColumnAffinity'
-      title: PositionalHintsEntry
+          $ref: '#/components/schemas/google.protobuf.Value'
+      title: NamedEntry
       additionalProperties: false
-    db.v1.PragmaMap:
+    sqlrpc.v1.PragmaMap:
       type: object
       properties:
         values:
@@ -2635,7 +2856,8 @@ components:
             title: value
       title: PragmaMap
       additionalProperties: false
-    db.v1.PragmaMap.ValuesEntry:
+      description: Key-value pairs of native SQLite PRAGMAs to apply to the connection.
+    sqlrpc.v1.PragmaMap.ValuesEntry:
       type: object
       properties:
         key:
@@ -2646,134 +2868,86 @@ components:
           title: value
       title: ValuesEntry
       additionalProperties: false
-    db.v1.QueryComplete:
+    sqlrpc.v1.QueryComplete:
       type: object
       properties:
         stats:
           title: stats
-          description: Final execution statistics.
-          $ref: '#/components/schemas/db.v1.ExecutionStats'
+          $ref: '#/components/schemas/sqlrpc.v1.ExecutionStats'
       title: QueryComplete
       additionalProperties: false
-      description: "*\r\n Signals the successful completion of a read query stream."
-    db.v1.QueryPlanNode:
+    sqlrpc.v1.QueryPlanNode:
       type: object
       properties:
         id:
           type: integer
           title: id
           format: int32
-          description: Unique identifier for this node within the query plan.
         parentId:
           type: integer
           title: parent_id
           format: int32
-          description: Parent node ID (0 for root nodes).
         detail:
           type: string
           title: detail
-          description: The operation description (e.g., "SCAN users", "SEARCH users USING INDEX").
       title: QueryPlanNode
       additionalProperties: false
-      description: "*\r\n A single node in the EXPLAIN QUERY PLAN tree.\r\n Maps directly to SQLite's output: id, parent, notused, detail."
-    db.v1.QueryRequest:
+    sqlrpc.v1.QueryRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: "Database name. Must be alphanumeric (plus _-), 3-64 chars.\r\n Validated to prevent directory traversal attacks."
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         sql:
           type: string
           title: sql
           maxLength: 10240
           minLength: 1
-          description: SQL Statement. Max 10KB to prevent memory abuse.
-        type:
-          title: type
-          description: Optional hint to optimize connection routing (Read vs Write).
-          $ref: '#/components/schemas/db.v1.QueryType'
         parameters:
           title: parameters
-          description: Parameters definition (Positional or Named).
-          $ref: '#/components/schemas/db.v1.Parameters'
+          $ref: '#/components/schemas/sqlrpc.v1.Parameters'
       title: QueryRequest
       additionalProperties: false
-      description: "*\r\n A request for the stateless `Query` and `QueryStream` RPCs."
-    db.v1.QueryResponse:
+      description: Payload to execute a standard SQL statement against a database.
+    sqlrpc.v1.QueryResponse:
       type: object
       oneOf:
         - properties:
             batch:
               title: batch
-              description: Sent repeatedly containing chunks of rows.
-              $ref: '#/components/schemas/db.v1.QueryResultRowBatch'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryResultRowBatch'
           title: batch
           required:
             - batch
         - properties:
             complete:
               title: complete
-              description: Sent once when the query successfully finishes.
-              $ref: '#/components/schemas/db.v1.QueryComplete'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryComplete'
           title: complete
           required:
             - complete
         - properties:
-            dml:
-              title: dml
-              description: Sent if the query was an INSERT/UPDATE/DELETE.
-              $ref: '#/components/schemas/db.v1.DMLResult'
-          title: dml
-          required:
-            - dml
-        - properties:
             error:
               title: error
-              description: Sent if an error occurs mid-stream.
-              $ref: '#/components/schemas/db.v1.ErrorResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.ErrorResponse'
           title: error
           required:
             - error
         - properties:
             header:
               title: header
-              description: Sent once at the start of a result set to define columns.
-              $ref: '#/components/schemas/db.v1.QueryResultHeader'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryResultHeader'
           title: header
           required:
             - header
       title: QueryResponse
       additionalProperties: false
-      description: "*\r\n The response envelope for streaming RPCs (`QueryStream` and `Transaction`).\r\n The stream will typically send: [Header] -> [Batch]* -> [Complete]."
-    db.v1.QueryResult:
-      type: object
-      allOf:
-        - properties:
-            stats:
-              title: stats
-              description: Performance statistics for the execution.
-              $ref: '#/components/schemas/db.v1.ExecutionStats'
-        - oneOf:
-            - properties:
-                dml:
-                  title: dml
-                  $ref: '#/components/schemas/db.v1.DMLResult'
-              title: dml
-              required:
-                - dml
-            - properties:
-                select:
-                  title: select
-                  $ref: '#/components/schemas/db.v1.SelectResult'
-              title: select
-              required:
-                - select
-      title: QueryResult
-      additionalProperties: false
-      description: "*\r\n The response for Unary RPCs (`Query`, `TransactionQuery`).\r\n This message holds the entire result set in memory."
-    db.v1.QueryResultHeader:
+      description: The streaming response yielding chunks of data from a DBaaS read query.
+    sqlrpc.v1.QueryResult:
       type: object
       properties:
         columns:
@@ -2781,17 +2955,52 @@ components:
           items:
             type: string
           title: columns
-          description: The names of the columns.
         columnAffinities:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ColumnAffinity'
+            $ref: '#/components/schemas/sqlrpc.v1.ColumnAffinity'
           title: column_affinities
-          description: The resolved column types mapped from SQLite declarations.
         columnDeclaredTypes:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.DeclaredType'
+            $ref: '#/components/schemas/sqlrpc.v1.DeclaredType'
+          title: column_declared_types
+        columnRawTypes:
+          type: array
+          items:
+            type: string
+          title: column_raw_types
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/google.protobuf.ListValue'
+          title: rows
+        stats:
+          title: stats
+          $ref: '#/components/schemas/sqlrpc.v1.ExecutionStats'
+      title: QueryResult
+      additionalProperties: false
+      description: |-
+        The unified wrapper containing a query's read results and execution statistics.
+         This is the standard response for Unary `Query` RPCs, providing the requested data alongside
+         performance telemetry like execution time and rows affected.
+    sqlrpc.v1.QueryResultHeader:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+          title: columns
+        columnAffinities:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.ColumnAffinity'
+          title: column_affinities
+        columnDeclaredTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.DeclaredType'
           title: column_declared_types
         columnRawTypes:
           type: array
@@ -2800,8 +3009,7 @@ components:
           title: column_raw_types
       title: QueryResultHeader
       additionalProperties: false
-      description: "*\r\n Metadata about the columns in a result set (Streaming).\r\n Sent as the first message in a read stream."
-    db.v1.QueryResultRowBatch:
+    sqlrpc.v1.QueryResultRowBatch:
       type: object
       properties:
         rows:
@@ -2809,19 +3017,9 @@ components:
           items:
             $ref: '#/components/schemas/google.protobuf.ListValue'
           title: rows
-          description: A list of rows, where each row is a ListValue.
       title: QueryResultRowBatch
       additionalProperties: false
-      description: "*\r\n A batch of rows in a streaming response.\r\n Used to chunk large result sets to avoid memory spikes."
-    db.v1.QueryType:
-      type: string
-      title: QueryType
-      enum:
-        - QUERY_TYPE_UNSPECIFIED
-        - QUERY_TYPE_READ
-        - QUERY_TYPE_WRITE
-      description: "*\r\n QueryType hints at the intent of the query, allowing the proxy to route\r\n requests to the appropriate connection (e.g., read-only replicas vs WAL\r\n writers)."
-    db.v1.RestoreDatabaseRequest:
+    sqlrpc.v1.RestoreDatabaseRequest:
       type: object
       oneOf:
         - properties:
@@ -2832,7 +3030,6 @@ components:
               minLength: 1
               format: byte
               description: |
-                A chunk of binary data to write (sent in subsequent messages).
                 bytes.const = []
           title: chunk
           required:
@@ -2841,15 +3038,18 @@ components:
             databaseName:
               type: string
               title: database_name
-              pattern: ^[a-zA-Z0-9_-]{3,64}$
-              description: The name of the database to restore (sent in the first message).
+              maxLength: 64
+              minLength: 3
+              pattern: ^[a-zA-Z0-9_-]+$
           title: database_name
           required:
             - databaseName
       title: RestoreDatabaseRequest
       additionalProperties: false
-      description: "*\r\n A message in the restore stream.\r\n The first message must contain `database_name`.\r\n Subsequent messages must contain `chunk`."
-    db.v1.RestoreDatabaseResponse:
+      description: |-
+        Payload to strictly stream and restore a database from a backup file.
+         Overwrites the existing tenant database with the incoming byte chunks.
+    sqlrpc.v1.RestoreDatabaseResponse:
       type: object
       properties:
         success:
@@ -2863,8 +3063,8 @@ components:
           format: int64
       title: RestoreDatabaseResponse
       additionalProperties: false
-      description: "*\r\n Response indicating the final status of the restore operation."
-    db.v1.RevokeApiKeyRequest:
+      description: Confirms the successful completion of the restoration.
+    sqlrpc.v1.RevokeApiKeyRequest:
       type: object
       properties:
         keyId:
@@ -2876,8 +3076,7 @@ components:
           title: username
       title: RevokeApiKeyRequest
       additionalProperties: false
-      description: "*\r\n Request to revoke (delete) a specific API key."
-    db.v1.RevokeApiKeyResponse:
+    sqlrpc.v1.RevokeApiKeyResponse:
       type: object
       properties:
         success:
@@ -2885,8 +3084,7 @@ components:
           title: success
       title: RevokeApiKeyResponse
       additionalProperties: false
-      description: "*\r\n Response indicating the success of the key revocation."
-    db.v1.Role:
+    sqlrpc.v1.Role:
       type: string
       title: Role
       enum:
@@ -2895,8 +3093,12 @@ components:
         - ROLE_DATABASE_MANAGER
         - ROLE_READ_WRITE
         - ROLE_READ_ONLY
-      description: "*\r\n Role defines the permission level for a user."
-    db.v1.RollbackResponse:
+      description: |-
+        *
+         Role defines the RBAC permission tier for a platform identity.
+         Determines connection provisioning (e.g., Read-Only users receive strictly
+         read-only connections).
+    sqlrpc.v1.RollbackResponse:
       type: object
       properties:
         success:
@@ -2904,8 +3106,7 @@ components:
           title: success
       title: RollbackResponse
       additionalProperties: false
-      description: '* Response indicating a transaction successfully rolled back.'
-    db.v1.SavepointAction:
+    sqlrpc.v1.SavepointAction:
       type: string
       title: SavepointAction
       enum:
@@ -2913,86 +3114,50 @@ components:
         - SAVEPOINT_ACTION_CREATE
         - SAVEPOINT_ACTION_RELEASE
         - SAVEPOINT_ACTION_ROLLBACK
-      description: "*\r\n Defines the action to take on a Savepoint (Nested Transaction)."
-    db.v1.SavepointRequest:
+    sqlrpc.v1.SavepointRequest:
       type: object
       properties:
         name:
           type: string
           title: name
-          pattern: ^[a-zA-Z0-9_-]{1,64}$
-          description: The name of the savepoint. Must be alphanumeric (plus _-).
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
         action:
           title: action
-          description: The operation to perform on this savepoint.
-          $ref: '#/components/schemas/db.v1.SavepointAction'
+          $ref: '#/components/schemas/sqlrpc.v1.SavepointAction'
       title: SavepointRequest
       additionalProperties: false
-      description: "*\r\n Request to manage a named checkpoint within an active transaction."
-    db.v1.SavepointResponse:
+      description: Structure defining the designated savepoint name and the intended action (create, release, rollback).
+    sqlrpc.v1.SavepointResponse:
       type: object
       properties:
         success:
           type: boolean
           title: success
-          description: "Indicates if the SQLite savepoint command (SAVEPOINT, RELEASE, or ROLLBACK\r\n TO) was executed successfully."
         name:
           type: string
           title: name
-          description: "The name of the savepoint that was targeted.\r\n Echoed back to allow the client to track multiple nested checkpoints."
         action:
           title: action
-          description: "The action that was performed.\r\n Echoed back to help the client correlate the response with their command."
-          $ref: '#/components/schemas/db.v1.SavepointAction'
+          $ref: '#/components/schemas/sqlrpc.v1.SavepointAction'
       title: SavepointResponse
       additionalProperties: false
-      description: "*\r\n Response indicating the outcome of a savepoint-related command.\r\n\r\n This message is returned within the TransactionResponse envelope in\r\n response to a SavepointRequest."
-    db.v1.SelectResult:
-      type: object
-      properties:
-        columns:
-          type: array
-          items:
-            type: string
-          title: columns
-          description: The names of the columns returned by the query.
-        columnAffinities:
-          type: array
-          items:
-            $ref: '#/components/schemas/db.v1.ColumnAffinity'
-          title: column_affinities
-          description: The resolved column types mapped from SQLite declarations.
-        columnDeclaredTypes:
-          type: array
-          items:
-            $ref: '#/components/schemas/db.v1.DeclaredType'
-          title: column_declared_types
-        columnRawTypes:
-          type: array
-          items:
-            type: string
-          title: column_raw_types
-        rows:
-          type: array
-          items:
-            $ref: '#/components/schemas/google.protobuf.ListValue'
-          title: rows
-          description: All rows buffered in memory.
-      title: SelectResult
-      additionalProperties: false
-      description: "*\r\n Represents the full result set of a SELECT query (used in Unary RPC)."
-    db.v1.SqlRow:
+      description: Confirms the savepoint action completed successfully.
+    sqlrpc.v1.SqlRow:
       type: object
       properties:
         values:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.SqlValue'
+            $ref: '#/components/schemas/sqlrpc.v1.SqlValue'
           title: values
       title: SqlRow
       additionalProperties: false
-      description: "*\r\n Represents a single row of SQL values.\r\n Each value corresponds positionally to a column in the result header."
-    db.v1.SqlValue:
+      description: |-
+        Represents a single row returned from a typed query.
+         Contains an ordered list of `SqlValue` objects corresponding to the selected columns.
+    sqlrpc.v1.SqlValue:
       type: object
       oneOf:
         - properties:
@@ -3000,7 +3165,6 @@ components:
               type: string
               title: blob_value
               format: byte
-              description: SQLite BLOB (arbitrary bytes). Maps to bytes directly (no base64).
           title: blob_value
           required:
             - blobValue
@@ -3011,7 +3175,6 @@ components:
                 - string
               title: integer_value
               format: int64
-              description: SQLite INTEGER (64-bit signed). Maps to int64.
           title: integer_value
           required:
             - integerValue
@@ -3019,7 +3182,6 @@ components:
             nullValue:
               type: boolean
               title: null_value
-              description: SQLite NULL. True if this value is NULL.
           title: null_value
           required:
             - nullValue
@@ -3028,7 +3190,6 @@ components:
               type: number
               title: real_value
               format: double
-              description: SQLite REAL (64-bit IEEE floating point). Maps to double.
           title: real_value
           required:
             - realValue
@@ -3036,88 +3197,88 @@ components:
             textValue:
               type: string
               title: text_value
-              description: SQLite TEXT (UTF-8 string). Maps to string.
           title: text_value
           required:
             - textValue
       title: SqlValue
       additionalProperties: false
-      description: "*\r\n Represents a single SQL value with explicit type information.\r\n This replaces the dynamic typing of google.protobuf.Value with\r\n SQLite-specific semantics."
-    db.v1.SqliteCode:
+      description: |-
+        Represents a strictly-typed SQLite value (e.g., int64, double, string, blob, null).
+         This guarantees that data is not implicitly coerced to strings during gRPC serialization,
+         preserving the native SQLite type infinity.
+    sqlrpc.v1.SqliteCode:
       type: string
       title: SqliteCode
       enum:
-        - SQLITE_CODE_OK
-        - SQLITE_CODE_ERROR
-        - SQLITE_CODE_INTERNAL
-        - SQLITE_CODE_PERM
-        - SQLITE_CODE_ABORT
-        - SQLITE_CODE_BUSY
-        - SQLITE_CODE_LOCKED
-        - SQLITE_CODE_NOMEM
-        - SQLITE_CODE_READONLY
-        - SQLITE_CODE_INTERRUPT
-        - SQLITE_CODE_IOERR
-        - SQLITE_CODE_CORRUPT
-        - SQLITE_CODE_NOTFOUND
-        - SQLITE_CODE_FULL
-        - SQLITE_CODE_CANTOPEN
-        - SQLITE_CODE_PROTOCOL
-        - SQLITE_CODE_EMPTY
-        - SQLITE_CODE_SCHEMA
-        - SQLITE_CODE_TOOBIG
-        - SQLITE_CODE_CONSTRAINT
-        - SQLITE_CODE_MISMATCH
-        - SQLITE_CODE_MISUSE
-        - SQLITE_CODE_NOLFS
-        - SQLITE_CODE_AUTH
-        - SQLITE_CODE_FORMAT
-        - SQLITE_CODE_RANGE
-        - SQLITE_CODE_NOTADB
-        - SQLITE_CODE_NOTICE
-        - SQLITE_CODE_WARNING
-        - SQLITE_CODE_ROW
-        - SQLITE_CODE_DONE
-      description: "*\r\n SqliteCode maps standard SQLite C result codes to a Proto Enum.\r\n Use this to handle specific DB errors programmatically.\r\n Reference: https://www.sqlite.org/rescode.html"
-    db.v1.TableSchema:
+        - SQLITE_OK
+        - SQLITE_ERROR
+        - SQLITE_INTERNAL
+        - SQLITE_PERM
+        - SQLITE_ABORT
+        - SQLITE_BUSY
+        - SQLITE_LOCKED
+        - SQLITE_NOMEM
+        - SQLITE_READONLY
+        - SQLITE_INTERRUPT
+        - SQLITE_IOERR
+        - SQLITE_CORRUPT
+        - SQLITE_NOTFOUND
+        - SQLITE_FULL
+        - SQLITE_CANTOPEN
+        - SQLITE_PROTOCOL
+        - SQLITE_EMPTY
+        - SQLITE_SCHEMA
+        - SQLITE_TOOBIG
+        - SQLITE_CONSTRAINT
+        - SQLITE_MISMATCH
+        - SQLITE_MISUSE
+        - SQLITE_NOLFS
+        - SQLITE_AUTH
+        - SQLITE_FORMAT
+        - SQLITE_RANGE
+        - SQLITE_NOTADB
+        - SQLITE_NOTICE
+        - SQLITE_WARNING
+        - SQLITE_ROW
+        - SQLITE_DONE
+      description: |-
+        buf:lint:ignore ENUM_VALUE_PREFIX
+         buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+    sqlrpc.v1.TableSchema:
       type: object
       properties:
         name:
           type: string
           title: name
-          description: Table name.
         sql:
           type: string
           title: sql
-          description: Original CREATE TABLE SQL statement.
         columns:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ColumnSchema'
+            $ref: '#/components/schemas/sqlrpc.v1.ColumnSchema'
           title: columns
-          description: Column definitions.
         indexes:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.IndexSchema'
+            $ref: '#/components/schemas/sqlrpc.v1.IndexSchema'
           title: indexes
-          description: Indexes on this table.
         foreignKeys:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ForeignKeySchema'
+            $ref: '#/components/schemas/sqlrpc.v1.ForeignKeySchema'
           title: foreign_keys
-          description: Foreign key constraints.
         triggers:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.TriggerSchema'
+            $ref: '#/components/schemas/sqlrpc.v1.TriggerSchema'
           title: triggers
-          description: Triggers associated with this table.
       title: TableSchema
       additionalProperties: false
-      description: "*\r\n Complete schema information for a single table."
-    db.v1.TransactionControlRequest:
+      description: |-
+        Represents the structural schema of a database table.
+         Fully delineates the SQLite table definition including its constraints.
+    sqlrpc.v1.TransactionControlRequest:
       type: object
       properties:
         transactionId:
@@ -3125,30 +3286,31 @@ components:
           title: transaction_id
           maxLength: 128
           minLength: 1
-          description: The session token to finalize.
+          description: DBaaS routed transaction identifier (bound to either RO or RW backend).
       title: TransactionControlRequest
       additionalProperties: false
-      description: "*\r\n Request to Commit or Rollback a transaction session."
-    db.v1.TransactionControlResponse:
+      description: |-
+        Payload to either commit or rollback an active transaction.
+         Concludes the multi-statement operation and returns the acquired connection back
+         to the global DBaaS LRU pool for other requests to use.
+    sqlrpc.v1.TransactionControlResponse:
       type: object
       properties:
         success:
           type: boolean
           title: success
-          description: "True if the Commit/Rollback was successful.\r\n False usually indicates the transaction ID was not found (already\r\n expired/closed)."
       title: TransactionControlResponse
       additionalProperties: false
-      description: "*\r\n Response indicating success of the control operation."
-    db.v1.TransactionMode:
+      description: Confirms the conclusion of the transaction and releases the connection.
+    sqlrpc.v1.TransactionLockMode:
       type: string
-      title: TransactionMode
+      title: TransactionLockMode
       enum:
-        - TRANSACTION_MODE_UNSPECIFIED
-        - TRANSACTION_MODE_DEFERRED
-        - TRANSACTION_MODE_IMMEDIATE
-        - TRANSACTION_MODE_EXCLUSIVE
-      description: "*\r\n TransactionMode defines the locking behavior for the start of a transaction.\r\n Choosing the right mode is crucial for SQLite to prevent \"Database Locked\"\r\n errors."
-    db.v1.TransactionQueryRequest:
+        - TRANSACTION_LOCK_MODE_UNSPECIFIED
+        - TRANSACTION_LOCK_MODE_DEFERRED
+        - TRANSACTION_LOCK_MODE_IMMEDIATE
+        - TRANSACTION_LOCK_MODE_EXCLUSIVE
+    sqlrpc.v1.TransactionQueryRequest:
       type: object
       properties:
         transactionId:
@@ -3156,52 +3318,55 @@ components:
           title: transaction_id
           maxLength: 128
           minLength: 1
-          description: "The token received from BeginTransaction.\r\n Note: No database name needed; the ID implies the database context."
+          description: DBaaS routed transaction identifier (bound to either RO or RW backend).
         sql:
           type: string
           title: sql
           maxLength: 10240
           minLength: 1
-          description: The SQL statement to execute.
         parameters:
           title: parameters
-          description: Parameters for the query.
-          $ref: '#/components/schemas/db.v1.Parameters'
+          $ref: '#/components/schemas/sqlrpc.v1.Parameters'
       title: TransactionQueryRequest
       additionalProperties: false
-      description: "*\r\n Request to execute a query within an existing transaction session."
-    db.v1.TransactionRequest:
+      description: |-
+        Payload for executing an operation within an active transaction.
+         Uses the exact LRU connection already acquired by `BeginTransaction`.
+    sqlrpc.v1.TransactionRequest:
       type: object
       oneOf:
         - properties:
             begin:
               title: begin
-              description: Starts the transaction
-              $ref: '#/components/schemas/db.v1.BeginRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.BeginRequest'
           title: begin
           required:
             - begin
         - properties:
             commit:
               title: commit
-              description: Finalizes the transaction
               $ref: '#/components/schemas/google.protobuf.Empty'
           title: commit
           required:
             - commit
         - properties:
+            exec:
+              title: exec
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionalQueryRequest'
+          title: exec
+          required:
+            - exec
+        - properties:
             query:
               title: query
-              description: "Executes a query and expects the result buffered in a single response.\r\n Use this for small lookups or DML (INSERT/UPDATE)."
-              $ref: '#/components/schemas/db.v1.TransactionalQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionalQueryRequest'
           title: query
           required:
             - query
         - properties:
             queryStream:
               title: query_stream
-              description: "Executes a query and expects the result to be streamed back in multiple\r\n TransactionResponse messages (Header -> Batch... -> Complete).\r\n Use this for large SELECTs within a transaction."
-              $ref: '#/components/schemas/db.v1.TransactionalQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TransactionalQueryRequest'
           title: query_stream
           required:
             - queryStream
@@ -3215,108 +3380,116 @@ components:
         - properties:
             savepoint:
               title: savepoint
-              description: Manages a sub-transaction (Nested Transaction) using SQLite SAVEPOINTS.
-              $ref: '#/components/schemas/db.v1.SavepointRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.SavepointRequest'
           title: savepoint
           required:
             - savepoint
         - properties:
+            typedExec:
+              title: typed_exec
+              $ref: '#/components/schemas/sqlrpc.v1.TypedTransactionalQueryRequest'
+          title: typed_exec
+          required:
+            - typedExec
+        - properties:
             typedQuery:
               title: typed_query
-              description: "Executes a typed query and expects the result buffered in a single\r\n response."
-              $ref: '#/components/schemas/db.v1.TypedTransactionalQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedTransactionalQueryRequest'
           title: typed_query
           required:
             - typedQuery
         - properties:
             typedQueryStream:
               title: typed_query_stream
-              description: Executes a typed query and expects the result to be streamed back.
-              $ref: '#/components/schemas/db.v1.TypedTransactionalQueryRequest'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedTransactionalQueryRequest'
           title: typed_query_stream
           required:
             - typedQueryStream
       title: TransactionRequest
       additionalProperties: false
-      description: "*\r\n The envelope message for a single command within a bidirectional stream.\r\n It uses a `oneof` to enforce that only one action is taken per message."
-    db.v1.TransactionResponse:
+      description: |-
+        The multiplexed payload for bidirectional transactional flows.
+         Streams subsequent queries and control operations into the active transaction.
+    sqlrpc.v1.TransactionResponse:
       type: object
       oneOf:
         - properties:
             begin:
               title: begin
-              description: Starts the transaction
-              $ref: '#/components/schemas/db.v1.BeginResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.BeginResponse'
           title: begin
           required:
             - begin
         - properties:
             commit:
               title: commit
-              description: Finalizes the transaction
-              $ref: '#/components/schemas/db.v1.CommitResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.CommitResponse'
           title: commit
           required:
             - commit
         - properties:
             error:
               title: error
-              description: "--- System Errors ---\r\n Used for failures in Begin/Commit/Rollback or protocol violations."
-              $ref: '#/components/schemas/db.v1.ErrorResponse'
+              description: '--- System Errors ---'
+              $ref: '#/components/schemas/sqlrpc.v1.ErrorResponse'
           title: error
           required:
             - error
         - properties:
+            execResult:
+              title: exec_result
+              $ref: '#/components/schemas/sqlrpc.v1.ExecResponse'
+          title: exec_result
+          required:
+            - execResult
+        - properties:
             queryResult:
               title: query_result
-              description: "Returned exactly once in response to a 'query' request.\r\n Contains the full rows and column metadata in one message."
-              $ref: '#/components/schemas/db.v1.QueryResult'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryResult'
           title: query_result
           required:
             - queryResult
         - properties:
             rollback:
               title: rollback
-              $ref: '#/components/schemas/db.v1.RollbackResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.RollbackResponse'
           title: rollback
           required:
             - rollback
         - properties:
             savepoint:
               title: savepoint
-              description: Response for a savepoint operation.
-              $ref: '#/components/schemas/db.v1.SavepointResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.SavepointResponse'
           title: savepoint
           required:
             - savepoint
         - properties:
             streamResult:
               title: stream_result
-              description: "Returned multiple times in response to a 'query_stream' request.\r\n Follows the streaming protocol (Header -> Batch... -> Complete)."
-              $ref: '#/components/schemas/db.v1.QueryResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryResponse'
           title: stream_result
           required:
             - streamResult
         - properties:
             typedQueryResult:
               title: typed_query_result
-              description: Returned exactly once in response to a 'typed_query' request.
-              $ref: '#/components/schemas/db.v1.TypedQueryResult'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedQueryResult'
           title: typed_query_result
           required:
             - typedQueryResult
         - properties:
             typedStreamResult:
               title: typed_stream_result
-              description: Returned multiple times in response to a 'typed_query_stream' request.
-              $ref: '#/components/schemas/db.v1.TypedQueryResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedQueryResponse'
           title: typed_stream_result
           required:
             - typedStreamResult
       title: TransactionResponse
       additionalProperties: false
-      description: "*\r\n The response envelope for the `Transaction` RPC.\r\n Mirrors QueryResponse but adds Transaction-specific lifecycle messages."
-    db.v1.TransactionSavepointRequest:
+      description: |-
+        The multiplexed result for bidirectional transactional flows.
+         Streams responses back to the client matching the sequence of queries.
+    sqlrpc.v1.TransactionSavepointRequest:
       type: object
       properties:
         transactionId:
@@ -3324,17 +3497,18 @@ components:
           title: transaction_id
           maxLength: 128
           minLength: 1
-          description: The token received from BeginTransaction.
+          description: DBaaS routed transaction identifier (bound to either RO or RW backend).
         savepoint:
           title: savepoint
-          description: The savepoint action and name.
-          $ref: '#/components/schemas/db.v1.SavepointRequest'
+          $ref: '#/components/schemas/sqlrpc.v1.SavepointRequest'
       title: TransactionSavepointRequest
       required:
         - savepoint
       additionalProperties: false
-      description: "*\r\n Request to perform a savepoint operation using a transaction ID."
-    db.v1.TransactionalQueryRequest:
+      description: |-
+        Payload to create, release, or rollback to a savepoint within a transaction.
+         Enables nested transactional boundaries within a wider transaction.
+    sqlrpc.v1.TransactionalQueryRequest:
       type: object
       properties:
         sql:
@@ -3342,50 +3516,48 @@ components:
           title: sql
           maxLength: 10240
           minLength: 1
-          description: SQL Statement. Max 10KB.
         parameters:
           title: parameters
-          description: Parameters definition.
-          $ref: '#/components/schemas/db.v1.Parameters'
+          $ref: '#/components/schemas/sqlrpc.v1.Parameters'
       title: TransactionalQueryRequest
       additionalProperties: false
-      description: "*\r\n A query executed within an active transaction context.\r\n Unlike `QueryRequest`, this does not specify a database name as the context\r\n is already established."
-    db.v1.TriggerSchema:
+      description: Payload representing a standard query within a multiplexed transaction.
+    sqlrpc.v1.TriggerSchema:
       type: object
       properties:
         name:
           type: string
           title: name
-          description: Trigger name.
         sql:
           type: string
           title: sql
-          description: Original CREATE TRIGGER SQL statement.
       title: TriggerSchema
       additionalProperties: false
-      description: "*\r\n Schema information for a trigger.\r\n Derived from sqlite_schema WHERE type='trigger'."
-    db.v1.TypedParameters:
+      description: |-
+        Represents a database trigger.
+         Contains the SQLite payload executed upon specific CRUD events.
+    sqlrpc.v1.TypedParameters:
       type: object
       properties:
         positional:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.SqlValue'
+            $ref: '#/components/schemas/sqlrpc.v1.SqlValue'
           title: positional
           maxItems: 1000
-          description: 'Positional parameters (bound by index: ?1, ?2, ...).'
         named:
           type: object
           title: named
           maxProperties: 1000
           additionalProperties:
             title: value
-            $ref: '#/components/schemas/db.v1.SqlValue'
-          description: "Named parameters (bound by name: :id, @user, $name).\r\n Key is the parameter name WITHOUT the prefix (e.g., \"id\" for \":id\")."
+            $ref: '#/components/schemas/sqlrpc.v1.SqlValue'
       title: TypedParameters
       additionalProperties: false
-      description: "*\r\n Typed parameters for query binding.\r\n Unlike Parameters, these use SqlValue for explicit typing (no hints needed)."
-    db.v1.TypedParameters.NamedEntry:
+      description: |-
+        Payload for securely passing strictly-typed parameters into SQL queries.
+         Supports both positional and named binds, ensuring type safety without requiring explicit SQLite hints.
+    sqlrpc.v1.TypedParameters.NamedEntry:
       type: object
       properties:
         key:
@@ -3393,106 +3565,69 @@ components:
           title: key
         value:
           title: value
-          $ref: '#/components/schemas/db.v1.SqlValue'
+          $ref: '#/components/schemas/sqlrpc.v1.SqlValue'
       title: NamedEntry
       additionalProperties: false
-    db.v1.TypedQueryRequest:
+    sqlrpc.v1.TypedQueryRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: Database name. Must be alphanumeric (plus _-), 3-64 chars.
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         sql:
           type: string
           title: sql
           maxLength: 10240
           minLength: 1
-          description: SQL Statement. Max 10KB.
-        type:
-          title: type
-          description: Optional hint to optimize connection routing.
-          $ref: '#/components/schemas/db.v1.QueryType'
         parameters:
           title: parameters
-          description: Typed parameters (no hints required).
-          $ref: '#/components/schemas/db.v1.TypedParameters'
+          $ref: '#/components/schemas/sqlrpc.v1.TypedParameters'
       title: TypedQueryRequest
       additionalProperties: false
-      description: "*\r\n A request for the stateless `TypedQuery` and `TypedQueryStream` RPCs."
-    db.v1.TypedQueryResponse:
+      description: |-
+        Payload to execute a SQL statement taking strictly-typed protobuf values.
+         Protects against injection while ensuring data types remain intact across the wire.
+    sqlrpc.v1.TypedQueryResponse:
       type: object
       oneOf:
         - properties:
             batch:
               title: batch
-              description: Sent repeatedly containing chunks of typed rows.
-              $ref: '#/components/schemas/db.v1.TypedQueryResultRowBatch'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedQueryResultRowBatch'
           title: batch
           required:
             - batch
         - properties:
             complete:
               title: complete
-              description: Sent once when the query successfully finishes.
-              $ref: '#/components/schemas/db.v1.QueryComplete'
+              $ref: '#/components/schemas/sqlrpc.v1.QueryComplete'
           title: complete
           required:
             - complete
         - properties:
-            dml:
-              title: dml
-              description: Sent if the query was an INSERT/UPDATE/DELETE.
-              $ref: '#/components/schemas/db.v1.DMLResult'
-          title: dml
-          required:
-            - dml
-        - properties:
             error:
               title: error
-              description: Sent if an error occurs mid-stream.
-              $ref: '#/components/schemas/db.v1.ErrorResponse'
+              $ref: '#/components/schemas/sqlrpc.v1.ErrorResponse'
           title: error
           required:
             - error
         - properties:
             header:
               title: header
-              description: Sent once at the start to define columns.
-              $ref: '#/components/schemas/db.v1.TypedQueryResultHeader'
+              $ref: '#/components/schemas/sqlrpc.v1.TypedQueryResultHeader'
           title: header
           required:
             - header
       title: TypedQueryResponse
       additionalProperties: false
-      description: "*\r\n The response envelope for typed streaming RPCs.\r\n Stream protocol: [TypedHeader] -> [TypedBatch]* -> [Complete]."
-    db.v1.TypedQueryResult:
-      type: object
-      allOf:
-        - properties:
-            stats:
-              title: stats
-              $ref: '#/components/schemas/db.v1.ExecutionStats'
-        - oneOf:
-            - properties:
-                dml:
-                  title: dml
-                  $ref: '#/components/schemas/db.v1.DMLResult'
-              title: dml
-              required:
-                - dml
-            - properties:
-                select:
-                  title: select
-                  $ref: '#/components/schemas/db.v1.TypedSelectResult'
-              title: select
-              required:
-                - select
-      title: TypedQueryResult
-      additionalProperties: false
-      description: "*\r\n The response for typed unary RPCs (`TypedQuery`, `TypedTransactionQuery`)."
-    db.v1.TypedQueryResultHeader:
+      description: |-
+        The multiplexed streaming response yielding chunks of strictly-typed values.
+         May contain headers, batches of rows, completion stats, or errors.
+    sqlrpc.v1.TypedQueryResult:
       type: object
       properties:
         columns:
@@ -3503,12 +3638,48 @@ components:
         columnAffinities:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.ColumnAffinity'
+            $ref: '#/components/schemas/sqlrpc.v1.ColumnAffinity'
           title: column_affinities
         columnDeclaredTypes:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.DeclaredType'
+            $ref: '#/components/schemas/sqlrpc.v1.DeclaredType'
+          title: column_declared_types
+        columnRawTypes:
+          type: array
+          items:
+            type: string
+          title: column_raw_types
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.SqlRow'
+          title: rows
+        stats:
+          title: stats
+          $ref: '#/components/schemas/sqlrpc.v1.ExecutionStats'
+      title: TypedQueryResult
+      additionalProperties: false
+      description: |-
+        The unified wrapper containing strictly-typed read results and execution statistics.
+         Provides the column metadata alongside the `SqlRow` objects.
+    sqlrpc.v1.TypedQueryResultHeader:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+          title: columns
+        columnAffinities:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.ColumnAffinity'
+          title: column_affinities
+        columnDeclaredTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.DeclaredType'
           title: column_declared_types
         columnRawTypes:
           type: array
@@ -3517,55 +3688,23 @@ components:
           title: column_raw_types
       title: TypedQueryResultHeader
       additionalProperties: false
-      description: "*\r\n Metadata about the columns in a typed result set (Streaming).\r\n Sent as the first message in a typed read stream."
-    db.v1.TypedQueryResultRowBatch:
+      description: |-
+        The initial streaming response containing column metadata and structural schemas.
+         Sent once at the start of a `TypedQueryStream` before any row batches.
+    sqlrpc.v1.TypedQueryResultRowBatch:
       type: object
       properties:
         rows:
           type: array
           items:
-            $ref: '#/components/schemas/db.v1.SqlRow'
+            $ref: '#/components/schemas/sqlrpc.v1.SqlRow'
           title: rows
       title: TypedQueryResultRowBatch
       additionalProperties: false
-      description: "*\r\n A batch of typed rows in a streaming response."
-    db.v1.TypedSelectResult:
-      type: object
-      properties:
-        columns:
-          type: array
-          items:
-            type: string
-          title: columns
-          description: The names of the columns returned by the query.
-        columnAffinities:
-          type: array
-          items:
-            $ref: '#/components/schemas/db.v1.ColumnAffinity'
-          title: column_affinities
-          description: The resolved column affinities.
-        columnDeclaredTypes:
-          type: array
-          items:
-            $ref: '#/components/schemas/db.v1.DeclaredType'
-          title: column_declared_types
-          description: The declared types as specified in the schema.
-        columnRawTypes:
-          type: array
-          items:
-            type: string
-          title: column_raw_types
-          description: The raw type strings from the schema.
-        rows:
-          type: array
-          items:
-            $ref: '#/components/schemas/db.v1.SqlRow'
-          title: rows
-          description: All rows with strongly-typed values.
-      title: TypedSelectResult
-      additionalProperties: false
-      description: "*\r\n Represents the full result set of a SELECT query with typed values."
-    db.v1.TypedTransactionQueryRequest:
+      description: |-
+        A chunk of strictly-typed rows in a streaming response.
+         Reduces memory overhead by yielding results in constrained batches.
+    sqlrpc.v1.TypedTransactionQueryRequest:
       type: object
       properties:
         transactionId:
@@ -3573,21 +3712,21 @@ components:
           title: transaction_id
           maxLength: 128
           minLength: 1
-          description: The token received from BeginTransaction.
+          description: DBaaS routed transaction identifier (bound to either RO or RW backend).
         sql:
           type: string
           title: sql
           maxLength: 10240
           minLength: 1
-          description: The SQL statement to execute.
         parameters:
           title: parameters
-          description: Typed parameters for the query.
-          $ref: '#/components/schemas/db.v1.TypedParameters'
+          $ref: '#/components/schemas/sqlrpc.v1.TypedParameters'
       title: TypedTransactionQueryRequest
       additionalProperties: false
-      description: "*\r\n Request to execute a typed query within an existing transaction session."
-    db.v1.TypedTransactionalQueryRequest:
+      description: |-
+        Payload representing a typed query within a multiplexed transaction.
+         Runs under the active LRU connection bound to the transaction ID.
+    sqlrpc.v1.TypedTransactionalQueryRequest:
       type: object
       properties:
         sql:
@@ -3595,24 +3734,29 @@ components:
           title: sql
           maxLength: 10240
           minLength: 1
-          description: SQL Statement. Max 10KB.
         parameters:
           title: parameters
-          description: Typed parameters definition.
-          $ref: '#/components/schemas/db.v1.TypedParameters'
+          $ref: '#/components/schemas/sqlrpc.v1.TypedParameters'
       title: TypedTransactionalQueryRequest
       additionalProperties: false
-      description: "*\r\n A typed query executed within an active transaction context (streaming)."
-    db.v1.UnMountDatabaseRequest:
+      description: |-
+        Payload representing a typed query within a multiplexed DBaaS transaction.
+         Does not need a database target since the connection is already active.
+    sqlrpc.v1.UnMountDatabaseRequest:
       type: object
       properties:
         name:
           type: string
           title: name
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
       title: UnMountDatabaseRequest
       additionalProperties: false
-    db.v1.UnMountDatabaseResponse:
+      description: |-
+        Payload to unmount and remove a database from the DBaaS control plane without deleting the file.
+         Closes all pooled connections and unregisters the routing mapping.
+    sqlrpc.v1.UnMountDatabaseResponse:
       type: object
       properties:
         success:
@@ -3623,7 +3767,8 @@ components:
           title: message
       title: UnMountDatabaseResponse
       additionalProperties: false
-    db.v1.UpdateDatabaseConfig:
+      description: Confirms the successful unmount.
+    sqlrpc.v1.UpdateDatabaseConfig:
       type: object
       properties:
         readOnly:
@@ -3633,10 +3778,10 @@ components:
           title: read_only
         extensions:
           title: extensions
-          $ref: '#/components/schemas/db.v1.ExtensionList'
+          $ref: '#/components/schemas/sqlrpc.v1.ExtensionList'
         pragmas:
           title: pragmas
-          $ref: '#/components/schemas/db.v1.PragmaMap'
+          $ref: '#/components/schemas/sqlrpc.v1.PragmaMap'
         maxOpenConns:
           type:
             - integer
@@ -3657,30 +3802,33 @@ components:
           format: int32
         initCommands:
           title: init_commands
-          $ref: '#/components/schemas/db.v1.InitCommandList'
+          $ref: '#/components/schemas/sqlrpc.v1.InitCommandList'
         attachments:
           title: attachments
-          description: Optional list of attachments to update.
-          $ref: '#/components/schemas/db.v1.AttachmentList'
+          $ref: '#/components/schemas/sqlrpc.v1.AttachmentList'
       title: UpdateDatabaseConfig
       additionalProperties: false
-      description: "*\r\n Configuration fields that can be updated at runtime.\r\n Immutable fields: name, db_path, is_encrypted, key."
-    db.v1.UpdateDatabaseRequest:
+      description: |-
+        Settings allowed to be updated on an existing database.
+         Can modify read-only status, pragmas, extensions, and attachment configurations on the fly.
+    sqlrpc.v1.UpdateDatabaseRequest:
       type: object
       properties:
         name:
           type: string
           title: name
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
-          description: The name of the database to update.
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
         config:
           title: config
-          description: The new configuration settings.
-          $ref: '#/components/schemas/db.v1.UpdateDatabaseConfig'
+          $ref: '#/components/schemas/sqlrpc.v1.UpdateDatabaseConfig'
       title: UpdateDatabaseRequest
       additionalProperties: false
-      description: "*\r\n Request to update an existing database configuration."
-    db.v1.UpdateDatabaseResponse:
+      description: |-
+        Payload to apply configuration updates to a database.
+         Changes take effect for new connections spun up in the global LRU pool.
+    sqlrpc.v1.UpdateDatabaseResponse:
       type: object
       properties:
         success:
@@ -3691,7 +3839,8 @@ components:
           title: message
       title: UpdateDatabaseResponse
       additionalProperties: false
-    db.v1.UpdatePasswordRequest:
+      description: Confirms the successful configuration update.
+    sqlrpc.v1.UpdatePasswordRequest:
       type: object
       properties:
         username:
@@ -3709,8 +3858,10 @@ components:
             password_complexity // Password must contain at least one letter and one number
       title: UpdatePasswordRequest
       additionalProperties: false
-      description: "*\r\n Request to update a user's password."
-    db.v1.UpdatePasswordResponse:
+      description: |-
+        Payload to rotate a user's password.
+         Can be performed by the user themselves or by a platform administrator.
+    sqlrpc.v1.UpdatePasswordResponse:
       type: object
       properties:
         success:
@@ -3718,8 +3869,10 @@ components:
           title: success
       title: UpdatePasswordResponse
       additionalProperties: false
-      description: "*\r\n Response indicating the success of the password update."
-    db.v1.UpdateUserRoleRequest:
+      description: |-
+        Confirms the successful password update.
+         Invalidates previous sessions if configured.
+    sqlrpc.v1.UpdateUserRoleRequest:
       type: object
       properties:
         username:
@@ -3729,11 +3882,10 @@ components:
           minLength: 1
         role:
           title: role
-          $ref: '#/components/schemas/db.v1.Role'
+          $ref: '#/components/schemas/sqlrpc.v1.Role'
       title: UpdateUserRoleRequest
       additionalProperties: false
-      description: "*\r\n Request to update a user's role."
-    db.v1.UpdateUserRoleResponse:
+    sqlrpc.v1.UpdateUserRoleResponse:
       type: object
       properties:
         success:
@@ -3741,8 +3893,7 @@ components:
           title: success
       title: UpdateUserRoleResponse
       additionalProperties: false
-      description: "*\r\n Response indicating success of role update."
-    db.v1.User:
+    sqlrpc.v1.User:
       type: object
       properties:
         id:
@@ -3756,26 +3907,30 @@ components:
           title: username
         role:
           title: role
-          $ref: '#/components/schemas/db.v1.Role'
+          $ref: '#/components/schemas/sqlrpc.v1.Role'
       title: User
       additionalProperties: false
-      description: "*\r\n Basic user information."
-    db.v1.VacuumRequest:
+    sqlrpc.v1.VacuumRequest:
       type: object
       properties:
         database:
           type: string
           title: database
-          pattern: ^[a-zA-Z0-9_-]{3,64}$
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+          description: Tenant target identifier for DBaaS connection routing.
         intoFile:
           type:
             - string
             - "null"
           title: into_file
-          description: "Optional: If set, performs VACUUM INTO 'into_file'.\r\n Relative/Absolute path handling depends on server configuration."
       title: VacuumRequest
       additionalProperties: false
-    db.v1.VacuumResponse:
+      description: |-
+        Request to run the VACUUM command to rebuild the database file and reclaim space.
+         Can optionally vacuum into a new target file to reduce downtime.
+    sqlrpc.v1.VacuumResponse:
       type: object
       properties:
         success:
@@ -3786,6 +3941,7 @@ components:
           title: message
       title: VacuumResponse
       additionalProperties: false
+      description: Confirms the VACUUM operation completion and returns space reclaimed metrics.
     google.protobuf.Duration:
       type: string
       format: duration
@@ -4020,7 +4176,15 @@ components:
 
          The JSON representation for `Value` is JSON value.
 tags:
-  - name: db.v1.DatabaseService
+  - name: sqlrpc.v1.DatabaseService
     description: Database operations including queries and transactions
-  - name: db.v1.AdminService
+      buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+       buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+       buf:lint:ignore RPC_RESPONSE_STANDARD_NAME --- Stateless Operations ---
+  - name: sqlrpc.v1.AdminService
     description: Administrative operations for user management and system configuration
+      *
+       AdminService provides the control plane for the DBaaS platform.
+       This service manages tenant provisioning, user roles, API keys, and cluster
+       infrastructure lifecycle. Only platform administrators can access these
+       endpoints. --- User Management ---

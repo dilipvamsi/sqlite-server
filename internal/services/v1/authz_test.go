@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"sqlite-server/internal/auth"
-	dbv1 "sqlite-server/internal/protos/db/v1"
+	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,7 @@ func TestAuthorizeRead(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "guest",
-			Role:     dbv1.Role_ROLE_UNSPECIFIED,
+			Role:     sqlrpcv1.Role_ROLE_UNSPECIFIED,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -35,7 +35,7 @@ func TestAuthorizeRead(t *testing.T) {
 	t.Run("read_only user is allowed", func(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID: 2,
-			Role:   dbv1.Role_ROLE_READ_ONLY,
+			Role:   sqlrpcv1.Role_ROLE_READ_ONLY,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 		assert.NoError(t, AuthorizeRead(ctx))
@@ -44,7 +44,7 @@ func TestAuthorizeRead(t *testing.T) {
 	t.Run("admin user is allowed", func(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID: 3,
-			Role:   dbv1.Role_ROLE_ADMIN,
+			Role:   sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 		assert.NoError(t, AuthorizeRead(ctx))
@@ -63,7 +63,7 @@ func TestAuthorizeWrite(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "readonly_user",
-			Role:     dbv1.Role_ROLE_READ_ONLY,
+			Role:     sqlrpcv1.Role_ROLE_READ_ONLY,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -76,7 +76,7 @@ func TestAuthorizeWrite(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   2,
 			Username: "rw_user",
-			Role:     dbv1.Role_ROLE_READ_WRITE,
+			Role:     sqlrpcv1.Role_ROLE_READ_WRITE,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -88,7 +88,7 @@ func TestAuthorizeWrite(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   3,
 			Username: "admin",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -100,7 +100,7 @@ func TestAuthorizeWrite(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   4,
 			Username: "db_manager",
-			Role:     dbv1.Role_ROLE_DATABASE_MANAGER,
+			Role:     sqlrpcv1.Role_ROLE_DATABASE_MANAGER,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -121,7 +121,7 @@ func TestAuthorizeAdmin(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "normal_user",
-			Role:     dbv1.Role_ROLE_READ_WRITE,
+			Role:     sqlrpcv1.Role_ROLE_READ_WRITE,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -134,7 +134,7 @@ func TestAuthorizeAdmin(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "admin",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -146,7 +146,7 @@ func TestAuthorizeAdmin(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "db_manager",
-			Role:     dbv1.Role_ROLE_DATABASE_MANAGER,
+			Role:     sqlrpcv1.Role_ROLE_DATABASE_MANAGER,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -168,7 +168,7 @@ func TestAuthorizeDatabaseManager(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "normal_user",
-			Role:     dbv1.Role_ROLE_READ_WRITE,
+			Role:     sqlrpcv1.Role_ROLE_READ_WRITE,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -181,7 +181,7 @@ func TestAuthorizeDatabaseManager(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "db_manager",
-			Role:     dbv1.Role_ROLE_DATABASE_MANAGER,
+			Role:     sqlrpcv1.Role_ROLE_DATABASE_MANAGER,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
@@ -193,7 +193,7 @@ func TestAuthorizeDatabaseManager(t *testing.T) {
 		claims := &auth.UserClaims{
 			UserID:   1,
 			Username: "admin",
-			Role:     dbv1.Role_ROLE_ADMIN,
+			Role:     sqlrpcv1.Role_ROLE_ADMIN,
 		}
 		ctx := auth.NewContext(context.Background(), claims)
 
