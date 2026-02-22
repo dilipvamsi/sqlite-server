@@ -139,14 +139,6 @@ func (s *DbServer) QueryStream(ctx context.Context, req *connect.Request[sqlrpcv
 		return err
 	}
 
-	// 3. Authorization Check
-	isWrite := IsWriteQuery(req.Msg.Sql)
-	if isWrite {
-		if err := AuthorizeWrite(ctx); err != nil {
-			return connect.NewError(connect.CodePermissionDenied, err)
-		}
-	}
-
 	reqMsg := req.Msg
 
 	mode := ModeRW
@@ -263,14 +255,6 @@ func (s *DbServer) TypedQueryStream(ctx context.Context, req *connect.Request[sq
 	}
 	if err := ValidateStatelessQuery(req.Msg.Sql); err != nil {
 		return err
-	}
-
-	// 3. Authorization Check
-	isWrite := IsWriteQuery(req.Msg.Sql)
-	if isWrite {
-		if err := AuthorizeWrite(ctx); err != nil {
-			return connect.NewError(connect.CodePermissionDenied, err)
-		}
 	}
 
 	msg := req.Msg

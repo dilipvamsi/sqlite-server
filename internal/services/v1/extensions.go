@@ -64,13 +64,7 @@ func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[sqlrp
 	dbName := req.Msg.Database
 	folderName := req.Msg.FolderName
 
-	// 1. Authorization: User said RO can also load.
-	// We'll just ensure they have at least READ access.
-	if err := AuthorizeRead(ctx); err != nil {
-		return nil, err
-	}
-
-	// 2. Find the extension
+	// 1. Find the extension
 	available, err := extensions.GetAvailableExtensions()
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to scan extensions: %w", err))
@@ -88,7 +82,7 @@ func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[sqlrp
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("extension folder '%s' not found or incompatible", folderName))
 	}
 
-	// 3. Update database config
+	// 2. Update database config
 	existingAuthConfig, err := s.store.GetDatabaseConfig(ctx, dbName)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -102,7 +96,7 @@ func (s *DbServer) LoadExtension(ctx context.Context, req *connect.Request[sqlrp
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse config: %w", err))
 	}
 
-	// Check if already loaded
+	// 3. Check if already loaded
 	for _, storedFolderName := range currentConfig.Extensions {
 		if storedFolderName == targetExt.FolderName {
 			return connect.NewResponse(&sqlrpcv1.LoadExtensionResponse{

@@ -47,10 +47,6 @@ func (s *AdminServer) CreateUser(ctx context.Context, req *connect.Request[sqlrp
 	}
 
 	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
-		return nil, err
-	}
-
 	userID, err := s.store.CreateUser(ctx, req.Msg.Username, req.Msg.Password, req.Msg.Role)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -75,10 +71,6 @@ func (s *AdminServer) ListUsers(ctx context.Context, req *connect.Request[sqlrpc
 	}
 
 	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
-		return nil, err
-	}
-
 	users, err := s.store.ListUsers(ctx)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -105,10 +97,6 @@ func (s *AdminServer) UpdateUserRole(ctx context.Context, req *connect.Request[s
 	}
 
 	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
-		return nil, err
-	}
-
 	// Prevent demoting self if only one admin? (Optional enhancement, but let's stick to basic for now)
 	// We should prevent modifying own role to lock oneself out, but let's see.
 
@@ -133,10 +121,6 @@ func (s *AdminServer) UpdatePassword(ctx context.Context, req *connect.Request[s
 	}
 
 	// Allow if admin OR if updating own password
-	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
-		return nil, err
-	}
-
 	err := s.store.UpdatePassword(ctx, req.Msg.Username, req.Msg.NewPassword)
 	if err != nil {
 		if strings.Contains(err.Error(), "user not found") {
@@ -157,10 +141,6 @@ func (s *AdminServer) DeleteUser(ctx context.Context, req *connect.Request[sqlrp
 	}
 
 	// Verify admin role
-	if err := AuthorizeAdmin(ctx); err != nil {
-		return nil, err
-	}
-
 	// 1. Prevent root admin deletion
 	if req.Msg.Username == "admin" {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("cannot delete the root admin user"))
@@ -241,10 +221,6 @@ func (s *AdminServer) CreateAPIKey(ctx context.Context, req *connect.Request[sql
 	}
 
 	// Allow if admin OR if creating key for self
-	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
-		return nil, err
-	}
-
 	// Look up user by username
 	user, err := s.store.GetUserByUsername(ctx, req.Msg.Username)
 	if err != nil {
@@ -272,10 +248,6 @@ func (s *AdminServer) ListAPIKeys(ctx context.Context, req *connect.Request[sqlr
 	}
 
 	// Allow if admin OR if listing own keys
-	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
-		return nil, err
-	}
-
 	// Look up user by username
 	user, err := s.store.GetUserByUsername(ctx, req.Msg.Username)
 	if err != nil {
@@ -312,10 +284,6 @@ func (s *AdminServer) DeleteAPIKey(ctx context.Context, req *connect.Request[sql
 	}
 
 	// Verify admin role or self-revocation
-	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
-		return nil, err
-	}
-
 	keyID := req.Msg.KeyId
 
 	// 1. Revoke the key
@@ -368,10 +336,6 @@ func (s *AdminServer) ListDatabases(ctx context.Context, req *connect.Request[sq
 // CreateDatabase creates a new managed database
 func (s *AdminServer) CreateDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.CreateDatabaseRequest]) (*connect.Response[sqlrpcv1.CreateDatabaseResponse], error) {
 	// Verify Admin or Database Manager Role
-	if err := AuthorizeDatabaseManager(ctx); err != nil {
-		return nil, err
-	}
-
 	name := req.Msg.Name
 	dbPath := filepath.Join("databases", name+".db")
 
@@ -442,10 +406,6 @@ func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[sq
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("authentication is disabled on this server"))
 	}
 
-	if err := AuthorizeAdmin(ctx); err != nil {
-		return nil, err
-	}
-
 	name := req.Msg.Name
 	path := req.Msg.Path
 
@@ -494,10 +454,6 @@ func (s *AdminServer) MountDatabase(ctx context.Context, req *connect.Request[sq
 
 // UnMountDatabase unmounts a database but keeps the file
 func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.UnMountDatabaseRequest]) (*connect.Response[sqlrpcv1.UnMountDatabaseResponse], error) {
-	if err := AuthorizeDatabaseManager(ctx); err != nil {
-		return nil, err
-	}
-
 	name := req.Msg.Name
 
 	// 1. Unmount from server
@@ -522,10 +478,6 @@ func (s *AdminServer) UnMountDatabase(ctx context.Context, req *connect.Request[
 
 // DeleteDatabase deletes a managed database permanently
 func (s *AdminServer) DeleteDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.DeleteDatabaseRequest]) (*connect.Response[sqlrpcv1.DeleteDatabaseResponse], error) {
-	if err := AuthorizeDatabaseManager(ctx); err != nil {
-		return nil, err
-	}
-
 	name := req.Msg.Name
 
 	// 1. Check if managed
@@ -614,10 +566,6 @@ func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[sqlrpcv1.
 
 	// If not admin, they can only logout their own session key.
 	// We authorize the username in the request body.
-	if err := AuthorizeUser(ctx, req.Msg.Username); err != nil {
-		return nil, err
-	}
-
 	// 2. Revoke the key
 	if err := s.store.RevokeApiKey(ctx, req.Msg.KeyId, req.Msg.Username); err != nil {
 		// Even if not found, we return success for idempotency security
@@ -634,10 +582,6 @@ func (s *AdminServer) Logout(ctx context.Context, req *connect.Request[sqlrpcv1.
 
 // UpdateDatabase updates an existing database configuration
 func (s *AdminServer) UpdateDatabase(ctx context.Context, req *connect.Request[sqlrpcv1.UpdateDatabaseRequest]) (*connect.Response[sqlrpcv1.UpdateDatabaseResponse], error) {
-	if err := AuthorizeDatabaseManager(ctx); err != nil {
-		return nil, err
-	}
-
 	name := req.Msg.Name
 	updates := req.Msg.Config
 
