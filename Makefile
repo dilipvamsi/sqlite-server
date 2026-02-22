@@ -313,6 +313,12 @@ load-test-basic: $(BASIC_BENCH_BINS) ## Run Basic Auth benchmark clients (uses a
 	@LOADTEST_USERNAME=admin LOADTEST_PASSWORD=admin $(BUILD_DIR)/tests-basic/read-write-db$(EXT)
 	@LOADTEST_USERNAME=admin LOADTEST_PASSWORD=admin $(BUILD_DIR)/tests-basic/read-write-stream-db$(EXT)
 	@echo "🏁 Basic Auth benchmarks finished."
+
+.PHONY: test-hurl
+test-hurl: ## Run automated Hurl integration tests
+	@echo "🧪 Running automated Hurl tests..."
+	@hurl --variables-file tests/hurl/vars.env tests/hurl/*.hurl --test --jobs 1
+	@echo "✅ Hurl tests passed."
 # ==============================================================================
 # Helpers
 # ==============================================================================

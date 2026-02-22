@@ -1,3 +1,6 @@
+# thirdparty download cache
+thirdparty/
+
 # Coverage
 coverage.html
 coverage.out
