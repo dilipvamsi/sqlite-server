@@ -19,8 +19,7 @@ import (
 // - Dual Pools (ReadWrite vs ReadOnly)
 // - Graceful Shutdown
 type DbManager struct {
-	configs   map[string]*sqlrpcv1.DatabaseConfig
-	muConfigs sync.RWMutex
+	configs sync.Map // stores map[string]*sqlrpcv1.DatabaseConfig
 
 	// cacheRW for Read-Write connections (sync.Map for high concurrency)
 	cacheRW sync.Map
@@ -50,14 +49,13 @@ const (
 // NewDbManager creates a new manager and optionally validates all configs.
 func NewDbManager(configs []*sqlrpcv1.DatabaseConfig) *DbManager {
 	mgr := &DbManager{
-		configs: make(map[string]*sqlrpcv1.DatabaseConfig),
 		// sync.Map zero value is valid, no make() needed
 		ttl:        10 * time.Minute, // Default TTL
 		shutdownCh: make(chan struct{}),
 	}
 
 	for _, cfg := range configs {
-		mgr.configs[cfg.Name] = cfg
+		mgr.configs.Store(cfg.Name, cfg)
 	}
 
 	// Validate Access on Startup (Transient check)
@@ -114,86 +112,64 @@ func (m *DbManager) CloseAll() {
 	}
 }
 
+// HasDatabase returns true if the database name is registered.
+func (m *DbManager) HasDatabase(name string) bool {
+	_, exists := m.configs.Load(name)
+	return exists
+}
+
 // Mount adds a new database configuration.
 func (m *DbManager) Mount(config *sqlrpcv1.DatabaseConfig) error {
-	m.muConfigs.RLock()
-	if _, exists := m.configs[config.Name]; exists {
-		m.muConfigs.RUnlock()
-		return fmt.Errorf("database '%s' already mounted", config.Name)
-	}
-	m.muConfigs.RUnlock()
-
-	// 1. Validate before locking muConfigs (Ping can block)
+	// 1. Validate before storing (Ping can block)
 	if err := m.validateConnection(config); err != nil {
 		return err
 	}
 
-	m.muConfigs.Lock()
-	defer m.muConfigs.Unlock()
-
-	// Re-check existence
-	if _, exists := m.configs[config.Name]; exists {
+	// 2. Atomic LoadOrStore
+	if _, loaded := m.configs.LoadOrStore(config.Name, config); loaded {
 		return fmt.Errorf("database '%s' already mounted", config.Name)
 	}
 
-	m.configs[config.Name] = config
 	return nil
 }
 
 // UpdateDatabase updates an existing database configuration and invalidates cached connections.
 func (m *DbManager) UpdateDatabase(config *sqlrpcv1.DatabaseConfig) error {
-	m.muConfigs.Lock()
-	if _, exists := m.configs[config.Name]; !exists {
-		m.muConfigs.Unlock()
+	// Use Load to check existence first
+	if _, ok := m.configs.Load(config.Name); !ok {
 		return fmt.Errorf("database '%s' not found", config.Name)
 	}
 
-	// Persist the update
-	m.configs[config.Name] = config
-	m.muConfigs.Unlock()
-
-	// Invalidate Cache to force reload on next access
+	m.configs.Store(config.Name, config)
 	m.invalidateCache(config.Name)
-
 	return nil
 }
 
 // Unmount removes a database configuration and closes active connections.
 func (m *DbManager) Unmount(name string) error {
-	m.muConfigs.Lock()
-	if _, exists := m.configs[name]; !exists {
-		m.muConfigs.Unlock()
+	if _, ok := m.configs.LoadAndDelete(name); !ok {
 		return fmt.Errorf("database '%s' not found", name)
 	}
-	delete(m.configs, name)
-	m.muConfigs.Unlock()
-
-	// Remove connections from cache
 	m.invalidateCache(name)
-
 	return nil
 }
 
-// AttachDatabase adds a new attached database to an existing primary database.
+// AttachDatabase adds a new attached database using Copy-on-Write.
 func (m *DbManager) AttachDatabase(parentName string, attachment *sqlrpcv1.Attachment) error {
-	m.muConfigs.Lock()
-	config, ok := m.configs[parentName]
+	val, ok := m.configs.Load(parentName)
 	if !ok {
-		m.muConfigs.Unlock()
 		return fmt.Errorf("database '%s' not found", parentName)
 	}
+	config := val.(*sqlrpcv1.DatabaseConfig)
 
 	// Verify target database exists
-	_, targetExists := m.configs[attachment.TargetDatabaseName]
-	if !targetExists {
-		m.muConfigs.Unlock()
+	if _, ok := m.configs.Load(attachment.TargetDatabaseName); !ok {
 		return fmt.Errorf("target database '%s' not found", attachment.TargetDatabaseName)
 	}
 
 	// Check if alias already exists
 	for _, existing := range config.Attachments {
 		if existing.Alias == attachment.Alias {
-			m.muConfigs.Unlock()
 			if existing.TargetDatabaseName == attachment.TargetDatabaseName {
 				return nil
 			}
@@ -201,23 +177,37 @@ func (m *DbManager) AttachDatabase(parentName string, attachment *sqlrpcv1.Attac
 		}
 	}
 
-	config.Attachments = append(config.Attachments, attachment)
-	m.muConfigs.Unlock()
+	// Copy-on-Write: Clone original config and update it
+	// (Prevents mutating the original config which might be shared)
+	newConfig := &sqlrpcv1.DatabaseConfig{
+		Name:              config.Name,
+		DbPath:            config.DbPath,
+		Key:               config.Key,
+		IsEncrypted:       config.IsEncrypted,
+		ReadOnly:          config.ReadOnly,
+		Extensions:        config.Extensions,
+		InitCommands:      config.InitCommands,
+		Pragmas:           config.Pragmas,
+		MaxOpenConns:      config.MaxOpenConns,
+		MaxIdleConns:      config.MaxIdleConns,
+		ConnMaxLifetimeMs: config.ConnMaxLifetimeMs,
+		Attachments:       append([]*sqlrpcv1.Attachment{}, config.Attachments...),
+	}
+	newConfig.Attachments = append(newConfig.Attachments, attachment)
 
-	// Invalidate Cache to force reload (ATTACH happens at connection start)
+	m.configs.Store(parentName, newConfig)
 	m.invalidateCache(parentName)
 
 	return nil
 }
 
-// DetachDatabase removes an attached database from a primary database by its alias.
+// DetachDatabase removes an attached database using Copy-on-Write.
 func (m *DbManager) DetachDatabase(parentName string, alias string) error {
-	m.muConfigs.Lock()
-	config, ok := m.configs[parentName]
+	val, ok := m.configs.Load(parentName)
 	if !ok {
-		m.muConfigs.Unlock()
 		return fmt.Errorf("database '%s' not found", parentName)
 	}
+	config := val.(*sqlrpcv1.DatabaseConfig)
 
 	found := false
 	newAttachments := make([]*sqlrpcv1.Attachment, 0, len(config.Attachments))
@@ -230,14 +220,26 @@ func (m *DbManager) DetachDatabase(parentName string, alias string) error {
 	}
 
 	if !found {
-		m.muConfigs.Unlock()
 		return fmt.Errorf("attachment alias '%s' not found for database '%s'", alias, parentName)
 	}
 
-	config.Attachments = newAttachments
-	m.muConfigs.Unlock()
+	// Copy-on-Write: Clone original config and update it
+	newConfig := &sqlrpcv1.DatabaseConfig{
+		Name:              config.Name,
+		DbPath:            config.DbPath,
+		Key:               config.Key,
+		IsEncrypted:       config.IsEncrypted,
+		ReadOnly:          config.ReadOnly,
+		Extensions:        config.Extensions,
+		InitCommands:      config.InitCommands,
+		Pragmas:           config.Pragmas,
+		MaxOpenConns:      config.MaxOpenConns,
+		MaxIdleConns:      config.MaxIdleConns,
+		ConnMaxLifetimeMs: config.ConnMaxLifetimeMs,
+		Attachments:       newAttachments,
+	}
 
-	// Invalidate Cache
+	m.configs.Store(parentName, newConfig)
 	m.invalidateCache(parentName)
 
 	return nil
@@ -259,13 +261,11 @@ func (m *DbManager) invalidateCache(name string) {
 
 // List returns the names of all mounted databases.
 func (m *DbManager) List() []string {
-	m.muConfigs.RLock()
-	defer m.muConfigs.RUnlock()
-
-	names := make([]string, 0, len(m.configs))
-	for name := range m.configs {
-		names = append(names, name)
-	}
+	var names []string
+	m.configs.Range(func(key, value any) bool {
+		names = append(names, key.(string))
+		return true
+	})
 	return names
 }
 
@@ -292,13 +292,11 @@ func (m *DbManager) GetConnection(ctx context.Context, name string, mode string)
 	}
 
 	// 2. Slow Path: Config Check & Creation
-	m.muConfigs.RLock()
-	config, ok := m.configs[name]
-	m.muConfigs.RUnlock()
-
+	val, ok := m.configs.Load(name)
 	if !ok {
 		return nil, fmt.Errorf("database not found: %s", name)
 	}
+	config := val.(*sqlrpcv1.DatabaseConfig)
 
 	// Check context before heavy work
 	if ctx.Err() != nil {
@@ -394,16 +392,14 @@ func (m *DbManager) evictStale() {
 }
 
 func (m *DbManager) resolveAttachments(config *sqlrpcv1.DatabaseConfig) []sqldrivers.AttachmentInfo {
-	m.muConfigs.RLock()
-	defer m.muConfigs.RUnlock()
-
 	var resolved []sqldrivers.AttachmentInfo
 	for _, att := range config.Attachments {
-		target, ok := m.configs[att.TargetDatabaseName]
+		val, ok := m.configs.Load(att.TargetDatabaseName)
 		if !ok {
 			log.Printf("WARNING: Atomic attachment failed: target database '%s' not found for parent '%s'", att.TargetDatabaseName, config.Name)
 			continue
 		}
+		target := val.(*sqlrpcv1.DatabaseConfig)
 		resolved = append(resolved, sqldrivers.AttachmentInfo{
 			Alias:    att.Alias,
 			Path:     target.DbPath,

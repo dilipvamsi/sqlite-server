@@ -163,6 +163,82 @@ func TestTransactionQuery_Coverage(t *testing.T) {
 	})
 }
 
+func TestTransactionExec_Coverage(t *testing.T) {
+	client, server := setupTestServer(t)
+	ctx := context.Background()
+
+	t.Run("Valid Session", func(t *testing.T) {
+		res, _ := client.BeginTransaction(ctx, connect.NewRequest(&sqlrpcv1.BeginTransactionRequest{Database: "test"}))
+		txID := res.Msg.TransactionId
+		defer func() {
+			_, _ = client.RollbackTransaction(ctx, connect.NewRequest(&sqlrpcv1.TransactionControlRequest{TransactionId: txID}))
+		}()
+
+		t.Run("INSERT Success", func(t *testing.T) {
+			result, err := client.TransactionExec(ctx, connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{
+				TransactionId: txID,
+				Sql:           "INSERT INTO users (name) VALUES ('TxExecUser')",
+			}))
+			require.NoError(t, err)
+			assert.Equal(t, int64(1), result.Msg.Dml.RowsAffected)
+			assert.Greater(t, result.Msg.Dml.LastInsertId, int64(0))
+		})
+
+		t.Run("Manual Transaction Control Blocked", func(t *testing.T) {
+			_, err := client.TransactionExec(ctx, connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{
+				TransactionId: txID,
+				Sql:           "BEGIN",
+			}))
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "manual transaction control")
+		})
+
+		t.Run("Heartbeat Check", func(t *testing.T) {
+			server.txMu.RLock()
+			oldExpiry := server.txRegistry[txID].Expiry
+			server.txMu.RUnlock()
+
+			time.Sleep(10 * time.Millisecond)
+
+			_, err := client.TransactionExec(ctx, connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{
+				TransactionId: txID,
+				Sql:           "UPDATE users SET name = 'Updated' WHERE id = 1",
+			}))
+			require.NoError(t, err)
+
+			server.txMu.RLock()
+			newExpiry := server.txRegistry[txID].Expiry
+			server.txMu.RUnlock()
+			assert.True(t, newExpiry.After(oldExpiry))
+		})
+	})
+
+	t.Run("Session Not Found", func(t *testing.T) {
+		_, err := client.TransactionExec(ctx, connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{
+			TransactionId: "invalid",
+			Sql:           "INSERT INTO users (name) VALUES ('err')",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("Timed Out Session", func(t *testing.T) {
+		res, _ := client.BeginTransaction(ctx, connect.NewRequest(&sqlrpcv1.BeginTransactionRequest{Database: "test"}))
+		txID := res.Msg.TransactionId
+
+		server.txMu.Lock()
+		server.txRegistry[txID].Expiry = time.Now().Add(-1 * time.Second)
+		server.txMu.Unlock()
+
+		_, err := client.TransactionExec(ctx, connect.NewRequest(&sqlrpcv1.TransactionQueryRequest{
+			TransactionId: txID,
+			Sql:           "INSERT INTO users (name) VALUES ('err')",
+		}))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+	})
+}
+
 func TestTransactionQueryStream_Coverage(t *testing.T) {
 	client, _ := setupTestServer(t)
 	ctx := context.Background()

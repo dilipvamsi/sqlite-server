@@ -198,7 +198,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 			params: &sqlrpcv1.Parameters{
 				Positional: []*structpb.Value{strVal("SGVsbG8=")}, // "Hello" in Base64
 				Hints: map[string]sqlrpcv1.ColumnAffinity{
-					"pos_0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_BLOB,
+					"0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_BLOB,
 				},
 			},
 			want: []any{[]byte("Hello")},
@@ -209,8 +209,8 @@ func TestConvertParameters_Pure(t *testing.T) {
 			params: &sqlrpcv1.Parameters{
 				Positional: []*structpb.Value{strVal("123"), numVal(456)},
 				Hints: map[string]sqlrpcv1.ColumnAffinity{
-					"pos_0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
-					"pos_1": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+					"0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+					"1": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
 				},
 			},
 			want: []any{int64(123), int64(456)},
@@ -221,8 +221,8 @@ func TestConvertParameters_Pure(t *testing.T) {
 			params: &sqlrpcv1.Parameters{
 				Positional: []*structpb.Value{boolVal(true), boolVal(false)},
 				Hints: map[string]sqlrpcv1.ColumnAffinity{
-					"pos_0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
-					"pos_1": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+					"0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
+					"1": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_INTEGER,
 				},
 			},
 			want: []any{1, 0},
@@ -233,7 +233,7 @@ func TestConvertParameters_Pure(t *testing.T) {
 			params: &sqlrpcv1.Parameters{
 				Positional: []*structpb.Value{strVal("3.14")},
 				Hints: map[string]sqlrpcv1.ColumnAffinity{
-					"pos_0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_REAL,
+					"0": sqlrpcv1.ColumnAffinity_COLUMN_AFFINITY_REAL,
 				},
 			},
 			want: []any{3.14},

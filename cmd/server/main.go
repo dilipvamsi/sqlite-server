@@ -80,6 +80,11 @@ func parseFlags() *server.Config {
 	fs.StringVar(&cfg.DownloadExtensions, "download-extensions", getEnv("SQLITE_SERVER_DOWNLOAD_EXTENSIONS", ""), "Comma-separated list of extensions to download/update on startup (e.g. 'sqlean,vec,http' or 'all')")
 	fs.BoolVar(&cfg.DownloadAllExtensions, "download-all-extensions", false, "Download all available extensions on startup")
 
+	// Pub/Sub Settings
+	fs.BoolVar(&cfg.PubSubEnabled, "pubsub-enabled", getEnvBool("SQLITE_SERVER_PUB_SUB_ENABLED", true), "Enable the internal Pub/Sub broker")
+	fs.IntVar(&cfg.PubSubTTL, "pubsub-ttl", getEnvInt("SQLITE_SERVER_PUB_SUB_TTL", 24), "Message retention period in hours")
+	fs.StringVar(&cfg.PubSubDB, "pubsub-db", getEnv("SQLITE_SERVER_PUB_SUB_DB", "_system_broker.db"), "Path to the Pub/Sub broker database file")
+
 	// Custom Usage to support --flag style and clean documentation
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\nFlags:\n", os.Args[0])

@@ -47,7 +47,7 @@ func setupAuthIntegrationServer(t *testing.T) (sqlrpcv1connect.DatabaseServiceCl
 		Name:   "test",
 		DbPath: ":memory:",
 	}
-	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, store)
+	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, store, nil)
 
 	// 3. Setup Handler with REAL AuthInterceptor
 	interceptors := connect.WithInterceptors(

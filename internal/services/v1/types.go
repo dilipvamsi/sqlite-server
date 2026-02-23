@@ -6,6 +6,7 @@ import (
 	"sqlite-server/internal/auth"
 	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
+	"sqlite-server/internal/pubsub"
 	"sync"
 	"time"
 )
@@ -66,6 +67,9 @@ type DbServer struct {
 
 	// shutdownCh signals the background reaper to stop during graceful shutdown.
 	shutdownCh chan struct{}
+
+	// broker handles Pub/Sub messaging.
+	broker *pubsub.Broker
 }
 
 // StreamWriter is an interface that abstracts the mechanism of sending query results.

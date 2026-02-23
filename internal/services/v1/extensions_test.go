@@ -59,7 +59,7 @@ func TestExtensionRPCs(t *testing.T) {
 	err = store.UpsertDatabaseConfig(context.Background(), config.Name, config.DbPath, true, string(settingsBytes))
 	require.NoError(t, err)
 
-	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, store)
+	server := NewDbServer([]*sqlrpcv1.DatabaseConfig{config}, store, nil)
 	defer server.Stop()
 
 	ctx := auth.NewContext(context.Background(), &auth.UserClaims{
@@ -154,13 +154,4 @@ func TestExtensionRPCs(t *testing.T) {
 		assert.Equal(t, connect.CodeInternal, connect.CodeOf(err))
 	})
 
-	t.Run("LoadExtension Unauthenticated", func(t *testing.T) {
-		req := connect.NewRequest(&sqlrpcv1.LoadExtensionRequest{
-			Database:   "any",
-			FolderName: "any",
-		})
-		_, err := server.LoadExtension(context.Background(), req)
-		assert.Error(t, err)
-		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
-	})
 }

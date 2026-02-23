@@ -153,6 +153,9 @@ func (s *MetaStore) ValidateApiKey(ctx context.Context, token string) (*UserClai
 // NewMetaStore initializes the authorization metadata database.
 // It automatically applies the schema if tables do not exist.
 func NewMetaStore(dbPath string) (*MetaStore, error) {
+	if dbPath == "" {
+		return nil, fmt.Errorf("meta db path cannot be empty")
+	}
 	// Use WAL mode for better concurrency
 	dsn := fmt.Sprintf("file:%s?_journal=WAL&_busy_timeout=5000&_foreign_keys=on", dbPath)
 	db, err := sql.Open("sqlite3", dsn)

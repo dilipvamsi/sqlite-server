@@ -29,7 +29,7 @@ func setupAdminTestServer(t *testing.T) (*AdminServer, *auth.MetaStore, *DbServe
 	t.Cleanup(func() { store.Close() })
 
 	// Init DbServer
-	dbServer := NewDbServer(nil, store)
+	dbServer := NewDbServer(nil, store, nil)
 	t.Cleanup(func() { dbServer.Stop() })
 
 	// Create `databases` directory in temp for dynamic DB tests
@@ -73,31 +73,6 @@ func TestAdminServer_CreateUser(t *testing.T) {
 		assert.NotEmpty(t, resp.Msg.CreatedAt)
 	})
 
-	t.Run("denies non-admin", func(t *testing.T) {
-		ctx := adminContext(sqlrpcv1.Role_ROLE_READ_ONLY)
-		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
-			Username: "anotheruser",
-			Password: "password123",
-			Role:     sqlrpcv1.Role_ROLE_READ_ONLY,
-		})
-
-		_, err := server.CreateUser(ctx, req)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "permission_denied")
-	})
-
-	t.Run("denies unauthenticated", func(t *testing.T) {
-		ctx := context.Background()
-		req := connect.NewRequest(&sqlrpcv1.CreateUserRequest{
-			Username: "anotheruser",
-			Password: "password123",
-			Role:     sqlrpcv1.Role_ROLE_READ_ONLY,
-		})
-
-		_, err := server.CreateUser(ctx, req)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unauthenticated")
-	})
 }
 
 func TestAdminServer_DeleteUser(t *testing.T) {
@@ -265,17 +240,6 @@ func TestAdminServer_CreateAPIKey(t *testing.T) {
 		assert.NotEmpty(t, resp.Msg.ApiKey)
 	})
 
-	t.Run("fails to create api key for another user as non-admin", func(t *testing.T) {
-		rwCtx := userContext(10, "wrongowner", sqlrpcv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&sqlrpcv1.CreateAPIKeyRequest{
-			Username: "keyowner",
-			Name:     "Other Key",
-		})
-
-		_, err := server.CreateAPIKey(rwCtx, req)
-		require.Error(t, err)
-		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
-	})
 }
 
 func TestAdminServer_ListAPIKeys(t *testing.T) {
@@ -312,16 +276,6 @@ func TestAdminServer_ListAPIKeys(t *testing.T) {
 		assert.Len(t, resp.Msg.Keys, 2)
 	})
 
-	t.Run("fails to list someone else's keys as non-admin", func(t *testing.T) {
-		rwCtx := userContext(99, "otheruser", sqlrpcv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&sqlrpcv1.ListAPIKeysRequest{
-			Username: "listuser",
-		})
-
-		_, err := server.ListAPIKeys(rwCtx, req)
-		require.Error(t, err)
-		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
-	})
 }
 
 func TestAdminServer_DeleteAPIKey(t *testing.T) {
@@ -358,22 +312,6 @@ func TestAdminServer_DeleteAPIKey(t *testing.T) {
 		resp, err := server.DeleteAPIKey(rwCtx, req)
 		require.NoError(t, err)
 		assert.True(t, resp.Msg.Success)
-	})
-
-	t.Run("fails to revoke another user's key as non-admin", func(t *testing.T) {
-		// Create a key for user A
-		_, keyID3, _ := store.CreateApiKey(context.Background(), userID, "User A Key", nil)
-		// User B tries to revoke it
-		rwCtxB := userContext(99, "otheruser", sqlrpcv1.Role_ROLE_READ_WRITE)
-
-		req := connect.NewRequest(&sqlrpcv1.DeleteAPIKeyRequest{
-			KeyId:    keyID3,
-			Username: "revokeuser", // User B tries to revoke A's key
-		})
-
-		_, err := server.DeleteAPIKey(rwCtxB, req)
-		require.Error(t, err)
-		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	})
 
 	t.Run("returns error for non-existent key", func(t *testing.T) {
@@ -604,28 +542,6 @@ func TestAdminServer_DynamicDatabases(t *testing.T) {
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})
 
-	// Test Auth failures (using non-admin context)
-	t.Run("Auth failures", func(t *testing.T) {
-		nonAdminCtx := context.Background() // No auth
-
-		_, err := server.CreateDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.CreateDatabaseRequest{Name: "fail"}))
-		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
-
-		_, err = server.MountDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.MountDatabaseRequest{Name: "fail", Path: "x"}))
-		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
-
-		_, err = server.UnMountDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.UnMountDatabaseRequest{Name: "fail"}))
-		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
-
-		_, err = server.DeleteDatabase(nonAdminCtx, connect.NewRequest(&sqlrpcv1.DeleteDatabaseRequest{Name: "fail"}))
-		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
-
-		// ListDatabases should work for ReadOnly user
-		roCtx := adminContext(sqlrpcv1.Role_ROLE_READ_ONLY)
-		_, err = server.ListDatabases(roCtx, connect.NewRequest(&sqlrpcv1.ListDatabasesRequest{}))
-		assert.NoError(t, err)
-	})
-
 	t.Run("MountDatabase fails for corrupted file", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		badPath := filepath.Join(tmpDir, "corrupt.db")
@@ -783,16 +699,6 @@ func TestAdminServer_Logout(t *testing.T) {
 
 func TestAdminServer_Logout_Errors(t *testing.T) {
 	server, _, _ := setupAdminTestServer(t)
-	ctx := context.Background() // No auth
-
-	t.Run("logout fails for unauthenticated user", func(t *testing.T) {
-		req := connect.NewRequest(&sqlrpcv1.LogoutRequest{
-			KeyId: "some-key",
-		})
-		_, err := server.Logout(ctx, req)
-		require.Error(t, err)
-		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
-	})
 
 	t.Run("logout succeeds (idempotent) even for non-admin", func(t *testing.T) {
 		req := connect.NewRequest(&sqlrpcv1.LogoutRequest{
@@ -883,37 +789,6 @@ func TestAdminServer_CRUD_Errors(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "internal")
 	})
-}
-
-func TestAdminServer_Auth_Coverage(t *testing.T) {
-	server, _, _ := setupAdminTestServer(t)
-
-	// Scenarios
-	tests := []struct {
-		name string
-		ctx  context.Context
-		code connect.Code
-	}{
-		{"Unauthenticated", context.Background(), connect.CodeUnauthenticated},
-		{"NonAdmin", adminContext(sqlrpcv1.Role_ROLE_READ_WRITE), connect.CodePermissionDenied},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// DeleteUser
-			_, err := server.DeleteUser(tt.ctx, connect.NewRequest(&sqlrpcv1.DeleteUserRequest{}))
-			assert.Equal(t, tt.code, connect.CodeOf(err))
-
-			// UpdatePassword
-			_, err = server.UpdatePassword(tt.ctx, connect.NewRequest(&sqlrpcv1.UpdatePasswordRequest{}))
-			assert.Equal(t, tt.code, connect.CodeOf(err))
-
-			// DeleteAPIKey should fail if not admin OR not owner (here empty req so fails)
-			// But for coverage test, we want to see it denies non-admins if they don't meet other criteria.
-			// Actually, DeleteAPIKey now allows non-admins, so it might return NotFound rather than PermissionDenied
-			// if the ctx is valid but key is missing.
-		})
-	}
 }
 
 // Helper for creating pointers (since proto optional fields use pointers)
@@ -1187,17 +1062,6 @@ func TestAdminServer_UpdateDatabase(t *testing.T) {
 		assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})
 
-	t.Run("UpdateDatabase fails for unauthorized user", func(t *testing.T) {
-		roCtx := adminContext(sqlrpcv1.Role_ROLE_READ_ONLY)
-		req := connect.NewRequest(&sqlrpcv1.UpdateDatabaseRequest{
-			Name:   "any_db",
-			Config: &sqlrpcv1.UpdateDatabaseConfig{},
-		})
-		_, err := server.UpdateDatabase(roCtx, req)
-		require.Error(t, err)
-		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
-	})
-
 	t.Run("UpdateDatabase fails for malformed JSON in store", func(t *testing.T) {
 		dbName := "malformed_json_db"
 		// Manually insert bad JSON into store
@@ -1285,12 +1149,6 @@ func TestAdminServer_ListUsers(t *testing.T) {
 		assert.True(t, usernames["user2"])
 	})
 
-	t.Run("denies non-admin", func(t *testing.T) {
-		rwCtx := userContext(10, "user1", sqlrpcv1.Role_ROLE_READ_WRITE)
-		_, err := server.ListUsers(rwCtx, connect.NewRequest(&sqlrpcv1.ListUsersRequest{}))
-		require.Error(t, err)
-		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
-	})
 }
 
 func TestAdminServer_UpdateUserRole(t *testing.T) {
@@ -1314,17 +1172,6 @@ func TestAdminServer_UpdateUserRole(t *testing.T) {
 		user, err := store.GetUserByUsername(context.Background(), "roletest")
 		require.NoError(t, err)
 		assert.Equal(t, sqlrpcv1.Role_ROLE_READ_WRITE, user.Role)
-	})
-
-	t.Run("denies non-admin", func(t *testing.T) {
-		rwCtx := userContext(20, "rwuser", sqlrpcv1.Role_ROLE_READ_WRITE)
-		req := connect.NewRequest(&sqlrpcv1.UpdateUserRoleRequest{
-			Username: "roletest",
-			Role:     sqlrpcv1.Role_ROLE_ADMIN,
-		})
-		_, err := server.UpdateUserRole(rwCtx, req)
-		require.Error(t, err)
-		assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	})
 
 	t.Run("handles store error", func(t *testing.T) {

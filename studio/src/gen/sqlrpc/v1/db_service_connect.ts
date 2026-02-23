@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AttachDatabaseRequest, AttachDatabaseResponse, BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, DetachDatabaseRequest, DetachDatabaseResponse, ExecResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListExtensionsRequest, ListExtensionsResponse, ListTablesRequest, ListTablesResponse, LoadExtensionRequest, LoadExtensionResponse, QueryRequest, QueryResponse, QueryResult, SavepointResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
+import { AttachDatabaseRequest, AttachDatabaseResponse, BeginTransactionRequest, BeginTransactionResponse, CheckpointRequest, CheckpointResponse, DetachDatabaseRequest, DetachDatabaseResponse, ExecResponse, ExecuteTransactionRequest, ExecuteTransactionResponse, ExplainResponse, GetDatabaseSchemaRequest, GetTableSchemaRequest, IntegrityCheckRequest, IntegrityCheckResponse, ListExtensionsRequest, ListExtensionsResponse, ListTablesRequest, ListTablesResponse, LoadExtensionRequest, LoadExtensionResponse, PublishBatchRequest, PublishBatchResponse, PublishRequest, PublishResponse, QueryRequest, QueryResponse, QueryResult, SavepointResponse, SubscribeRequest, SubscribeResponse, TransactionControlRequest, TransactionControlResponse, TransactionQueryRequest, TransactionRequest, TransactionResponse, TransactionSavepointRequest, TypedQueryRequest, TypedQueryResponse, TypedQueryResult, TypedTransactionQueryRequest, VacuumRequest, VacuumResponse } from "./db_service_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 import { DatabaseSchema, TableSchema } from "./types_pb.js";
 
@@ -427,6 +427,46 @@ export const DatabaseService = {
       I: LoadExtensionRequest,
       O: LoadExtensionResponse,
       kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Publish a message to a channel.
+     * Creates the channel implicitly if it does not exist.
+     * Requires ROLE_READ_WRITE or higher.
+     *
+     * @generated from rpc sqlrpc.v1.DatabaseService.Publish
+     */
+    publish: {
+      name: "Publish",
+      I: PublishRequest,
+      O: PublishResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Publish multiple messages in a single batch.
+     * Provides extreme throughput by grouping writes.
+     *
+     * @generated from rpc sqlrpc.v1.DatabaseService.PublishBatch
+     */
+    publishBatch: {
+      name: "PublishBatch",
+      I: PublishBatchRequest,
+      O: PublishBatchResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * *
+     * Subscribe to a channel for real-time and historical messages.
+     * Uses subscription_name for durable offset tracking.
+     *
+     * @generated from rpc sqlrpc.v1.DatabaseService.Subscribe
+     */
+    subscribe: {
+      name: "Subscribe",
+      I: SubscribeRequest,
+      O: SubscribeResponse,
+      kind: MethodKind.ServerStreaming,
     },
   }
 } as const;

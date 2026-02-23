@@ -476,8 +476,7 @@ func TestAuthInterceptor_RBAC_Integration(t *testing.T) {
 			// Admin -> OK
 			assert.NoError(t, at.call(adminClientFor("admin")))
 
-			// Some methods are now allowed for everyone in the interceptor (auth happens in handler)
-			if at.name == "ListDatabases" || at.name == "ListAPIKeys" {
+			if at.name == "ListDatabases" {
 				assert.NoError(t, at.call(adminClientFor("writer")))
 				assert.NoError(t, at.call(adminClientFor("reader")))
 				return

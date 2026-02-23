@@ -21,7 +21,7 @@ func setupAttachmentTest(t *testing.T) (*DbServer, *auth.MetaStore, *DbManager) 
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 
-	dbServer := NewDbServer(nil, store)
+	dbServer := NewDbServer(nil, store, nil)
 	mgr := dbServer.dbManager
 
 	// Create a main database

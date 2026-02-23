@@ -247,6 +247,27 @@ service DatabaseService {
    * Dynamically loads a compatible SQLite extension into the target database.
    */
   rpc LoadExtension(LoadExtensionRequest) returns (LoadExtensionResponse);
+
+  // --- Pub/Sub Operations ---
+
+  /**
+   * Publish a message to a channel.
+   * Creates the channel implicitly if it does not exist.
+   * Requires ROLE_READ_WRITE or higher.
+   */
+  rpc Publish(PublishRequest) returns (PublishResponse);
+
+  /**
+   * Publish multiple messages in a single batch.
+   * Provides extreme throughput by grouping writes.
+   */
+  rpc PublishBatch(PublishBatchRequest) returns (PublishBatchResponse);
+
+  /**
+   * Subscribe to a channel for real-time and historical messages.
+   * Uses subscription_name for durable offset tracking.
+   */
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
 }
 
 // =============================================================================
@@ -962,4 +983,77 @@ message LoadExtensionRequest {
 message LoadExtensionResponse {
   bool success = 1;
   string message = 2;
+}
+
+// =============================================================================
+// PUB/SUB OPERATIONS MESSAGES
+// =============================================================================
+
+/**
+ * PublishItem represents a single message in a batch.
+ */
+message PublishItem {
+  string channel = 1
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_]+$"} ];
+  string payload = 2 [ (buf.validate.field).string = {min_len : 1} ];
+}
+
+/**
+ * PublishRequest publishes a single message.
+ */
+message PublishRequest {
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+  string channel = 2
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_]+$"} ];
+  string payload = 3 [ (buf.validate.field).string = {min_len : 1} ];
+}
+
+/**
+ * PublishBatchRequest publishes multiple messages.
+ */
+message PublishBatchRequest {
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+  repeated PublishItem items = 2
+      [ (buf.validate.field).repeated.min_items = 1 ];
+}
+
+/**
+ * PublishResponse confirms a single publish.
+ */
+message PublishResponse { int64 message_id = 1; }
+
+/**
+ * PublishBatchResponse confirms multiple publishes.
+ */
+message PublishBatchResponse { repeated int64 message_ids = 1; }
+
+/**
+ * SubscribeRequest identifies the target channel and consumer.
+ */
+message SubscribeRequest {
+  string database = 1
+      [ (buf.validate.field).string =
+            {min_len : 3 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+  string channel = 2
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_]+$"} ];
+  string subscription_name = 3
+      [ (buf.validate.field).string =
+            {min_len : 1 max_len : 64 pattern : "^[a-zA-Z0-9_-]+$"} ];
+}
+
+/**
+ * SubscribeResponse delivers a message to a subscriber.
+ */
+message SubscribeResponse {
+  string database = 1;
+  string channel = 2;
+  string payload = 3;
+  int64 message_id = 4;
 }

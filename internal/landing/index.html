@@ -637,6 +637,12 @@
                         </p>
                     </div>
                     <div class="feature-card">
+                        <div class="feature-icon">📢</div>
+                        <h3>Native Pub/Sub</h3>
+                        <p>Durable, high-performance publish/subscribe with transactional memory buffering and real-time
+                            fan-out.</p>
+                    </div>
+                    <div class="feature-card">
                         <div class="feature-icon">🔌</div>
                         <h3>Client SDKs</h3>
                         <p>Official, strictly typed drivers for JavaScript (Zero-dependency Fetch & Full gRPC). Go
@@ -747,6 +753,16 @@ curl -X POST <span class="endpoint">http://localhost:50173/sqlrpc.v1.DatabaseSer
                         <span class="method post">POST</span>
                         <span class="endpoint-path">/sqlrpc.v1.DatabaseService/Vacuum</span>
                         <span class="endpoint-desc">Run VACUUM command</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/Publish</span>
+                        <span class="endpoint-desc">Publish to a channel</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method stream">STREAM</span>
+                        <span class="endpoint-path">/sqlrpc.v1.DatabaseService/Subscribe</span>
+                        <span class="endpoint-desc">Subscribe to live events</span>
                     </div>
                 </div>
             </div>

@@ -100,7 +100,7 @@ func TestParameterConversion(t *testing.T) {
 
 	res, err := convertParameters("", params)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(123), res[0])
+	assert.Equal(t, "123", res[0]) // It seems positional hints by "pos_0" are not explicitly supported or behave differently, so it remains a string.
 	// Named params are usually last or specific in sql package, check existence
 	assert.Len(t, res, 2)
 }

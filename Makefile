@@ -34,11 +34,11 @@ GOCMD          := go
 # Ensure tools installed via 'go install' are on the PATH
 export PATH    := $(shell go env GOPATH)/bin:$(PATH)
 LDFLAGS_COMMON := -s -w
-STATIC_TAGS    := osusergo,netgo
+STATIC_TAGS    := osusergo,netgo,sqlite_vtable
 
 # Common build command for dynamic binaries
 # CGO_ENABLED=1 is strictly required for mattn/go-sqlite3
-GOBUILD_DYNAMIC := CGO_ENABLED=1 $(GOCMD) build -ldflags "$(LDFLAGS_COMMON)"
+GOBUILD_DYNAMIC := CGO_ENABLED=1 $(GOCMD) build -tags sqlite_vtable -ldflags "$(LDFLAGS_COMMON)"
 
 # ==============================================================================
 # Main Targets
@@ -95,7 +95,7 @@ run: build ## Build and run the server with default config
 .PHONY: run-dev
 run-dev: ## Run directly using 'go run' (fast development)
 	@echo "Starting server in dev mode..."
-	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" CGO_ENABLED=1 $(GOCMD) run -tags sqlite_vtable $(SERVER_DIR)/main.go
 
 # ==============================================================================
 # Debugging
@@ -144,11 +144,11 @@ test: ## Run standard unit tests (no coverage report)
 test-coverage: ## Run tests and generate coverage report (excluding protos and load tests)
 	@echo "🧪 Running tests with coverage..."
 	# 1. Run tests forcing CGO, output raw profile
-	CGO_ENABLED=1 $(GOCMD) test -v -coverprofile=coverage.raw.out ./...
+	CGO_ENABLED=1 $(GOCMD) test -v -tags sqlite_vtable -coverpkg=./... -coverprofile=coverage.raw.out ./...
 
 	# 2. Filter out generated proto files AND load tests using grep -E (extended regex)
 	@echo "🧹 Filtering generated code and load tests..."
-	@grep -vE "internal/protos|tests/load|cmd/server|internal/docs|internal/landing|scripts" coverage.raw.out > coverage.out
+	@grep -vE "internal/protos|tests/|cmd/server|internal/docs|internal/landing|scripts" coverage.raw.out > coverage.out
 
 	# 3. Display function-level coverage summary in terminal
 	@echo "📊 Coverage Summary:"
@@ -206,13 +206,13 @@ run-load-test-setup-auth: build-load-test-setup build ## Setup DBs and run serve
 .PHONY: run-load-test-dev
 run-load-test-dev: build-load-test-setup ## Setup DBs and run server with loadtest config (NO AUTH) using go run
 	@echo "🚀 Starting server (DEV) with LOADTEST config (AUTH DISABLED)..."
-	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_AUTH_ENABLED=false CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go --mounts $(LOADTEST_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_AUTH_ENABLED=false CGO_ENABLED=1 $(GOCMD) run -tags sqlite_vtable $(SERVER_DIR)/main.go --mounts $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-auth-dev
 run-load-test-auth-dev: build-load-test-setup ## Setup DBs and run server WITH auth enabled using go run
 	@echo "🔐 Starting server (DEV) with LOADTEST config (AUTH ENABLED)..."
 	@echo "   Credentials: admin / admin"
-	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 $(GOCMD) run $(SERVER_DIR)/main.go --mounts $(LOADTEST_CONFIG)
+	SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 $(GOCMD) run -tags sqlite_vtable $(SERVER_DIR)/main.go --mounts $(LOADTEST_CONFIG)
 
 .PHONY: run-load-test-setup-cipher
 run-load-test-setup-cipher: build-load-test-setup-cipher build ## Setup encrypted DBs and run server with cipher config
@@ -319,6 +319,17 @@ test-hurl: ## Run automated Hurl integration tests
 	@echo "🧪 Running automated Hurl tests..."
 	@hurl --variables-file tests/hurl/vars.env tests/hurl/*.hurl --test --jobs 1
 	@echo "✅ Hurl tests passed."
+
+# ==============================================================================
+# Pub/Sub Tests
+# ==============================================================================
+
+.PHONY: test-pubsub
+test-pubsub: ## Run the Pub/Sub test suite (Server must be running)
+	@echo "🏃 Running pubsub test suite..."
+	SQLITE_SERVER_ADMIN_PASSWORD=admin CGO_ENABLED=1 $(GOCMD) test -v ./tests/pubsub/... -tags sqlite_vtable
+	@echo "🏁 Pub/Sub test suite finished."
+
 # ==============================================================================
 # Helpers
 # ==============================================================================

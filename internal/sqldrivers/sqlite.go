@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,11 +15,14 @@ import (
 
 	"sqlite-server/internal/extensions"
 	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/pubsub"
 )
 
 var (
 	registeredDrivers   = make(map[string]bool)
 	registeredDriversMu sync.Mutex
+	// GlobalBroker is used by the drivers to publish/subscribe.
+	GlobalBroker *pubsub.Broker
 )
 
 // const BuildType = "std"
@@ -84,11 +88,11 @@ func NewSqliteDbWithAttachments(config *sqlrpcv1.DatabaseConfig, readOnlySecured
 	// Default is the standard "sqlite3" driver registered by the init() of the library.
 	driverName := "sqlite3"
 
-	// Handle Extensions or InitCommands
-	// If extensions are specified OR InitCommands are present, we must create and register a unique driver instance
-	// for this database configuration because these are properties of the driver/connection,
-	// not just the DSN.
-	if len(config.Extensions) > 0 || readOnlySecured || len(config.InitCommands) > 0 || len(attachments) > 0 {
+	// Handle Extensions, InitCommands, or GlobalBroker Hooks
+	// If extensions are specified OR InitCommands are present OR we need to inject Pub/Sub hooks,
+	// we must create and register a unique driver instance for this database configuration
+	// because these are properties of the driver/connection, not just the DSN.
+	if len(config.Extensions) > 0 || readOnlySecured || len(config.InitCommands) > 0 || len(attachments) > 0 || GlobalBroker != nil {
 		// Generate a unique driver name for this specific DB configuration to avoid collisions.
 		suffix := ""
 		if readOnlySecured {
@@ -129,6 +133,39 @@ func NewSqliteDbWithAttachments(config *sqlrpcv1.DatabaseConfig, readOnlySecured
 						conn.RegisterAuthorizer(func(action int, arg1, arg2, arg3 string) int {
 							return ReadOnlyAuthorizer(action, arg1, arg2, arg3, "")
 						})
+					}
+
+					if GlobalBroker != nil {
+						// Register the scalar 'publish(channel, payload)' SQL function.
+						// This allows writing to the broker directly from SQLite triggers or queries.
+						// It returns the ID of the newly inserted message, or 0 on failure.
+						err := conn.RegisterFunc("publish", func(channelName, messagePayload string) int64 {
+							publishedIDs := GlobalBroker.Publish(config.Name, []pubsub.MsgPayload{{Channel: channelName, Payload: messagePayload}})
+							if len(publishedIDs) == 0 {
+								return 0
+							}
+							return publishedIDs[0]
+						}, true)
+						if err != nil {
+							log.Printf("[Broker] Failed to register publish func: %v", err)
+						}
+
+						// Register the aggregate 'publish_batch(channel, payload)' SQL function.
+						// This is optimized for high-throughput scenarios where multiple messages
+						// are published within a single `INSERT ... SELECT` statement.
+						err = conn.RegisterAggregator("publish_batch", func() *BatchAggregator {
+							return &BatchAggregator{broker: GlobalBroker, dbName: config.Name}
+						}, true)
+						if err != nil {
+							log.Printf("[Broker] Failed to register aggregator: %v", err)
+						}
+
+						// Register the 'vpubsub' Virtual Table if supported.
+						// This allows querying the Pub/Sub message history using standard SQL (SELECT * FROM...).
+						// NOTE: Requires the `sqlite_vtable` build tag to be included during compilation.
+						registerVPubSub(conn, config.Name)
+						// Automatically instantiate the virtual table named `vpubsub` so users don't have to manually create it
+						_, _ = conn.Exec("CREATE VIRTUAL TABLE IF NOT EXISTS vpubsub USING vpubsub;", nil)
 					}
 
 					// Execute Init Commands (e.g., PRAGMA)

@@ -126,6 +126,12 @@ func TestNewMetaStore(t *testing.T) {
 		_, err := NewMetaStore("file:test?_journal=INVALID")
 		require.Error(t, err)
 	})
+
+	t.Run("fails on empty path", func(t *testing.T) {
+		_, err := NewMetaStore("")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "path cannot be empty")
+	})
 }
 
 func TestMetaStore_Migrate_Error(t *testing.T) {
@@ -896,4 +902,13 @@ func TestMetaStore_Auth_Errors(t *testing.T) {
 		err := store.RevokeAllApiKeysForUser(ctx, 1)
 		require.Error(t, err)
 	})
+}
+
+func TestMetaStore_ListApiKeys_Error(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "list_key_error.db")
+	store, _ := NewMetaStore(dbPath)
+	store.db.Close()
+	_, err := store.ListApiKeys(context.Background(), 1)
+	assert.Error(t, err)
 }

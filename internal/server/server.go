@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"sqlite-server/internal/landing"
 	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"sqlite-server/internal/protos/sqlrpc/v1/sqlrpcv1connect"
+	"sqlite-server/internal/pubsub" // Added for pubsub.Broker
 	servicesv1 "sqlite-server/internal/services/v1"
 	"sqlite-server/internal/sqldrivers"
 	"sqlite-server/internal/studio"
@@ -51,6 +53,9 @@ type Config struct {
 	ShowVersion           bool   // Whether to show version and exit
 	DownloadExtensions    string // Comma-separated list of extensions to download
 	DownloadAllExtensions bool   // Whether to download all extensions
+	PubSubEnabled         bool   // Whether to enable Pub/Sub messaging
+	PubSubTTL             int    // Message retention TTL in hours
+	PubSubDB              string // Path to the Pub/Sub broker database
 }
 
 // Server represents the SQLite server instance.
@@ -60,6 +65,7 @@ type Server struct {
 	authStore  *auth.MetaStore
 	httpServer *http.Server
 	version    string
+	broker     *pubsub.Broker
 }
 
 // New creates a new Server instance.
@@ -107,8 +113,25 @@ func (s *Server) Start() error {
 		log.Println("[AUTH] Authentication DISABLED - Running in Anonymous Admin Mode")
 	}
 
+	// Initialize the Pub/Sub Broker if enabled
+	if s.cfg.PubSubEnabled {
+		brokerPath := filepath.Join(s.cfg.DbDir, s.cfg.PubSubDB)
+		if filepath.IsAbs(s.cfg.PubSubDB) {
+			brokerPath = s.cfg.PubSubDB
+		}
+
+		log.Printf("[PUB/SUB] Initializing Broker at %s (TTL: %d hours)", brokerPath, s.cfg.PubSubTTL)
+		var err error
+		s.broker, err = pubsub.NewBroker(brokerPath, s.cfg.PubSubTTL)
+		if err != nil {
+			return fmt.Errorf("failed to initialize Pub/Sub broker: %w", err)
+		}
+		// Register globally for SQLite driver access
+		sqldrivers.GlobalBroker = s.broker
+	}
+
 	// Initialize the Core Database Server
-	s.dbServer = servicesv1.NewDbServer(initialConfigs, s.authStore)
+	s.dbServer = servicesv1.NewDbServer(initialConfigs, s.authStore, s.broker)
 
 	// Setup Routing and Handlers
 	mux := s.setupMux(s.dbServer, s.authStore, authInterceptor, interceptors)
@@ -144,6 +167,10 @@ func (s *Server) Stop(ctx context.Context) error {
 
 	if s.dbServer != nil {
 		s.dbServer.Stop()
+	}
+
+	if s.broker != nil {
+		s.broker.Stop()
 	}
 
 	if s.authStore != nil {

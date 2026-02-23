@@ -208,12 +208,6 @@ func TestDownloadSQLean_Mock(t *testing.T) {
 		zw.Close()
 	}))
 	defer ts.Close()
-
-	// downloadSQLean is internal but called by DownloadExtensions if "sqlean" is in list
-	// We need to override the URL construction or just test it directly if possible.
-	// Since downloadSQLean has a hardcoded URL, we can't easily mock the HTTP part without a global proxy or monkeypatching.
-	// BUT, we can test the logic by calling it with a custom OS/Arch if we could control the URL.
-	// For now, let's at least test the platform map.
 }
 
 func TestGetLibExt(t *testing.T) {
@@ -417,4 +411,69 @@ func TestDownloadSingleExtension_UnknownArchive(t *testing.T) {
 	err = downloadSingleExtension(tmpDir, config, "linux", "amd64", "1.0.0")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown archive format")
+}
+
+func TestDownloadFile_Errors(t *testing.T) {
+	t.Run("fails on non-200 response", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer ts.Close()
+
+		tmpDir := t.TempDir()
+		target := filepath.Join(tmpDir, "failed.txt")
+		err := downloadFile(ts.URL, target)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "bad status")
+	})
+
+	t.Run("fails on invalid url", func(t *testing.T) {
+		err := downloadFile("http://invalid.domain.that.does.not.exist", "/tmp/any")
+		assert.Error(t, err)
+	})
+
+	t.Run("fails on file creation error", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("data"))
+		}))
+		defer ts.Close()
+
+		// Attempt to download to a directory that exists
+		tmpDir := t.TempDir()
+		err := downloadFile(ts.URL, tmpDir)
+		assert.Error(t, err)
+	})
+}
+
+func TestWriteInfoJSON_Error(t *testing.T) {
+	// Root dir on linux is usually read-only for current user
+	meta := ExtensionMetadata{Description: "test", DocumentationURL: "http://test"}
+	err := writeInfoJSON("/proc/invalid", meta)
+	assert.Error(t, err)
+}
+
+func TestRegistry_Init(t *testing.T) {
+	// Verify vec registry entry
+	vec, ok := Registry["vec"]
+	assert.True(t, ok)
+	assert.Equal(t, "vec", vec.Name)
+
+	// Verify http registry entry
+	h, ok := Registry["http"]
+	assert.True(t, ok)
+	assert.Equal(t, "http", h.Name)
+
+	// Verify mview registry entry
+	m, ok := Registry["mview"]
+	assert.True(t, ok)
+	assert.Equal(t, "mview", m.Name)
+}
+
+func TestExtractZip_InternalErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	t.Run("fails on missing zip file", func(t *testing.T) {
+		_, err := extractZip("/nonexistent/file.zip", tmpDir)
+		assert.Error(t, err)
+	})
 }

@@ -48,6 +48,7 @@ import (
 
 	"sqlite-server/internal/auth"
 	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
+	"sqlite-server/internal/pubsub"
 )
 
 // headerRequestID is the standard HTTP header key used for distributed tracing.
@@ -74,7 +75,7 @@ const reaperInterval = 5 * time.Second
 //     It is better to crash at startup than to run in a partially broken state.
 //
 // NewDbServer initializes the database server.
-func NewDbServer(configs []*sqlrpcv1.DatabaseConfig, store *auth.MetaStore) *DbServer {
+func NewDbServer(configs []*sqlrpcv1.DatabaseConfig, store *auth.MetaStore, broker *pubsub.Broker) *DbServer {
 	// Initialize DbManager
 	mgr := NewDbManager(configs)
 
@@ -84,6 +85,7 @@ func NewDbServer(configs []*sqlrpcv1.DatabaseConfig, store *auth.MetaStore) *DbS
 		store:      store,
 		txRegistry: make(map[string]*TxSession),
 		shutdownCh: make(chan struct{}),
+		broker:     broker,
 	}
 
 	// Start the Background Reaper to clean up zombie transactions.

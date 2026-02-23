@@ -264,6 +264,50 @@ function deserialize_sqlrpc_v1_LoadExtensionResponse(buffer_arg) {
   return sqlrpc_v1_db_service_pb.LoadExtensionResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_sqlrpc_v1_PublishBatchRequest(arg) {
+  if (!(arg instanceof sqlrpc_v1_db_service_pb.PublishBatchRequest)) {
+    throw new Error('Expected argument of type sqlrpc.v1.PublishBatchRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sqlrpc_v1_PublishBatchRequest(buffer_arg) {
+  return sqlrpc_v1_db_service_pb.PublishBatchRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sqlrpc_v1_PublishBatchResponse(arg) {
+  if (!(arg instanceof sqlrpc_v1_db_service_pb.PublishBatchResponse)) {
+    throw new Error('Expected argument of type sqlrpc.v1.PublishBatchResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sqlrpc_v1_PublishBatchResponse(buffer_arg) {
+  return sqlrpc_v1_db_service_pb.PublishBatchResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sqlrpc_v1_PublishRequest(arg) {
+  if (!(arg instanceof sqlrpc_v1_db_service_pb.PublishRequest)) {
+    throw new Error('Expected argument of type sqlrpc.v1.PublishRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sqlrpc_v1_PublishRequest(buffer_arg) {
+  return sqlrpc_v1_db_service_pb.PublishRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sqlrpc_v1_PublishResponse(arg) {
+  if (!(arg instanceof sqlrpc_v1_db_service_pb.PublishResponse)) {
+    throw new Error('Expected argument of type sqlrpc.v1.PublishResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sqlrpc_v1_PublishResponse(buffer_arg) {
+  return sqlrpc_v1_db_service_pb.PublishResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_sqlrpc_v1_QueryRequest(arg) {
   if (!(arg instanceof sqlrpc_v1_db_service_pb.QueryRequest)) {
     throw new Error('Expected argument of type sqlrpc.v1.QueryRequest');
@@ -306,6 +350,28 @@ function serialize_sqlrpc_v1_SavepointResponse(arg) {
 
 function deserialize_sqlrpc_v1_SavepointResponse(buffer_arg) {
   return sqlrpc_v1_db_service_pb.SavepointResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sqlrpc_v1_SubscribeRequest(arg) {
+  if (!(arg instanceof sqlrpc_v1_db_service_pb.SubscribeRequest)) {
+    throw new Error('Expected argument of type sqlrpc.v1.SubscribeRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sqlrpc_v1_SubscribeRequest(buffer_arg) {
+  return sqlrpc_v1_db_service_pb.SubscribeRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sqlrpc_v1_SubscribeResponse(arg) {
+  if (!(arg instanceof sqlrpc_v1_db_service_pb.SubscribeResponse)) {
+    throw new Error('Expected argument of type sqlrpc.v1.SubscribeResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sqlrpc_v1_SubscribeResponse(buffer_arg) {
+  return sqlrpc_v1_db_service_pb.SubscribeResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_sqlrpc_v1_TableSchema(arg) {
@@ -916,6 +982,51 @@ loadExtension: {
     requestDeserialize: deserialize_sqlrpc_v1_LoadExtensionRequest,
     responseSerialize: serialize_sqlrpc_v1_LoadExtensionResponse,
     responseDeserialize: deserialize_sqlrpc_v1_LoadExtensionResponse,
+  },
+  // --- Pub/Sub Operations ---
+//
+// *
+// Publish a message to a channel.
+// Creates the channel implicitly if it does not exist.
+// Requires ROLE_READ_WRITE or higher.
+publish: {
+    path: '/sqlrpc.v1.DatabaseService/Publish',
+    requestStream: false,
+    responseStream: false,
+    requestType: sqlrpc_v1_db_service_pb.PublishRequest,
+    responseType: sqlrpc_v1_db_service_pb.PublishResponse,
+    requestSerialize: serialize_sqlrpc_v1_PublishRequest,
+    requestDeserialize: deserialize_sqlrpc_v1_PublishRequest,
+    responseSerialize: serialize_sqlrpc_v1_PublishResponse,
+    responseDeserialize: deserialize_sqlrpc_v1_PublishResponse,
+  },
+  // *
+// Publish multiple messages in a single batch.
+// Provides extreme throughput by grouping writes.
+publishBatch: {
+    path: '/sqlrpc.v1.DatabaseService/PublishBatch',
+    requestStream: false,
+    responseStream: false,
+    requestType: sqlrpc_v1_db_service_pb.PublishBatchRequest,
+    responseType: sqlrpc_v1_db_service_pb.PublishBatchResponse,
+    requestSerialize: serialize_sqlrpc_v1_PublishBatchRequest,
+    requestDeserialize: deserialize_sqlrpc_v1_PublishBatchRequest,
+    responseSerialize: serialize_sqlrpc_v1_PublishBatchResponse,
+    responseDeserialize: deserialize_sqlrpc_v1_PublishBatchResponse,
+  },
+  // *
+// Subscribe to a channel for real-time and historical messages.
+// Uses subscription_name for durable offset tracking.
+subscribe: {
+    path: '/sqlrpc.v1.DatabaseService/Subscribe',
+    requestStream: false,
+    responseStream: true,
+    requestType: sqlrpc_v1_db_service_pb.SubscribeRequest,
+    responseType: sqlrpc_v1_db_service_pb.SubscribeResponse,
+    requestSerialize: serialize_sqlrpc_v1_SubscribeRequest,
+    requestDeserialize: deserialize_sqlrpc_v1_SubscribeRequest,
+    responseSerialize: serialize_sqlrpc_v1_SubscribeResponse,
+    responseDeserialize: deserialize_sqlrpc_v1_SubscribeResponse,
   },
 };
 

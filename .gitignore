@@ -2,8 +2,8 @@
 thirdparty/
 
 # Coverage
-coverage.html
-coverage.out
+coverage.*
+*.out
 
 # db
 *.db

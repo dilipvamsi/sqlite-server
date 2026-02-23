@@ -115,6 +115,7 @@ SQLite is dynamically typed, but gRPC/Protobuf is statically typed. To resolve t
 *   **Chunked Streaming:** Large result sets are streamed in batches (default: 500 rows), ensuring constant $O(1)$ memory usage regardless of table size.
 *   **Zombie Protection:** A background "Reaper" process automatically rolls back ID-based transactions that have timed out.
 *   **Dual Connection Pools:** Maintains separate pools for Read-Write and Read-Only connections, ensuring that `read_only` users are served by strictly read-only connections for enhanced security.
+*   **Lock-Free Management**: The `DbManager` uses a lock-free, `sync.Map`-backed architecture with Copy-on-Write (CoW) for configuration updates, ensuring that readers never block during administrative operations (mounting/unmounting).
 *   **Graceful Shutdown:** Ensures ongoing queries complete and active transactions are rolled back cleanly before the server exits.
 
 ### 6. Observability
@@ -162,6 +163,14 @@ Connect using strictly typed clients:
 *   **JavaScript (Fetch):** Zero-dependency, lightweight client for Edge/Browsers (`clients/js-fetch`).
 *   **JavaScript (gRPC):** Full-featured client with streaming support (`clients/js`).
 *   *Go support coming soon.*
+
+### 14. Native Pub/Sub
+Durable, high-performance Pub/Sub capabilities built directly into the SQLite engine:
+*   **SQL Interface:** Publish array/JSON messages using simple SQL functions (`publish()`) and virtual tables (`vpubsub`).
+*   **RPC Interface:** Strictly typed `Publish`, `PublishBatch`, and streaming `Subscribe` RPCs.
+*   **Real-time Delivery:** In-memory Signal Hub bypasses database polling for instant fan-out.
+*   **Durable Subscriptions:** Consumers can disconnect and resume without missing messages.
+*   **Transaction Buffering**: Virtual table inserts within SQL transactions are buffered in memory and synchronized atomically upon commit, with a safety limit (1,000 rows) to prevent memory exhaustion.
 
 ---
 
@@ -442,6 +451,33 @@ This requires a gRPC or Connect client that supports bidirectional streaming.
 ```json
 { "database": "primary" }
 ```
+
+### 8. Pub/Sub (Publish & Subscribe)
+*Best for: Real-time event sourcing and notifications.*
+
+**Publish a Batch:**
+**POST** `/sqlrpc.v1.DatabaseService/PublishBatch`
+```json
+{
+  "database": "primary",
+  "items": [
+    { "channel": "events", "payload": "User logged in" },
+    { "channel": "events", "payload": "Database updated" }
+  ]
+}
+```
+
+**Subscribe to a Channel:**
+*Requires streaming support.*
+**POST** `/sqlrpc.v1.DatabaseService/Subscribe`
+```json
+{
+  "database": "primary",
+  "subscriptionName": "worker-1",
+  "channel": "events"
+}
+```
+*Response:* A continuous stream of published messages. Catch-up occurs automatically for disconnected workers.
 
 ---
 

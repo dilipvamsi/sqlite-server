@@ -558,6 +558,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/sqlrpc.v1.LoadExtensionResponse'
+  /sqlrpc.v1.DatabaseService/Publish:
+    post:
+      tags:
+        - sqlrpc.v1.DatabaseService
+      summary: '*  Publish a message to a channel.  Creates the channel implicitly if it does not exist.  Requires ROLE_READ_WRITE or higher.'
+      description: |-
+        *
+         Publish a message to a channel.
+         Creates the channel implicitly if it does not exist.
+         Requires ROLE_READ_WRITE or higher.
+      operationId: sqlrpc.v1.DatabaseService.Publish
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.PublishRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.PublishResponse'
+  /sqlrpc.v1.DatabaseService/PublishBatch:
+    post:
+      tags:
+        - sqlrpc.v1.DatabaseService
+      summary: '*  Publish multiple messages in a single batch.  Provides extreme throughput by grouping writes.'
+      description: |-
+        *
+         Publish multiple messages in a single batch.
+         Provides extreme throughput by grouping writes.
+      operationId: sqlrpc.v1.DatabaseService.PublishBatch
+      parameters:
+        - name: Connect-Protocol-Version
+          in: header
+          required: true
+          schema:
+            $ref: '#/components/schemas/connect-protocol-version'
+        - name: Connect-Timeout-Ms
+          in: header
+          schema:
+            $ref: '#/components/schemas/connect-timeout-header'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/sqlrpc.v1.PublishBatchRequest'
+        required: true
+      responses:
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/connect.error'
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sqlrpc.v1.PublishBatchResponse'
   /sqlrpc.v1.DatabaseService/Query:
     post:
       tags:
@@ -639,6 +718,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/sqlrpc.v1.TransactionControlResponse'
+  /sqlrpc.v1.DatabaseService/Subscribe: {}
   /sqlrpc.v1.DatabaseService/Transaction: {}
   /sqlrpc.v1.DatabaseService/TransactionExec:
     post:
@@ -2093,6 +2173,98 @@ components:
           $ref: '#/components/schemas/google.protobuf.Value'
       title: NamedEntry
       additionalProperties: false
+    sqlrpc.v1.PublishBatchRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/sqlrpc.v1.PublishItem'
+          title: items
+          minItems: 1
+      title: PublishBatchRequest
+      additionalProperties: false
+      description: |-
+        *
+         PublishBatchRequest publishes multiple messages.
+    sqlrpc.v1.PublishBatchResponse:
+      type: object
+      properties:
+        messageIds:
+          type: array
+          items:
+            type:
+              - integer
+              - string
+            format: int64
+          title: message_ids
+      title: PublishBatchResponse
+      additionalProperties: false
+      description: |-
+        *
+         PublishBatchResponse confirms multiple publishes.
+    sqlrpc.v1.PublishItem:
+      type: object
+      properties:
+        channel:
+          type: string
+          title: channel
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_]+$
+        payload:
+          type: string
+          title: payload
+          minLength: 1
+      title: PublishItem
+      additionalProperties: false
+      description: |-
+        *
+         PublishItem represents a single message in a batch.
+    sqlrpc.v1.PublishRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+        channel:
+          type: string
+          title: channel
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_]+$
+        payload:
+          type: string
+          title: payload
+          minLength: 1
+      title: PublishRequest
+      additionalProperties: false
+      description: |-
+        *
+         PublishRequest publishes a single message.
+    sqlrpc.v1.PublishResponse:
+      type: object
+      properties:
+        messageId:
+          type:
+            - integer
+            - string
+          title: message_id
+          format: int64
+      title: PublishResponse
+      additionalProperties: false
+      description: |-
+        *
+         PublishResponse confirms a single publish.
     sqlrpc.v1.QueryComplete:
       type: object
       properties:
@@ -2436,6 +2608,55 @@ components:
       description: |-
         buf:lint:ignore ENUM_VALUE_PREFIX
          buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+    sqlrpc.v1.SubscribeRequest:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+          maxLength: 64
+          minLength: 3
+          pattern: ^[a-zA-Z0-9_-]+$
+        channel:
+          type: string
+          title: channel
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_]+$
+        subscriptionName:
+          type: string
+          title: subscription_name
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9_-]+$
+      title: SubscribeRequest
+      additionalProperties: false
+      description: |-
+        *
+         SubscribeRequest identifies the target channel and consumer.
+    sqlrpc.v1.SubscribeResponse:
+      type: object
+      properties:
+        database:
+          type: string
+          title: database
+        channel:
+          type: string
+          title: channel
+        payload:
+          type: string
+          title: payload
+        messageId:
+          type:
+            - integer
+            - string
+          title: message_id
+          format: int64
+      title: SubscribeResponse
+      additionalProperties: false
+      description: |-
+        *
+         SubscribeResponse delivers a message to a subscriber.
     sqlrpc.v1.TableSchema:
       type: object
       properties:

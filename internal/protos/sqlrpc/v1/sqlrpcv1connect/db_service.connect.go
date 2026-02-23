@@ -119,6 +119,14 @@ const (
 	// DatabaseServiceLoadExtensionProcedure is the fully-qualified name of the DatabaseService's
 	// LoadExtension RPC.
 	DatabaseServiceLoadExtensionProcedure = "/sqlrpc.v1.DatabaseService/LoadExtension"
+	// DatabaseServicePublishProcedure is the fully-qualified name of the DatabaseService's Publish RPC.
+	DatabaseServicePublishProcedure = "/sqlrpc.v1.DatabaseService/Publish"
+	// DatabaseServicePublishBatchProcedure is the fully-qualified name of the DatabaseService's
+	// PublishBatch RPC.
+	DatabaseServicePublishBatchProcedure = "/sqlrpc.v1.DatabaseService/PublishBatch"
+	// DatabaseServiceSubscribeProcedure is the fully-qualified name of the DatabaseService's Subscribe
+	// RPC.
+	DatabaseServiceSubscribeProcedure = "/sqlrpc.v1.DatabaseService/Subscribe"
 )
 
 // DatabaseServiceClient is a client for the sqlrpc.v1.DatabaseService service.
@@ -262,6 +270,19 @@ type DatabaseServiceClient interface {
 	// Extensions: Load.
 	// Dynamically loads a compatible SQLite extension into the target database.
 	LoadExtension(context.Context, *connect.Request[v1.LoadExtensionRequest]) (*connect.Response[v1.LoadExtensionResponse], error)
+	// *
+	// Publish a message to a channel.
+	// Creates the channel implicitly if it does not exist.
+	// Requires ROLE_READ_WRITE or higher.
+	Publish(context.Context, *connect.Request[v1.PublishRequest]) (*connect.Response[v1.PublishResponse], error)
+	// *
+	// Publish multiple messages in a single batch.
+	// Provides extreme throughput by grouping writes.
+	PublishBatch(context.Context, *connect.Request[v1.PublishBatchRequest]) (*connect.Response[v1.PublishBatchResponse], error)
+	// *
+	// Subscribe to a channel for real-time and historical messages.
+	// Uses subscription_name for durable offset tracking.
+	Subscribe(context.Context, *connect.Request[v1.SubscribeRequest]) (*connect.ServerStreamForClient[v1.SubscribeResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the sqlrpc.v1.DatabaseService service. By
@@ -455,6 +476,24 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("LoadExtension")),
 			connect.WithClientOptions(opts...),
 		),
+		publish: connect.NewClient[v1.PublishRequest, v1.PublishResponse](
+			httpClient,
+			baseURL+DatabaseServicePublishProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("Publish")),
+			connect.WithClientOptions(opts...),
+		),
+		publishBatch: connect.NewClient[v1.PublishBatchRequest, v1.PublishBatchResponse](
+			httpClient,
+			baseURL+DatabaseServicePublishBatchProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("PublishBatch")),
+			connect.WithClientOptions(opts...),
+		),
+		subscribe: connect.NewClient[v1.SubscribeRequest, v1.SubscribeResponse](
+			httpClient,
+			baseURL+DatabaseServiceSubscribeProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("Subscribe")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -490,6 +529,9 @@ type databaseServiceClient struct {
 	detachDatabase              *connect.Client[v1.DetachDatabaseRequest, v1.DetachDatabaseResponse]
 	listExtensions              *connect.Client[v1.ListExtensionsRequest, v1.ListExtensionsResponse]
 	loadExtension               *connect.Client[v1.LoadExtensionRequest, v1.LoadExtensionResponse]
+	publish                     *connect.Client[v1.PublishRequest, v1.PublishResponse]
+	publishBatch                *connect.Client[v1.PublishBatchRequest, v1.PublishBatchResponse]
+	subscribe                   *connect.Client[v1.SubscribeRequest, v1.SubscribeResponse]
 }
 
 // Query calls sqlrpc.v1.DatabaseService.Query.
@@ -642,6 +684,21 @@ func (c *databaseServiceClient) LoadExtension(ctx context.Context, req *connect.
 	return c.loadExtension.CallUnary(ctx, req)
 }
 
+// Publish calls sqlrpc.v1.DatabaseService.Publish.
+func (c *databaseServiceClient) Publish(ctx context.Context, req *connect.Request[v1.PublishRequest]) (*connect.Response[v1.PublishResponse], error) {
+	return c.publish.CallUnary(ctx, req)
+}
+
+// PublishBatch calls sqlrpc.v1.DatabaseService.PublishBatch.
+func (c *databaseServiceClient) PublishBatch(ctx context.Context, req *connect.Request[v1.PublishBatchRequest]) (*connect.Response[v1.PublishBatchResponse], error) {
+	return c.publishBatch.CallUnary(ctx, req)
+}
+
+// Subscribe calls sqlrpc.v1.DatabaseService.Subscribe.
+func (c *databaseServiceClient) Subscribe(ctx context.Context, req *connect.Request[v1.SubscribeRequest]) (*connect.ServerStreamForClient[v1.SubscribeResponse], error) {
+	return c.subscribe.CallServerStream(ctx, req)
+}
+
 // DatabaseServiceHandler is an implementation of the sqlrpc.v1.DatabaseService service.
 type DatabaseServiceHandler interface {
 	// *
@@ -783,6 +840,19 @@ type DatabaseServiceHandler interface {
 	// Extensions: Load.
 	// Dynamically loads a compatible SQLite extension into the target database.
 	LoadExtension(context.Context, *connect.Request[v1.LoadExtensionRequest]) (*connect.Response[v1.LoadExtensionResponse], error)
+	// *
+	// Publish a message to a channel.
+	// Creates the channel implicitly if it does not exist.
+	// Requires ROLE_READ_WRITE or higher.
+	Publish(context.Context, *connect.Request[v1.PublishRequest]) (*connect.Response[v1.PublishResponse], error)
+	// *
+	// Publish multiple messages in a single batch.
+	// Provides extreme throughput by grouping writes.
+	PublishBatch(context.Context, *connect.Request[v1.PublishBatchRequest]) (*connect.Response[v1.PublishBatchResponse], error)
+	// *
+	// Subscribe to a channel for real-time and historical messages.
+	// Uses subscription_name for durable offset tracking.
+	Subscribe(context.Context, *connect.Request[v1.SubscribeRequest], *connect.ServerStream[v1.SubscribeResponse]) error
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -972,6 +1042,24 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("LoadExtension")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServicePublishHandler := connect.NewUnaryHandler(
+		DatabaseServicePublishProcedure,
+		svc.Publish,
+		connect.WithSchema(databaseServiceMethods.ByName("Publish")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServicePublishBatchHandler := connect.NewUnaryHandler(
+		DatabaseServicePublishBatchProcedure,
+		svc.PublishBatch,
+		connect.WithSchema(databaseServiceMethods.ByName("PublishBatch")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceSubscribeHandler := connect.NewServerStreamHandler(
+		DatabaseServiceSubscribeProcedure,
+		svc.Subscribe,
+		connect.WithSchema(databaseServiceMethods.ByName("Subscribe")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/sqlrpc.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceQueryProcedure:
@@ -1034,6 +1122,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceListExtensionsHandler.ServeHTTP(w, r)
 		case DatabaseServiceLoadExtensionProcedure:
 			databaseServiceLoadExtensionHandler.ServeHTTP(w, r)
+		case DatabaseServicePublishProcedure:
+			databaseServicePublishHandler.ServeHTTP(w, r)
+		case DatabaseServicePublishBatchProcedure:
+			databaseServicePublishBatchHandler.ServeHTTP(w, r)
+		case DatabaseServiceSubscribeProcedure:
+			databaseServiceSubscribeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1161,4 +1255,16 @@ func (UnimplementedDatabaseServiceHandler) ListExtensions(context.Context, *conn
 
 func (UnimplementedDatabaseServiceHandler) LoadExtension(context.Context, *connect.Request[v1.LoadExtensionRequest]) (*connect.Response[v1.LoadExtensionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("sqlrpc.v1.DatabaseService.LoadExtension is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) Publish(context.Context, *connect.Request[v1.PublishRequest]) (*connect.Response[v1.PublishResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("sqlrpc.v1.DatabaseService.Publish is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) PublishBatch(context.Context, *connect.Request[v1.PublishBatchRequest]) (*connect.Response[v1.PublishBatchResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("sqlrpc.v1.DatabaseService.PublishBatch is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) Subscribe(context.Context, *connect.Request[v1.SubscribeRequest], *connect.ServerStream[v1.SubscribeResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("sqlrpc.v1.DatabaseService.Subscribe is not implemented"))
 }
