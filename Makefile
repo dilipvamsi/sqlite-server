@@ -105,11 +105,11 @@ run-dev: ## Run directly using 'go run' (fast development)
 run-hot-reload: ## Run with hot reload using 'air'
 	@echo "Starting server with hot reload (Air)..."
 	@if command -v air > /dev/null; then \
-		air; \
+		SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 air; \
 	else \
 		echo "Air not found. Installing..."; \
-		go install github.com/air-verse/air@latest; \
-		air; \
+		$(GOCMD) install github.com/air-verse/air@latest; \
+		SQLITE_SERVER_CORS_ORIGIN="http://localhost:4321" SQLITE_SERVER_ADMIN_PASSWORD=admin SQLITE_SERVER_AUTH_ENABLED=true CGO_ENABLED=1 air; \
 	fi
 
 # ==============================================================================

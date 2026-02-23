@@ -13276,7 +13276,8 @@ proto.sqlrpc.v1.SubscribeResponse.toObject = function(includeInstance, msg) {
 database: jspb.Message.getFieldWithDefault(msg, 1, ""),
 channel: jspb.Message.getFieldWithDefault(msg, 2, ""),
 payload: jspb.Message.getFieldWithDefault(msg, 3, ""),
-messageId: jspb.Message.getFieldWithDefault(msg, 4, 0)
+messageId: jspb.Message.getFieldWithDefault(msg, 4, 0),
+createdAt: (f = msg.getCreatedAt()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13328,6 +13329,11 @@ proto.sqlrpc.v1.SubscribeResponse.deserializeBinaryFromReader = function(msg, re
     case 4:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setMessageId(value);
+      break;
+    case 5:
+      var value = new google_protobuf_timestamp_pb.Timestamp;
+      reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
+      msg.setCreatedAt(value);
       break;
     default:
       reader.skipField();
@@ -13384,6 +13390,14 @@ proto.sqlrpc.v1.SubscribeResponse.serializeBinaryToWriter = function(message, wr
     writer.writeInt64(
       4,
       f
+    );
+  }
+  f = message.getCreatedAt();
+  if (f != null) {
+    writer.writeMessage(
+      5,
+      f,
+      google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
     );
   }
 };
@@ -13458,6 +13472,43 @@ proto.sqlrpc.v1.SubscribeResponse.prototype.getMessageId = function() {
  */
 proto.sqlrpc.v1.SubscribeResponse.prototype.setMessageId = function(value) {
   return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional google.protobuf.Timestamp created_at = 5;
+ * @return {?proto.google.protobuf.Timestamp}
+ */
+proto.sqlrpc.v1.SubscribeResponse.prototype.getCreatedAt = function() {
+  return /** @type{?proto.google.protobuf.Timestamp} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_timestamp_pb.Timestamp, 5));
+};
+
+
+/**
+ * @param {?proto.google.protobuf.Timestamp|undefined} value
+ * @return {!proto.sqlrpc.v1.SubscribeResponse} returns this
+*/
+proto.sqlrpc.v1.SubscribeResponse.prototype.setCreatedAt = function(value) {
+  return jspb.Message.setWrapperField(this, 5, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.sqlrpc.v1.SubscribeResponse} returns this
+ */
+proto.sqlrpc.v1.SubscribeResponse.prototype.clearCreatedAt = function() {
+  return this.setCreatedAt(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.sqlrpc.v1.SubscribeResponse.prototype.hasCreatedAt = function() {
+  return jspb.Message.getField(this, 5) != null;
 };
 
 

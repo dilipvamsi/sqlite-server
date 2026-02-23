@@ -1056,4 +1056,5 @@ message SubscribeResponse {
   string channel = 2;
   string payload = 3;
   int64 message_id = 4;
+  google.protobuf.Timestamp created_at = 5;
 }

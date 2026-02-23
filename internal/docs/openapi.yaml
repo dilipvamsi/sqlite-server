@@ -3917,6 +3917,9 @@ components:
             - string
           title: message_id
           format: int64
+        createdAt:
+          title: created_at
+          $ref: '#/components/schemas/google.protobuf.Timestamp'
       title: SubscribeResponse
       additionalProperties: false
       description: "*\n SubscribeResponse delivers a message to a subscriber."

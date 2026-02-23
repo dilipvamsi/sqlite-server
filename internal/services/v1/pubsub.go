@@ -6,8 +6,10 @@ import (
 	"log"
 	sqlrpcv1 "sqlite-server/internal/protos/sqlrpc/v1"
 	"sqlite-server/internal/pubsub"
+	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Publish implements DatabaseService.Publish.
@@ -118,6 +120,7 @@ func (server *DbServer) Subscribe(ctx context.Context, request *connect.Request[
 				Channel:   signalMsg.Channel,
 				Payload:   signalMsg.Payload,
 				MessageId: signalMsg.ID,
+				CreatedAt: timestamppb.New(signalMsg.CreatedAt),
 			})
 			if err != nil {
 				return err
@@ -149,7 +152,7 @@ func (server *DbServer) catchUp(ctx context.Context, databaseName, channelName, 
 	log.Printf("[DEBUG] catchUp: queryRow finished, lastID: %d", lastID)
 
 	log.Printf("[DEBUG] catchUp: queryContext executing")
-	rows, err := server.broker.GetDB().QueryContext(ctx, "SELECT id, channel, payload FROM messages WHERE db_source = ? AND channel = ? AND id > ? ORDER BY id ASC", databaseName, channelName, lastID)
+	rows, err := server.broker.GetDB().QueryContext(ctx, "SELECT id, channel, payload, created_at FROM messages WHERE db_source = ? AND channel = ? AND id > ? ORDER BY id ASC", databaseName, channelName, lastID)
 	if err != nil {
 		log.Printf("[DEBUG] catchUp: queryContext failed: %v", err)
 		return lastID, err
@@ -160,10 +163,12 @@ func (server *DbServer) catchUp(ctx context.Context, databaseName, channelName, 
 	for rows.Next() {
 		var signalMsg sqlrpcv1.SubscribeResponse
 		signalMsg.Database = databaseName
-		err := rows.Scan(&signalMsg.MessageId, &signalMsg.Channel, &signalMsg.Payload)
+		var createdAt time.Time
+		err := rows.Scan(&signalMsg.MessageId, &signalMsg.Channel, &signalMsg.Payload, &createdAt)
 		if err != nil {
 			return lastID, err
 		}
+		signalMsg.CreatedAt = timestamppb.New(createdAt)
 		if err := stream.Send(&signalMsg); err != nil {
 			return lastID, err
 		}

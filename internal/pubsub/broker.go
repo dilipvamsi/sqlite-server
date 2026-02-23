@@ -13,10 +13,11 @@ import (
 // MsgPayload represents the internal structure of a single Pub/Sub message.
 // It maps to the schema of the 'messages' table in the broker database.
 type MsgPayload struct {
-	ID      int64
-	Channel string
-	Payload string
-	DbName  string
+	ID        int64
+	Channel   string
+	Payload   string
+	DbName    string
+	CreatedAt time.Time
 }
 
 // RequestResult is used to pass the result of a batch publish operation
@@ -52,7 +53,7 @@ type Broker struct {
 
 // NewBroker initializes the Pub/Sub broker with a dedicated SQLite database.
 func NewBroker(path string, ttlHours int) (*Broker, error) {
-	database, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_busy_timeout=10000&_journal=WAL", path))
+	database, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_busy_timeout=10000&_journal=WAL&parseTime=true", path))
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func (broker *Broker) flush(batch []*PubRequest) {
 		return
 	}
 	log.Printf("[DEBUG] Transaction started")
-	insertStatement, err := transaction.Prepare("INSERT INTO messages (db_source, channel, payload) VALUES (?, ?, ?)")
+	insertStatement, err := transaction.Prepare("INSERT INTO messages (db_source, channel, payload, created_at) VALUES (?, ?, ?, ?)")
 	if err != nil {
 		log.Printf("[Broker] Failed to prepare statement: %v", err)
 		transaction.Rollback()
@@ -199,7 +200,12 @@ func (broker *Broker) flush(batch []*PubRequest) {
 	for _, req := range batch {
 		ids := make([]int64, 0, len(req.Items))
 		for i := range req.Items {
-			sqlResult, err := insertStatement.Exec(req.DbName, req.Items[i].Channel, req.Items[i].Payload)
+			ca := req.Items[i].CreatedAt
+			if ca.IsZero() {
+				ca = time.Now().UTC()
+				req.Items[i].CreatedAt = ca
+			}
+			sqlResult, err := insertStatement.Exec(req.DbName, req.Items[i].Channel, req.Items[i].Payload, ca.Format("2006-01-02 15:04:05"))
 			if err != nil {
 				log.Printf("[Broker] Failed to exec: %v", err)
 				continue
@@ -224,11 +230,13 @@ func (broker *Broker) flush(batch []*PubRequest) {
 		// MUST be done BEFORE unblocking caller, because the caller will immediately
 		// return `sig.req` to the `sync.Pool`, mutating the `Items` slice.
 		for i, id := range sig.ids {
-			broker.broadcast(sig.req.DbName, sig.req.Items[i].Channel, MsgPayload{
-				ID:      id,
-				Channel: sig.req.Items[i].Channel,
-				Payload: sig.req.Items[i].Payload,
-				DbName:  sig.req.DbName,
+			item := sig.req.Items[i]
+			broker.broadcast(sig.req.DbName, item.Channel, MsgPayload{
+				ID:        id,
+				Channel:   item.Channel,
+				Payload:   item.Payload,
+				DbName:    sig.req.DbName,
+				CreatedAt: item.CreatedAt,
 			})
 		}
 		sig.result.Done <- sig.ids

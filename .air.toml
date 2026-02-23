@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 [build]
   cmd = "make build-dynamic"
   bin = "./bin/sqlite-server.bin"
-  full_bin = "SQLITE_SERVER_CORS_ORIGIN=http://localhost:4321 ./bin/sqlite-server.bin"
+  full_bin = "./bin/sqlite-server.bin"
   include_ext = ["go", "tpl", "tmpl", "html", "css", "js", "sql", "json", "sh"]
   include_dir = ["cmd", "internal"]
   exclude_file = []

@@ -203,10 +203,16 @@ export class SubscriptionManager {
             });
 
             for await (const msg of stream) {
+                let timestamp = Date.now();
+                if (msg.createdAt) {
+                    // Convert google.protobuf.Timestamp to milliseconds
+                    timestamp = Number(msg.createdAt.seconds) * 1000 + Math.floor(msg.createdAt.nanos / 1000000);
+                }
+
                 const receivedMsg: ReceivedMessage = {
                     id: msg.messageId.toString(),
                     payload: msg.payload,
-                    timestamp: Date.now()
+                    timestamp: timestamp
                 };
                 this.messages.unshift(receivedMsg); // Newest first
                 if (this.messages.length > 1000) this.messages.pop(); // Limit history

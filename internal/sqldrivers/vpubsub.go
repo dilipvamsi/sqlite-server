@@ -9,6 +9,7 @@ import (
 	"io"
 	"runtime"
 	"sqlite-server/internal/pubsub"
+	"time"
 
 	"github.com/mattn/go-sqlite3"
 )
@@ -34,7 +35,7 @@ func registerVPubSub(conn *sqlite3.SQLiteConn, databaseName string) {
 
 func (vtabModule *vpubsubModule) Create(sqliteConn *sqlite3.SQLiteConn, args []string) (sqlite3.VTab, error) {
 	if sqliteConn != nil {
-		err := sqliteConn.DeclareVTab("CREATE TABLE x(id INTEGER PRIMARY KEY, channel TEXT, payload TEXT)")
+		err := sqliteConn.DeclareVTab("CREATE TABLE x(id INTEGER PRIMARY KEY, channel TEXT, payload TEXT, created_at TEXT)")
 		if err != nil {
 			return nil, err
 		}
@@ -130,6 +131,22 @@ func (vtab *vpubsubTable) Insert(id any, queryValues []any) (int64, error) {
 
 	msg := pubsub.MsgPayload{Channel: channelName, Payload: messagePayload}
 
+	// Optional created_at (index 3)
+	if len(queryValues) >= 4 && queryValues[3] != nil {
+		if caStr, ok := queryValues[3].(string); ok && caStr != "" {
+			// RFC3339 or simple date strings usually work.
+			// SQLite CURRENT_TIMESTAMP is "YYYY-MM-DD HH:MM:SS"
+			t, err := time.Parse("2006-01-02 15:04:05", caStr)
+			if err != nil {
+				// Try RFC3339
+				t, err = time.Parse(time.RFC3339, caStr)
+			}
+			if err == nil {
+				msg.CreatedAt = t
+			}
+		}
+	}
+
 	if vtab.isTransactionActive {
 		vtab.pendingMessages = append(vtab.pendingMessages, msg)
 		// Sync limit to prevent excessive memory usage during massive bulk inserts
@@ -176,7 +193,7 @@ type vpubsubCursor struct {
 // against the centralized broker database using standard SQL.
 func (vtabCursor *vpubsubCursor) Filter(idxNum int, idxStr string, vals []any) error {
 	// Simple scan of all messages for this database from the broker DB.
-	rows, err := vtabCursor.vtab.broker.GetDB().Query("SELECT id, channel, payload FROM messages WHERE db_source = ? ORDER BY id ASC", vtabCursor.vtab.databaseName)
+	rows, err := vtabCursor.vtab.broker.GetDB().Query("SELECT id, channel, payload, created_at FROM messages WHERE db_source = ? ORDER BY id ASC", vtabCursor.vtab.databaseName)
 	if err != nil {
 		return err
 	}
@@ -187,7 +204,7 @@ func (vtabCursor *vpubsubCursor) Filter(idxNum int, idxStr string, vals []any) e
 
 func (vtabCursor *vpubsubCursor) Next() error {
 	if vtabCursor.sqlRows.Next() {
-		return vtabCursor.sqlRows.Scan(&vtabCursor.currentMsg.ID, &vtabCursor.currentMsg.Channel, &vtabCursor.currentMsg.Payload)
+		return vtabCursor.sqlRows.Scan(&vtabCursor.currentMsg.ID, &vtabCursor.currentMsg.Channel, &vtabCursor.currentMsg.Payload, &vtabCursor.currentMsg.CreatedAt)
 	}
 	vtabCursor.isEOF = true
 	vtabCursor.queryError = vtabCursor.sqlRows.Err()
@@ -209,6 +226,8 @@ func (vtabCursor *vpubsubCursor) Column(c *sqlite3.SQLiteContext, col int) error
 		c.ResultText(vtabCursor.currentMsg.Channel)
 	case 2:
 		c.ResultText(vtabCursor.currentMsg.Payload)
+	case 3:
+		c.ResultText(vtabCursor.currentMsg.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
 	return nil
 }
