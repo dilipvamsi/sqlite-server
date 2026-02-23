@@ -1,6 +1,7 @@
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import type { GenService } from "@bufbuild/protobuf/codegenv1";
+import { Role } from "../gen/sqlrpc/v1/enums_pb";
 
 /**
  * Creates a Connect transport that points to the Go backend.
@@ -141,8 +142,7 @@ export async function performLogout() {
  */
 export function isAdmin(): boolean {
     const role = localStorage.getItem("userRole");
-    // ROLE_ADMIN is 1
-    return role === "1";
+    return role === Role.ADMIN.toString();
 }
 
 /**
@@ -150,8 +150,7 @@ export function isAdmin(): boolean {
  */
 export function isDatabaseManager(): boolean {
     const role = localStorage.getItem("userRole");
-    // ROLE_DATABASE_MANAGER is 4
-    return role === "4";
+    return role === Role.DATABASE_MANAGER.toString();
 }
 
 /**
@@ -192,7 +191,7 @@ export async function initServerStatus() {
                 console.log("[DEBUG] Auto-injecting anonymous admin session");
                 localStorage.setItem(AUTH_KEY, "no-auth");
                 localStorage.setItem(AUTH_USER, "anonymous-admin");
-                localStorage.setItem("userRole", "1"); // Admin role
+                localStorage.setItem("userRole", Role.ADMIN.toString());
             }
         } else {
             localStorage.setItem(SERVER_STATUS_KEY, "auth-enabled");

@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
+import { Role } from "../gen/sqlrpc/v1/enums_pb";
 ---
 
 <Layout title="User Management">
@@ -297,10 +298,12 @@ import Header from "../components/Header.astro";
                     <div class="form-group">
                         <label>Role</label>
                         <select name="role">
-                            <option value="3">Viewer</option>
-                            <option value="2">Editor</option>
-                            <option value="4">DB Admin</option>
-                            <option value="1">Admin</option>
+                            <option value={Role.READ_ONLY}>Viewer</option>
+                            <option value={Role.READ_WRITE}>Editor</option>
+                            <option value={Role.DATABASE_MANAGER}
+                                >DB Admin</option
+                            >
+                            <option value={Role.ADMIN}>Admin</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -349,34 +352,35 @@ import Header from "../components/Header.astro";
         } from "../lib/client";
         import { AdminService } from "../gen/sqlrpc/v1/admin_service_pb";
         import type { User } from "../gen/sqlrpc/v1/types_pb";
+        import { Role } from "../gen/sqlrpc/v1/enums_pb";
 
         const userRole = parseInt(localStorage.getItem("userRole") || "0");
         const username = localStorage.getItem(AUTH_USER);
         const authToken = getAuthToken();
 
         const ROLE_CONFIG = {
-            1: {
+            [Role.ADMIN]: {
                 label: "Admin",
                 badge: "rgba(192, 132, 252, 0.1)",
                 border: "rgba(192, 132, 252, 0.4)",
                 color: "#c084fc",
                 icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
             },
-            2: {
+            [Role.READ_WRITE]: {
                 label: "Editor",
                 badge: "rgba(96, 165, 250, 0.1)",
                 border: "rgba(96, 165, 250, 0.4)",
                 color: "#60a5fa",
                 icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
             },
-            3: {
+            [Role.READ_ONLY]: {
                 label: "Viewer",
                 badge: "rgba(74, 222, 128, 0.1)",
                 border: "rgba(74, 222, 128, 0.4)",
                 color: "#4ade80",
                 icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z",
             },
-            4: {
+            [Role.DATABASE_MANAGER]: {
                 label: "DB Admin",
                 badge: "rgba(251, 191, 36, 0.1)",
                 border: "rgba(251, 191, 36, 0.4)",
@@ -386,7 +390,7 @@ import Header from "../components/Header.astro";
         };
 
         const fetchUsers = async () => {
-            if (userRole !== 1) return;
+            if (userRole !== Role.ADMIN) return;
             try {
                 const client = getClient(AdminService);
                 const headers = getAuthHeaders();
@@ -408,25 +412,27 @@ import Header from "../components/Header.astro";
             if (statTotal) statTotal.innerText = users.length.toString();
             if (statAdmins)
                 statAdmins.innerText = users
-                    .filter((u) => u.role === 1)
+                    .filter((u) => u.role === Role.ADMIN)
                     .length.toString();
             if (statEditors)
                 statEditors.innerText = users
-                    .filter((u) => u.role === 2)
+                    .filter((u) => u.role === Role.READ_WRITE)
                     .length.toString();
             if (statViewers)
                 statViewers.innerText = users
-                    .filter((u) => u.role === 3)
+                    .filter((u) => u.role === Role.READ_ONLY)
                     .length.toString();
             if (statDbManagers)
                 statDbManagers.innerText = users
-                    .filter((u) => u.role === 4)
+                    .filter((u) => u.role === Role.DATABASE_MANAGER)
                     .length.toString();
 
             if (!body) return;
             body.innerHTML = users
                 .map((u) => {
-                    const conf = (ROLE_CONFIG as any)[u.role] || ROLE_CONFIG[3];
+                    const conf =
+                        (ROLE_CONFIG as any)[u.role] ||
+                        ROLE_CONFIG[Role.READ_ONLY];
                     const rowStyle = `border-bottom: 1px dashed rgba(255,255,255,0.1); vertical-align: middle; padding: 1.5rem;`;
                     return `
                 <tr class="hover-row">
@@ -454,7 +460,7 @@ import Header from "../components/Header.astro";
             linkManageSelfHeader.href = `/studio/manage-user?username=${username}`;
         }
 
-        if (authToken && userRole === 1) {
+        if (authToken && userRole === Role.ADMIN) {
             const adminSection = document.getElementById("admin-section");
             const adminStatsContainer = document.getElementById(
                 "admin-stats-container",

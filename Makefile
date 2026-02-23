@@ -121,9 +121,10 @@ gen-proto: ## Generate Go code from .proto files using buf
 	@echo "Generating Protobuf code..."
 	buf generate
 	@echo "Enriching OpenAPI spec..."
-	@if [ -f internal/docs/db/v1/db_service.openapi.yaml ]; then \
-		mv internal/docs/db/v1/db_service.openapi.yaml internal/docs/openapi.yaml; \
-		rm -rf internal/docs/db; \
+	@if [ -d internal/docs/sqlrpc/v1 ]; then \
+		echo "Merging OpenAPI specs..."; \
+		yq -y -s 'reduce .[] as $$item ({}; . * $$item)' internal/docs/sqlrpc/v1/*.openapi.yaml > internal/docs/openapi.yaml; \
+		rm -rf internal/docs/sqlrpc; \
 		go run scripts/enrich-openapi/main.go internal/docs/openapi.yaml; \
 	fi
 

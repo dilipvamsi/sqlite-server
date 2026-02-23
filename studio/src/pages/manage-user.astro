@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
+import { Role } from "../gen/sqlrpc/v1/enums_pb";
 ---
 
 <Layout title="Manage User">
@@ -24,10 +25,12 @@ import Header from "../components/Header.astro";
                     <div class="form-group">
                         <label for="update-role-select">New Role</label>
                         <select id="update-role-select" name="role">
-                            <option value="3">Read Only</option>
-                            <option value="2">Read/Write</option>
-                            <option value="4">DB Admin</option>
-                            <option value="1">Admin</option>
+                            <option value={Role.READ_ONLY}>Read Only</option>
+                            <option value={Role.READ_WRITE}>Read/Write</option>
+                            <option value={Role.DATABASE_MANAGER}
+                                >DB Admin</option
+                            >
+                            <option value={Role.ADMIN}>Admin</option>
                         </select>
                     </div>
                     <button type="submit" class="btn btn-primary"
@@ -193,6 +196,7 @@ import Header from "../components/Header.astro";
         isAdmin,
     } from "../lib/client";
     import { AdminService } from "../gen/sqlrpc/v1/admin_service_pb";
+    import { Role } from "../gen/sqlrpc/v1/enums_pb";
 
     // Session info
     const loggedInUser =
@@ -253,7 +257,7 @@ import Header from "../components/Header.astro";
 
         // Show Role card only if logged-in user is Admin AND is not managing themselves
         if (
-            loggedInUserRole === 1 &&
+            loggedInUserRole === Role.ADMIN &&
             els.cardRole &&
             loggedInUser !== username
         ) {
@@ -360,7 +364,7 @@ import Header from "../components/Header.astro";
                 expiresAt = { seconds, nanos: 0 };
             }
 
-            const response = await client.createApiKey(
+            const response = await client.createAPIKey(
                 { username: username || undefined, name, expiresAt },
                 { headers },
             );
@@ -393,7 +397,7 @@ import Header from "../components/Header.astro";
                     '<div class="loading">Loading keys...</div>';
             const client = getClient(AdminService);
             const headers = getAuthHeaders();
-            const response = await client.listApiKeys(
+            const response = await client.listAPIKeys(
                 { username: username || undefined },
                 { headers },
             );
@@ -457,7 +461,7 @@ import Header from "../components/Header.astro";
         try {
             const client = getClient(AdminService);
             const headers = getAuthHeaders();
-            await client.revokeApiKey(
+            await client.deleteAPIKey(
                 {
                     keyId,
                     username: (isAdmin() ? username : loggedInUser) || "",

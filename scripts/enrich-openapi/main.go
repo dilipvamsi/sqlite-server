@@ -23,17 +23,17 @@ func main() {
 	var result []string
 
 	extraInfo := `  description: |
-    SQLite Server is a production-ready, multi-database SQL engine.
+      SQLite Server is a production-ready, multi-database SQL engine.
 
-    ## Authentication
-    Most endpoints require authentication via Bearer token (API Key) or Basic Auth.
+      ## Authentication
+      Most endpoints require authentication via Bearer token (API Key) or Basic Auth.
 
-    **To authenticate:**
-    1. Use the /db.v1.AdminService/Login endpoint with username/password
-    2. Copy the apiKey from the response
-    3. Click "Authorize" above and enter your API key
+      **To authenticate:**
+      1. Use the /sqlrpc.v1.AdminService/Login endpoint with username/password
+      2. Copy the apiKey from the response
+      3. Click "Authorize" above and enter your API key
 
-    **Format:** Bearer sk_... (include the Bearer prefix)
+      **Format:** Bearer sk_... (include the Bearer prefix)
   version: "1.0.0"
   contact:
     name: SQLite Server`
@@ -53,35 +53,38 @@ func main() {
   - bearerAuth: []
   - basicAuth: []`
 
+	seenDatabaseService := false
+	seenAdminService := false
 	skipDescription := false
+	skipTagsDescription := false
 	for _, line := range lines {
-		// Replace title
+		// Replace title and inject description
 		if strings.HasPrefix(line, "  title: db.v1") || strings.HasPrefix(line, "  title: sqlrpc.v1") {
-			result = append(result, "  title: SQLite Server API")
+			result = append(result, "  title: SQLite Server")
 			result = append(result, extraInfo)
 			skipDescription = true
 			continue
 		}
 
-		if skipDescription && strings.HasPrefix(line, "  description: |") {
-			continue
-		}
-		if skipDescription && strings.HasPrefix(line, "    ") {
-			continue
-		}
-		if skipDescription && line == "" {
-			continue
-		}
 		if skipDescription {
+			if strings.HasPrefix(line, "  description:") {
+				continue
+			}
+			if strings.HasPrefix(line, "    ") {
+				continue
+			}
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
 			skipDescription = false
 		}
 
-		// Inject global security after info
-		if strings.HasPrefix(line, "paths:") {
+		// Inject global security before paths
+		if strings.HasPrefix(line, "paths:") && !strings.Contains(string(content), "security:") {
 			result = append(result, globalSecurity)
 		}
 
-		// Remove the empty security: [] if present
+		// Remove existing security: [] if present
 		if strings.TrimSpace(line) == "security: []" {
 			continue
 		}
@@ -89,23 +92,70 @@ func main() {
 		// Inject securitySchemes into components
 		if strings.TrimSpace(line) == "components:" {
 			result = append(result, line)
-			result = append(result, securitySchemes)
+			if !strings.Contains(string(content), "securitySchemes:") {
+				result = append(result, securitySchemes)
+			}
 			continue
+		}
+
+		// Metadata tracking and cleanup
+		if strings.HasPrefix(line, "  - name: DatabaseService") {
+			seenDatabaseService = true
+		}
+		if strings.HasPrefix(line, "  - name: AdminService") {
+			seenAdminService = true
 		}
 
 		// Cleanup tags (simplified tags)
 		if strings.HasPrefix(line, "  - name: db.v1.DatabaseService") || strings.HasPrefix(line, "  - name: sqlrpc.v1.DatabaseService") {
-			result = append(result, "  - name: db.v1.DatabaseService")
-			result = append(result, "    description: Database operations including queries and transactions")
+			if !seenDatabaseService {
+				result = append(result, "  - name: DatabaseService")
+				result = append(result, "    description: Database operations including queries and transactions")
+				seenDatabaseService = true
+			}
+			skipTagsDescription = true
 			continue
 		}
 		if strings.HasPrefix(line, "  - name: db.v1.AdminService") || strings.HasPrefix(line, "  - name: sqlrpc.v1.AdminService") {
-			result = append(result, "  - name: db.v1.AdminService")
-			result = append(result, "    description: Administrative operations for user management and system configuration")
+			if !seenAdminService {
+				result = append(result, "  - name: AdminService")
+				result = append(result, "    description: Administrative operations for user management and system configuration")
+				seenAdminService = true
+			}
+			skipTagsDescription = true
 			continue
 		}
 
+		if skipTagsDescription {
+			if strings.HasPrefix(line, "    description:") || strings.HasPrefix(line, "      ") {
+				continue
+			}
+			skipTagsDescription = false
+		}
+
 		result = append(result, line)
+	}
+
+	// Ensure all tags are present
+	if !seenDatabaseService || !seenAdminService {
+		hasTags := false
+		for _, r := range result {
+			if strings.TrimSpace(r) == "tags:" {
+				hasTags = true
+				break
+			}
+		}
+		if !hasTags {
+			result = append(result, "tags:")
+		}
+		if !seenDatabaseService {
+			result = append(result, "  - name: DatabaseService")
+			result = append(result, "    description: Database operations including queries and transactions")
+		}
+		if !seenAdminService {
+			result = append(result, "  - name: AdminService")
+			result = append(result, "    description: Administrative operations for user management and system configuration")
+		}
 	}
 
 	err = os.WriteFile(path, []byte(strings.Join(result, "\n")), 0644)
