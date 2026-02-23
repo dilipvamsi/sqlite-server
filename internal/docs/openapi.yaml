@@ -13,14 +13,14 @@ info:
       3. Click "Authorize" above and enter your API key
 
       **Format:** Bearer sk_... (include the Bearer prefix)
-  version: "1.0.0"
+  version: "0.2.0"
   contact:
     name: SQLite Server
 paths:
   /sqlrpc.v1.AdminService/CreateAPIKey:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  API Key Management: Create.  Provisions a new secure API key for
         authentication.'
       description: "*\n API Key Management: Create.\n Provisions a new secure API\
@@ -58,7 +58,7 @@ paths:
   /sqlrpc.v1.AdminService/CreateDatabase:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Database Lifecycle: Create.  Provisions a new, isolated SQLite
         database for a tenant.'
       description: "*\n Database Lifecycle: Create.\n Provisions a new, isolated SQLite\
@@ -96,7 +96,7 @@ paths:
   /sqlrpc.v1.AdminService/CreateUser:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  User Management: Create.  Provisions a new user identity in the
         platform.'
       description: "*\n User Management: Create.\n Provisions a new user identity\
@@ -134,7 +134,7 @@ paths:
   /sqlrpc.v1.AdminService/DeleteAPIKey:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  API Key Management: Delete.  Revokes a specific API key immediately.'
       description: "*\n API Key Management: Delete.\n Revokes a specific API key immediately."
       operationId: sqlrpc.v1.AdminService.DeleteAPIKey
@@ -170,7 +170,7 @@ paths:
   /sqlrpc.v1.AdminService/DeleteDatabase:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Database Lifecycle: Delete.  Permanently removes the database file
         and its tenant registration.'
       description: "*\n Database Lifecycle: Delete.\n Permanently removes the database\
@@ -208,7 +208,7 @@ paths:
   /sqlrpc.v1.AdminService/DeleteUser:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  User Management: Delete.  Permanently removes a user and invalidates
         all their associated API keys.'
       description: "*\n User Management: Delete.\n Permanently removes a user and\
@@ -246,7 +246,7 @@ paths:
   /sqlrpc.v1.AdminService/GetServerInfo:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Platform Info.  Returns global system metadata, versioning, and
         status.'
       description: "*\n Platform Info.\n Returns global system metadata, versioning,\
@@ -284,7 +284,7 @@ paths:
   /sqlrpc.v1.AdminService/ListAPIKeys:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  API Key Management: List.  Returns all active API keys for a specific
         user.'
       description: "*\n API Key Management: List.\n Returns all active API keys for\
@@ -322,7 +322,7 @@ paths:
   /sqlrpc.v1.AdminService/ListDatabases:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Database Lifecycle: List.  Returns all managed tenant databases
         in the platform.'
       description: "*\n Database Lifecycle: List.\n Returns all managed tenant databases\
@@ -360,7 +360,7 @@ paths:
   /sqlrpc.v1.AdminService/ListUsers:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  User Management: List.  Returns all system users and their assigned
         roles.'
       description: "*\n User Management: List.\n Returns all system users and their\
@@ -398,7 +398,7 @@ paths:
   /sqlrpc.v1.AdminService/Login:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Authentication: Login.  Authenticates credentials and yields a
         session token/API key.'
       description: "*\n Authentication: Login.\n Authenticates credentials and yields\
@@ -436,7 +436,7 @@ paths:
   /sqlrpc.v1.AdminService/Logout:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Authentication: Logout.  Terminates the active session.'
       description: "*\n Authentication: Logout.\n Terminates the active session."
       operationId: sqlrpc.v1.AdminService.Logout
@@ -472,7 +472,7 @@ paths:
   /sqlrpc.v1.AdminService/MountDatabase:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Database Lifecycle: Mount existing.  Registers and attaches an
         existing SQLite file into the platform.'
       description: "*\n Database Lifecycle: Mount existing.\n Registers and attaches\
@@ -510,7 +510,7 @@ paths:
   /sqlrpc.v1.AdminService/UnMountDatabase:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Database Lifecycle: Unmount.  Gently removes an active database
         from the platform without deleting the  file.'
       description: "*\n Database Lifecycle: Unmount.\n Gently removes an active database\
@@ -548,7 +548,7 @@ paths:
   /sqlrpc.v1.AdminService/UpdateDatabase:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  Database Lifecycle: Update.  Modifies non-destructive configuration
         for an existing tenant.'
       description: "*\n Database Lifecycle: Update.\n Modifies non-destructive configuration\
@@ -586,7 +586,7 @@ paths:
   /sqlrpc.v1.AdminService/UpdatePassword:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  User Management: Update Password.  Enables a user to modify their
         own credential or an admin to reset it.'
       description: "*\n User Management: Update Password.\n Enables a user to modify\
@@ -624,7 +624,7 @@ paths:
   /sqlrpc.v1.AdminService/UpdateUserRole:
     post:
       tags:
-        - sqlrpc.v1.AdminService
+        - AdminService
       summary: '*  User Management: Update Role.  Modifies the RBAC tier for an existing
         user.'
       description: "*\n User Management: Update Role.\n Modifies the RBAC tier for\
@@ -662,7 +662,7 @@ paths:
   /sqlrpc.v1.DatabaseService/AttachDatabase:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Maintenance: Attach Database.  Dynamically mounts a secondary database
         into the current tenant''s namespace  context.'
       description: "*\n Maintenance: Attach Database.\n Dynamically mounts a secondary\
@@ -700,7 +700,7 @@ paths:
   /sqlrpc.v1.DatabaseService/BeginTransaction:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Transaction Control.  Acquires an active connection from the global
         shared LRU pool based on the  user''s role (RO vs RW).'
       description: "*\n Transaction Control.\n Acquires an active connection from\
@@ -738,7 +738,7 @@ paths:
   /sqlrpc.v1.DatabaseService/Checkpoint:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Maintenance: Checkpoint.  Synchronizes the write-ahead log (WAL)
         with the main database file.'
       description: "*\n Maintenance: Checkpoint.\n Synchronizes the write-ahead log\
@@ -776,7 +776,7 @@ paths:
   /sqlrpc.v1.DatabaseService/CommitTransaction:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Transaction Commit.  Commits an active Unary ID-Based transaction
         and releases the connection  back to the shared LRU pool.'
       description: "*\n Transaction Commit.\n Commits an active Unary ID-Based transaction\
@@ -814,7 +814,7 @@ paths:
   /sqlrpc.v1.DatabaseService/DetachDatabase:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Maintenance: Detach Database.  Safely detaches a previously attached
         secondary database from the active  context.'
       description: "*\n Maintenance: Detach Database.\n Safely detaches a previously\
@@ -852,7 +852,7 @@ paths:
   /sqlrpc.v1.DatabaseService/Exec:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Write Endpoint (Unary DML).  Uses the global shared LRU connection
         pool, strictly routing to a  Read-Write connection. Denied for ROLE_READ_ONLY.'
       description: "*\n Write Endpoint (Unary DML).\n Uses the global shared LRU connection\
@@ -890,7 +890,7 @@ paths:
   /sqlrpc.v1.DatabaseService/ExecuteTransaction:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Atomic Script Execution.  Executes a predefined sequence of queries
         within a single transaction  atomically. Handled completely server-side to
         minimize network latency  between statements.'
@@ -930,7 +930,7 @@ paths:
   /sqlrpc.v1.DatabaseService/Explain:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Introspection: Query Plan Explanation.  Returns the EXPLAIN QUERY
         PLAN breakdown for a given statement without  running the statement itself.'
       description: "*\n Introspection: Query Plan Explanation.\n Returns the EXPLAIN\
@@ -969,7 +969,7 @@ paths:
   /sqlrpc.v1.DatabaseService/GetDatabaseSchema:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Database Introspection: Get Database Schema.  Returns the structural
         schema definitions for the entire underlying  database.'
       description: "*\n Database Introspection: Get Database Schema.\n Returns the\
@@ -1007,7 +1007,7 @@ paths:
   /sqlrpc.v1.DatabaseService/GetTableSchema:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Database Introspection: Get Table Schema.  Returns the structural
         schema definitions for a specific table.'
       description: "*\n Database Introspection: Get Table Schema.\n Returns the structural\
@@ -1045,7 +1045,7 @@ paths:
   /sqlrpc.v1.DatabaseService/IntegrityCheck:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Maintenance: Integrity Check.  Runs PRAGMA integrity_check to scan
         for out-of-order records, missing  pages, or corruption.'
       description: "*\n Maintenance: Integrity Check.\n Runs PRAGMA integrity_check\
@@ -1083,7 +1083,7 @@ paths:
   /sqlrpc.v1.DatabaseService/ListExtensions:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Extensions: List.  Returns a catalog of available and loaded SQLite
         extensions.'
       description: "*\n Extensions: List.\n Returns a catalog of available and loaded\
@@ -1121,7 +1121,7 @@ paths:
   /sqlrpc.v1.DatabaseService/ListTables:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Database Introspection: List Tables.  Returns a list of all table
         names currently present in the target database.'
       description: "*\n Database Introspection: List Tables.\n Returns a list of all\
@@ -1159,7 +1159,7 @@ paths:
   /sqlrpc.v1.DatabaseService/LoadExtension:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Extensions: Load.  Dynamically loads a compatible SQLite extension
         into the target database.'
       description: "*\n Extensions: Load.\n Dynamically loads a compatible SQLite\
@@ -1197,7 +1197,7 @@ paths:
   /sqlrpc.v1.DatabaseService/Publish:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Publish a message to a channel.  Creates the channel implicitly
         if it does not exist.  Requires ROLE_READ_WRITE or higher.'
       description: "*\n Publish a message to a channel.\n Creates the channel implicitly\
@@ -1235,7 +1235,7 @@ paths:
   /sqlrpc.v1.DatabaseService/PublishBatch:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Publish multiple messages in a single batch.  Provides extreme
         throughput by grouping writes.'
       description: "*\n Publish multiple messages in a single batch.\n Provides extreme\
@@ -1273,7 +1273,7 @@ paths:
   /sqlrpc.v1.DatabaseService/Query:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Read Endpoint (Unary).  Uses the global shared LRU connection pool,
         routing to a Read-Only  connection for ROLE_READ_ONLY users.'
       description: "*\n Read Endpoint (Unary).\n Uses the global shared LRU connection\
@@ -1312,7 +1312,7 @@ paths:
   /sqlrpc.v1.DatabaseService/RollbackTransaction:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Transaction Rollback.  Rolls back an active Unary ID-Based transaction
         and releases the connection  back to the shared LRU pool.'
       description: "*\n Transaction Rollback.\n Rolls back an active Unary ID-Based\
@@ -1352,7 +1352,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TransactionExec:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Write Endpoint within a Transaction.  Fails if the underlying transaction
         connection is Read-Only.'
       description: "*\n Write Endpoint within a Transaction.\n Fails if the underlying\
@@ -1390,7 +1390,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TransactionQuery:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Read Endpoint within a Transaction.  Inherits the active transaction
         context tied to the shared LRU connection  pool.'
       description: "*\n Read Endpoint within a Transaction.\n Inherits the active\
@@ -1429,7 +1429,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TransactionSavepoint:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Savepoint Control within a Transaction.  Enables nested transaction
         boundaries (SAVEPOINT, RELEASE, ROLLBACK TO)  within an active Unary ID-Based
         transaction.'
@@ -1469,7 +1469,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TypedExec:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Typed Write Endpoint (Unary DML).  Uses the global shared LRU connection
         pool, strictly routing to a  Read-Write connection.'
       description: "*\n Typed Write Endpoint (Unary DML).\n Uses the global shared\
@@ -1507,7 +1507,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TypedExplain:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Typed Introspection: Query Plan Explanation.  Provides the EXPLAIN
         QUERY PLAN breakdown using strictly-typed parameters.'
       description: "*\n Typed Introspection: Query Plan Explanation.\n Provides the\
@@ -1545,7 +1545,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TypedQuery:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Typed Read Endpoint (Unary).  Automatically routed to a Read-Only
         replica connection for ROLE_READ_ONLY  users.'
       description: "*\n Typed Read Endpoint (Unary).\n Automatically routed to a Read-Only\
@@ -1584,7 +1584,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TypedTransactionExec:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Typed Write Endpoint within a Transaction.  Denied on Read-Only
         transactions.'
       description: "*\n Typed Write Endpoint within a Transaction.\n Denied on Read-Only\
@@ -1622,7 +1622,7 @@ paths:
   /sqlrpc.v1.DatabaseService/TypedTransactionQuery:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Typed Read Endpoint within a Transaction.'
       description: "*\n Typed Read Endpoint within a Transaction."
       operationId: sqlrpc.v1.DatabaseService.TypedTransactionQuery
@@ -1659,7 +1659,7 @@ paths:
   /sqlrpc.v1.DatabaseService/Vacuum:
     post:
       tags:
-        - sqlrpc.v1.DatabaseService
+        - DatabaseService
       summary: '*  Maintenance: Vacuum.  Rebuilds the database file, repacking it
         into a minimal amount of disk  space.'
       description: "*\n Maintenance: Vacuum.\n Rebuilds the database file, repacking\

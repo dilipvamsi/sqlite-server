@@ -22,7 +22,20 @@ func main() {
 	lines := strings.Split(string(content), "\n")
 	var result []string
 
-	extraInfo := `  description: |
+	// Read version from core server file
+	version := "1.0.0" // Default
+	versionData, err := os.ReadFile("internal/server/VERSION")
+	if err == nil {
+		version = strings.TrimSpace(string(versionData))
+	} else {
+		// Try other relative path if run from different dir
+		versionData, err = os.ReadFile("../../internal/server/VERSION")
+		if err == nil {
+			version = strings.TrimSpace(string(versionData))
+		}
+	}
+
+	extraInfoTemplate := `  description: |
       SQLite Server is a production-ready, multi-database SQL engine.
 
       ## Authentication
@@ -34,9 +47,10 @@ func main() {
       3. Click "Authorize" above and enter your API key
 
       **Format:** Bearer sk_... (include the Bearer prefix)
-  version: "1.0.0"
+  version: "%s"
   contact:
     name: SQLite Server`
+	extraInfo := fmt.Sprintf(extraInfoTemplate, version)
 
 	securitySchemes := `  securitySchemes:
     bearerAuth:
@@ -131,6 +145,16 @@ func main() {
 				continue
 			}
 			skipTagsDescription = false
+		}
+
+		// Simplify endpoint-level tags
+		if strings.TrimSpace(line) == "- sqlrpc.v1.DatabaseService" || strings.TrimSpace(line) == "- db.v1.DatabaseService" {
+			line = strings.Replace(line, "sqlrpc.v1.DatabaseService", "DatabaseService", 1)
+			line = strings.Replace(line, "db.v1.DatabaseService", "DatabaseService", 1)
+		}
+		if strings.TrimSpace(line) == "- sqlrpc.v1.AdminService" || strings.TrimSpace(line) == "- db.v1.AdminService" {
+			line = strings.Replace(line, "sqlrpc.v1.AdminService", "AdminService", 1)
+			line = strings.Replace(line, "db.v1.AdminService", "AdminService", 1)
 		}
 
 		result = append(result, line)
